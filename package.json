@@ -10,10 +10,11 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "lint": "oxlint .",
-    "format:check": "oxlint --fix --dry-run ."
+    "format:check": "oxlint --fix --dry-run .",
+    "fmt": "oxlint --fix ."
   },
   "dependencies": {
-    "astro": "^5.0.0"
+    "astro": "^7.4.2"
   },
   "devDependencies": {
     "@oxc-parser/wasm": "^0.60.0",
