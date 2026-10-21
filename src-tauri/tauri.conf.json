@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "工時番茄鐘",
-  "mainBinaryName": "worktime-pomodoro",
+  "productName": "what are you doing",
+  "mainBinaryName": "what-are-you-doing",
   "version": "0.1.0",
   "identifier": "com.worktime.pomodoro",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "工時番茄鐘",
+        "title": "what are you doing",
         "width": 800,
         "height": 600,
         "resizable": true,

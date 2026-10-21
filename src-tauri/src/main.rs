@@ -200,7 +200,7 @@ fn setup_system_tray(app: &mut tauri::App) -> Result<()> {
 
     let _tray = TrayIconBuilder::new()
         .menu(&menu)
-        .tooltip("工時番茄鐘")
+        .tooltip("what are you doing")
         .on_menu_event(|app, event| {
             handle_tray_event(app, event.id().as_ref());
         })
@@ -280,7 +280,7 @@ fn open_window(app: &AppHandle, label: &str, url: &str, width: u32, height: u32)
     }
 
     WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
-        .title("工時番茄鐘")
+        .title("what are you doing")
         .inner_size(width as f64, height as f64)
         .resizable(true)
         .center()

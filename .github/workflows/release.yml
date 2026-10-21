@@ -103,8 +103,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./src-tauri/target/release/bundle/appimage/worktime-pomodoro_0.1.0_amd64.AppImage
-          asset_name: worktime-pomodoro-${{ matrix.rust_target }}.AppImage
+          asset_path: ./src-tauri/target/release/bundle/appimage/what-are-you-doing_0.1.0_amd64.AppImage
+          asset_name: what-are-you-doing-${{ matrix.rust_target }}.AppImage
           asset_content_type: application/octet-stream
       
       - name: Upload Release Assets (Windows)
@@ -114,8 +114,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./src-tauri/target/release/bundle/msi/worktime-pomodoro_0.1.0_x64_en-US.msi
-          asset_name: worktime-pomodoro-${{ matrix.rust_target }}.msi
+          asset_path: ./src-tauri/target/release/bundle/msi/what-are-you-doing_0.1.0_x64_en-US.msi
+          asset_name: what-are-you-doing-${{ matrix.rust_target }}.msi
           asset_content_type: application/octet-stream
       
       - name: Upload Release Assets (macOS)
@@ -125,8 +125,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./src-tauri/target/release/bundle/dmg/worktime-pomodoro_0.1.0_${{ matrix.rust_target }}.dmg
-          asset_name: worktime-pomodoro-${{ matrix.rust_target }}.dmg
+          asset_path: ./src-tauri/target/release/bundle/dmg/what-are-you-doing_0.1.0_${{ matrix.rust_target }}.dmg
+          asset_name: what-are-you-doing-${{ matrix.rust_target }}.dmg
           asset_content_type: application/octet-stream
 
   generate-update-manifest:
@@ -151,19 +151,19 @@ jobs:
             "platforms": {
               "linux-x86_64": {
                 "signature": "",
-                "url": "${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/worktime-pomodoro-x86_64-unknown-linux-gnu.AppImage"
+                "url": "${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/what-are-you-doing-x86_64-unknown-linux-gnu.AppImage"
               },
               "windows-x86_64": {
                 "signature": "",
-                "url": "${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/worktime-pomodoro-x86_64-pc-windows-msvc.msi"
+                "url": "${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/what-are-you-doing-x86_64-pc-windows-msvc.msi"
               },
               "darwin-x86_64": {
                 "signature": "",
-                "url": "${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/worktime-pomodoro-x86_64-apple-darwin.dmg"
+                "url": "${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/what-are-you-doing-x86_64-apple-darwin.dmg"
               },
               "darwin-aarch64": {
                 "signature": "",
-                "url": "${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/worktime-pomodoro-aarch64-apple-darwin.dmg"
+                "url": "${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/what-are-you-doing-aarch64-apple-darwin.dmg"
               }
             }
           }
