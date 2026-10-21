@@ -497,6 +497,61 @@ impl Store {
         Ok(segments)
     }
 
+    /// Segments that overlap `[from_date 00:00, to_date+1 00:00)`.
+    /// Includes work that started the previous calendar day and crossed midnight.
+    pub fn get_segments_overlapping_range(
+        &self,
+        from_date: NaiveDate,
+        to_date: NaiveDate,
+    ) -> Result<Vec<Segment>> {
+        let lookback = from_date
+            .pred_opt()
+            .unwrap_or(from_date)
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_local_timezone(Local)
+            .unwrap();
+        let range_end = to_date
+            .succ_opt()
+            .unwrap_or(to_date)
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_local_timezone(Local)
+            .unwrap();
+
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, task_key, start_ts, end_ts, minutes, status, synced
+             FROM segments
+             WHERE start_ts < ?1 AND start_ts >= ?2
+             ORDER BY start_ts ASC",
+        )?;
+
+        let segments = stmt
+            .query_map(
+                params![range_end.to_rfc3339(), lookback.to_rfc3339()],
+                |row| {
+                    Ok(Segment {
+                        id: Some(row.get(0)?),
+                        task_key: row.get(1)?,
+                        start_ts: DateTime::parse_from_rfc3339(&row.get::<_, String>(2)?)
+                            .unwrap()
+                            .with_timezone(&Local),
+                        end_ts: row
+                            .get::<_, Option<String>>(3)?
+                            .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                            .map(|dt| dt.with_timezone(&Local)),
+                        minutes: row.get(4)?,
+                        status: SegmentStatus::parse_str(&row.get::<_, String>(5)?).unwrap(),
+                        synced: row.get::<_, i32>(6)? != 0,
+                    })
+                },
+            )?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(segments)
+    }
+
     pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
         let conn = self.conn.lock().unwrap();
 

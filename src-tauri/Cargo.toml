@@ -26,6 +26,8 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+tauri-plugin-dialog = "2"
+rust_xlsxwriter = "0.90"
 
 tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "macros"] }
 futures = "0.3"

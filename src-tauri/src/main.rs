@@ -38,13 +38,12 @@ fn main() {
         ))
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             info!("Another instance attempted to start");
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_focus();
-            }
+            show_main_window(app);
         }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             info!("Setting up application");
 
@@ -120,11 +119,13 @@ fn main() {
                 scheduler: scheduler.clone(),
             });
 
-            // Setup system tray
-            setup_system_tray(app)?;
-
-            // Setup global shortcut
-            setup_global_shortcut(app)?;
+            // Tray / shortcut failures must not block the main window.
+            if let Err(e) = setup_system_tray(app) {
+                error!("System tray unavailable: {e:#}");
+            }
+            if let Err(e) = setup_global_shortcut(app) {
+                error!("Global shortcut unavailable: {e:#}");
+            }
 
             // Setup sleep/wake detection (M3)
             #[cfg(target_os = "linux")]
@@ -141,6 +142,15 @@ fn main() {
                 }
             });
 
+            let start_minimized = std::env::args().any(|a| a == "--minimized");
+            if start_minimized {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.hide();
+                }
+            } else {
+                show_main_window(app.handle());
+            }
+
             info!("Application setup complete");
             Ok(())
         })
@@ -154,6 +164,7 @@ fn main() {
             // Stats commands
             get_daily_stats,
             export_csv,
+            export_xlsx,
             // Settings commands
             get_settings,
             save_settings,
@@ -166,18 +177,45 @@ fn main() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app_handle, event| {
-            if let tauri::RunEvent::ExitRequested { api, .. } = event {
-                // Prevent exit, just hide window
-                api.prevent_exit();
+        .run(|app_handle, event| match event {
+            tauri::RunEvent::ExitRequested { api, code, .. } => {
+                // Keep running in the tray unless quit was requested.
+                if code.is_none() {
+                    api.prevent_exit();
+                }
             }
+            tauri::RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::CloseRequested { api, .. },
+                ..
+            } if label == "main" => {
+                api.prevent_close();
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.hide();
+                }
+            }
+            _ => {}
         });
+}
+
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        return;
+    }
+
+    if let Err(e) = open_window(app, "main", "/", 800, 600) {
+        error!("Failed to open main window: {e:#}");
+    }
 }
 
 fn setup_system_tray(app: &mut tauri::App) -> Result<()> {
     use tauri::menu::{Menu, MenuItem};
     use tauri::tray::TrayIconBuilder;
 
+    let open_item = MenuItem::with_id(app, "open_main", "開啟主畫面", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "結束程式", true, None::<&str>)?;
     let start_item = MenuItem::with_id(app, "start_task", "開始/切換任務", true, None::<&str>)?;
     let pause_item = MenuItem::with_id(app, "pause_task", "暫停工作", true, None::<&str>)?;
@@ -189,6 +227,7 @@ fn setup_system_tray(app: &mut tauri::App) -> Result<()> {
     let menu = Menu::with_items(
         app,
         &[
+            &open_item,
             &start_item,
             &pause_item,
             &stats_item,
@@ -198,19 +237,36 @@ fn setup_system_tray(app: &mut tauri::App) -> Result<()> {
         ],
     )?;
 
-    let _tray = TrayIconBuilder::new()
+    let mut tray = TrayIconBuilder::new()
         .menu(&menu)
+        .show_menu_on_left_click(false)
         .tooltip("what are you doing")
         .on_menu_event(|app, event| {
             handle_tray_event(app, event.id().as_ref());
         })
-        .build(app)?;
+        .on_tray_icon_event(|tray, event| {
+            if let tauri::tray::TrayIconEvent::Click {
+                button: tauri::tray::MouseButton::Left,
+                button_state: tauri::tray::MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main_window(tray.app_handle());
+            }
+        });
+
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+
+    tray.build(app)?;
 
     Ok(())
 }
 
 fn handle_tray_event(app: &AppHandle, menu_id: &str) {
     match menu_id {
+        "open_main" => show_main_window(app),
         "start_task" => {
             if let Err(e) = open_window(app, "ping", "/ping", 500, 700) {
                 error!("Failed to open ping window: {}", e);
@@ -275,6 +331,8 @@ fn open_window(app: &AppHandle, label: &str, url: &str, width: u32, height: u32)
     use tauri::{WebviewUrl, WebviewWindowBuilder};
 
     if let Some(window) = app.get_webview_window(label) {
+        let _ = window.show();
+        let _ = window.unminimize();
         window.set_focus()?;
         return Ok(());
     }

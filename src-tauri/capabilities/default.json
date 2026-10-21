@@ -3,9 +3,14 @@
   "identifier": "default",
   "description": "enables the default permissions",
   "windows": [
-    "main"
+    "main",
+    "stats",
+    "ping",
+    "settings",
+    "resolve"
   ],
   "permissions": [
-    "core:default"
+    "core:default",
+    "dialog:default"
   ]
 }

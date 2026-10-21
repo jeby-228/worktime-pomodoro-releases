@@ -220,7 +220,110 @@ const pageTitle = "今日統計";
         .actions {
             display: flex;
             gap: 12px;
-            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+
+        .export-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 24px;
+        }
+
+        .export-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 16px;
+        }
+
+        .export-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-end;
+            margin-bottom: 14px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 140px;
+        }
+
+        .field label {
+            font-size: 12px;
+            color: #718096;
+            font-weight: 600;
+        }
+
+        .field input[type="date"] {
+            padding: 10px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #2d3748;
+            background: #fff;
+        }
+
+        .quick-range {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn-quick {
+            padding: 8px 14px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            border-radius: 999px;
+            font-size: 13px;
+            color: #4a5568;
+            cursor: pointer;
+        }
+
+        .btn-quick.active,
+        .btn-quick:hover {
+            border-color: #667eea;
+            color: #5a67d8;
+            background: #eef2ff;
+        }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #4a5568;
+        }
+
+        .export-status {
+            margin-top: 12px;
+            font-size: 13px;
+            min-height: 1.4em;
+        }
+
+        .export-status.error { color: #c53030; }
+        .export-status.ok { color: #276749; }
+        .export-status.muted { color: #718096; }
+
+        @media (max-width: 640px) {
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .export-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .field {
+                min-width: 0;
+            }
         }
     </style>
 </head>
@@ -255,6 +358,33 @@ const pageTitle = "今日統計";
             </div>
         </div>
         
+        <div class="export-panel">
+            <div class="export-title">匯出 Excel</div>
+            <div class="export-row">
+                <div class="field">
+                    <label for="export-from">開始日期</label>
+                    <input type="date" id="export-from" />
+                </div>
+                <div class="field">
+                    <label for="export-to">結束日期</label>
+                    <input type="date" id="export-to" />
+                </div>
+                <div class="quick-range" role="group" aria-label="快速期間">
+                    <button type="button" class="btn-quick active" data-range="today" id="range-today">今天</button>
+                    <button type="button" class="btn-quick" data-range="week" id="range-week">本週</button>
+                    <button type="button" class="btn-quick" data-range="month" id="range-month">本月</button>
+                </div>
+            </div>
+            <div class="export-row">
+                <label class="checkbox-row">
+                    <input type="checkbox" id="include-pending" />
+                    包含待確認時段（標記為「待確認」）
+                </label>
+                <button type="button" class="btn btn-primary" id="btn-export-xlsx">匯出 Excel</button>
+            </div>
+            <div class="export-status muted" id="export-status">預設匯出今天的已確認工時，不含待確認時段。</div>
+        </div>
+
         <div class="section">
             <div class="section-header">
                 <div class="section-title">任務明細</div>
@@ -383,10 +513,6 @@ const pageTitle = "今日統計";
         
         // Export CSV button
         document.getElementById('btn-export').addEventListener('click', () => {
-            console.log('Export CSV');
-            // In real app: invoke('export_csv', { date: ... })
-            
-            // Mock CSV generation
             const csv = [
                 ['日期', '任務', '開始時間', '結束時間', '分鐘數', '狀態', '備註'],
                 ['2026-10-21', '計劃A | 階段1 | 流程X | 開發功能', '09:00', '10:25', '85', '已確認', ''],
@@ -399,8 +525,109 @@ const pageTitle = "今日統計";
             link.href = URL.createObjectURL(blob);
             link.download = `工時統計_${new Date().toISOString().split('T')[0]}.csv`;
             link.click();
-            
-            alert('CSV 檔案已下載');
+        });
+
+        const fromInput = document.getElementById('export-from');
+        const toInput = document.getElementById('export-to');
+        const statusEl = document.getElementById('export-status');
+        const xlsxBtn = document.getElementById('btn-export-xlsx');
+
+        function isoDate(d) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function startOfWeek(d) {
+            const copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+            const weekday = copy.getDay();
+            const offset = weekday === 0 ? 6 : weekday - 1;
+            copy.setDate(copy.getDate() - offset);
+            return copy;
+        }
+
+        function setRange(from, to, active) {
+            fromInput.value = isoDate(from);
+            toInput.value = isoDate(to);
+            document.querySelectorAll('.btn-quick').forEach((btn) => {
+                btn.classList.toggle('active', btn.dataset.range === active);
+            });
+        }
+
+        function applyQuickRange(kind) {
+            const today = new Date();
+            if (kind === 'today') {
+                setRange(today, today, 'today');
+                return;
+            }
+            if (kind === 'week') {
+                const start = startOfWeek(today);
+                const end = new Date(start);
+                end.setDate(start.getDate() + 6);
+                setRange(start, end, 'week');
+                return;
+            }
+            const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+            const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            setRange(monthStart, monthEnd, 'month');
+        }
+
+        applyQuickRange('today');
+
+        document.querySelectorAll('.btn-quick').forEach((btn) => {
+            btn.addEventListener('click', () => applyQuickRange(btn.dataset.range));
+        });
+
+        function setStatus(message, kind) {
+            statusEl.textContent = message;
+            statusEl.className = `export-status ${kind}`;
+        }
+
+        xlsxBtn.addEventListener('click', async () => {
+            const fromDate = fromInput.value;
+            const toDate = toInput.value;
+            const includePending = document.getElementById('include-pending').checked;
+
+            if (!fromDate || !toDate) {
+                setStatus('請選擇開始與結束日期。', 'error');
+                return;
+            }
+            if (fromDate > toDate) {
+                setStatus('開始日期不能晚於結束日期。', 'error');
+                return;
+            }
+
+            xlsxBtn.disabled = true;
+            setStatus('正在開啟儲存對話框…', 'muted');
+
+            try {
+                const { invoke } = await import('@tauri-apps/api/core');
+                const result = await invoke('export_xlsx', {
+                    fromDate,
+                    toDate,
+                    includePending,
+                });
+
+                if (result.cancelled) {
+                    setStatus('已取消匯出。', 'muted');
+                } else {
+                    const pendingNote = includePending ? '（含待確認）' : '（不含待確認）';
+                    setStatus(
+                        `已匯出 ${result.rowCount} 列，合計 ${result.totalMinutes} 分鐘${pendingNote}。`,
+                        'ok'
+                    );
+                }
+            } catch (err) {
+                const message = err && err.message ? err.message : String(err);
+                if (message.includes('Failed to fetch dynamically imported module') || message.includes('Cannot find module')) {
+                    setStatus('請在桌面應用程式中使用「匯出 Excel」（瀏覽器預覽無法開啟系統存檔對話框）。', 'muted');
+                } else {
+                    setStatus(`匯出失敗：${message}`, 'error');
+                }
+            } finally {
+                xlsxBtn.disabled = false;
+            }
         });
     </script>
 </body>

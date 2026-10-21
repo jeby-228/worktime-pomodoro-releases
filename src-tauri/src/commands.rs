@@ -2,7 +2,8 @@ use crate::AppState;
 use anyhow::Result;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, State};
+use tauri_plugin_dialog::DialogExt;
 use worktime_pomodoro_lib::*;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -193,6 +194,61 @@ pub async fn export_csv(
     }
 
     Ok(csv)
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExportXlsxResult {
+    pub cancelled: bool,
+    pub path: Option<String>,
+    pub row_count: usize,
+    pub total_minutes: i64,
+}
+
+#[tauri::command]
+pub async fn export_xlsx(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    from_date: String,
+    to_date: String,
+    include_pending: Option<bool>,
+) -> Result<ExportXlsxResult, String> {
+    let from = parse_iso_date(&from_date).map_err(|e| e.to_string())?;
+    let to = parse_iso_date(&to_date).map_err(|e| e.to_string())?;
+    validate_range(from, to).map_err(|e| e.to_string())?;
+
+    let include_pending = include_pending.unwrap_or(false);
+    let segments = state
+        .store
+        .get_segments_overlapping_range(from, to)
+        .map_err(|e| e.to_string())?;
+    let rows = build_export_rows(&segments, from, to, include_pending, Local::now());
+
+    let default_name = default_xlsx_filename(from, to);
+    let picked = app
+        .dialog()
+        .file()
+        .set_file_name(&default_name)
+        .add_filter("Excel 活頁簿", &["xlsx"])
+        .blocking_save_file();
+
+    let Some(file) = picked else {
+        return Ok(ExportXlsxResult {
+            cancelled: true,
+            path: None,
+            row_count: rows.len(),
+            total_minutes: rows.iter().map(|r| r.minutes).sum(),
+        });
+    };
+
+    let path = file.into_path().map_err(|e| e.to_string())?;
+    let total_minutes = write_xlsx(&path, &rows).map_err(|e| e.to_string())?;
+
+    Ok(ExportXlsxResult {
+        cancelled: false,
+        path: Some(path.display().to_string()),
+        row_count: rows.len(),
+        total_minutes,
+    })
 }
 
 #[derive(Debug, Serialize, Deserialize)]
