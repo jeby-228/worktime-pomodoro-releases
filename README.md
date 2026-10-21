@@ -22,11 +22,14 @@
 - **tokio**：非同步執行環境
 
 ### 前端（Astro）
-- **Astro 5.x**：靜態網站生成器，輸出純 HTML/JS
+- **Astro 7.x**：靜態網站生成器，輸出純 HTML/JS
 - **TypeScript**：型別安全的前端邏輯
 - **@tauri-apps/api**：與 Rust 後端通訊
 
 ## 快速開始
+
+> **⚠️ 重要建置須知：** 此專案需要先建置前端（`npm run build`）才能編譯後端。  
+> 詳細說明請參閱 **[BUILD_GUIDE.md](./BUILD_GUIDE.md)**
 
 ### 前置需求
 
@@ -51,15 +54,17 @@
 ### 初次設置
 
 ```bash
-# 1. 安裝系統依賴
+# 1. 安裝系統依賴（僅 Linux）
 ./check-dependencies.sh
 
 # 2. 安裝 Node 依賴
 npm install
 
-# 3. 驗證建置
-cargo build --manifest-path=src-tauri/Cargo.toml
+# 3. 建置前端（必須先執行！）
 npm run build
+
+# 4. 驗證後端編譯
+cargo build --manifest-path=src-tauri/Cargo.toml
 ```
 
 ### 開發模式
@@ -72,12 +77,14 @@ npm run tauri:dev
 ### 生產建置
 
 ```bash
-# 建置前端靜態檔案
-npm run build
-
-# 建置 Tauri 應用程式（產出 .deb / .AppImage / .exe 等）
+# 一鍵建置（推薦，自動建置前端 + 後端）
 npm run tauri:build
 ```
+
+輸出檔案位於 `src-tauri/target/release/bundle/`
+
+> 💡 **提示：** `npm run tauri:build` 會自動執行 `npm run build`（透過 `beforeBuildCommand`），  
+> 無需手動分步建置。詳見 [BUILD_GUIDE.md](./BUILD_GUIDE.md)
 
 ## 專案結構
 
@@ -217,6 +224,32 @@ cargo test recovery::tests
 - [ ] Bundle identifier 已更新為 `com.worktime.pomodoro`
 
 ## 常見問題
+
+### 建置錯誤：`frontendDist` path doesn't exist
+
+**錯誤訊息：**
+```
+error: proc macro panicked
+The `frontendDist` configuration is set to `"../dist"` but this path doesn't exist
+```
+
+**原因：** 直接執行 `cargo build` 時 `dist/` 目錄不存在。
+
+**解決方法：**
+```bash
+# 先建置前端
+npm run build
+
+# 再建置後端
+cargo build --manifest-path=src-tauri/Cargo.toml
+```
+
+或直接使用：
+```bash
+npm run tauri:build  # 自動處理建置順序
+```
+
+詳見 **[BUILD_GUIDE.md](./BUILD_GUIDE.md)**
 
 ### 建置錯誤：缺少 glib-2.0 或 gobject-2.0
 
