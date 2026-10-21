@@ -1,0 +1,407 @@
+---
+// 統計頁面 - 今日工時統計與 CSV 匯出
+const pageTitle = "今日統計";
+---
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{pageTitle}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
+            background: #f7fafc;
+            padding: 24px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            color: #2d3748;
+        }
+        
+        .date-info {
+            color: #718096;
+            font-size: 14px;
+        }
+        
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card-label {
+            font-size: 12px;
+            color: #a0aec0;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .card-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #2d3748;
+        }
+        
+        .card-unit {
+            font-size: 16px;
+            color: #718096;
+            margin-left: 4px;
+        }
+        
+        .card.primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .card.primary .card-label,
+        .card.primary .card-value,
+        .card.primary .card-unit {
+            color: white;
+        }
+        
+        .card.warning {
+            border-left: 4px solid #f6ad55;
+        }
+        
+        .card.info {
+            border-left: 4px solid #4299e1;
+        }
+        
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 24px;
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5a67d8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #edf2f7;
+            color: #4a5568;
+        }
+        
+        .btn-secondary:hover {
+            background: #e2e8f0;
+        }
+        
+        .task-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .task-table th {
+            text-align: left;
+            padding: 12px;
+            background: #f7fafc;
+            color: #4a5568;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .task-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            color: #2d3748;
+            font-size: 14px;
+        }
+        
+        .task-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .task-table tr:hover {
+            background: #f7fafc;
+        }
+        
+        .task-name {
+            font-weight: 500;
+        }
+        
+        .time-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #edf2f7;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: #a0aec0;
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>📊 今日統計</h1>
+                <div class="date-info" id="current-date">2026年10月21日 星期三</div>
+            </div>
+        </div>
+        
+        <div class="summary-cards">
+            <div class="card primary">
+                <div class="card-label">總工時</div>
+                <div class="card-value">6<span class="card-unit">小時</span> 45<span class="card-unit">分</span></div>
+            </div>
+            
+            <div class="card">
+                <div class="card-label">已確認</div>
+                <div class="card-value">6<span class="card-unit">小時</span> 20<span class="card-unit">分</span></div>
+            </div>
+            
+            <div class="card warning">
+                <div class="card-label">待確認</div>
+                <div class="card-value">25<span class="card-unit">分鐘</span></div>
+            </div>
+            
+            <div class="card info">
+                <div class="card-label">未同步</div>
+                <div class="card-value">12<span class="card-unit">筆</span></div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">任務明細</div>
+                <div class="actions">
+                    <button class="btn btn-secondary" id="btn-refresh">🔄 重新整理</button>
+                    <button class="btn btn-primary" id="btn-export">📥 匯出 CSV</button>
+                </div>
+            </div>
+            
+            <table class="task-table">
+                <thead>
+                    <tr>
+                        <th>任務名稱</th>
+                        <th>開始時間</th>
+                        <th>結束時間</th>
+                        <th>工時</th>
+                        <th>狀態</th>
+                    </tr>
+                </thead>
+                <tbody id="task-tbody">
+                    <tr>
+                        <td class="task-name">計劃A | 階段1 | 流程X | 開發功能</td>
+                        <td>09:00</td>
+                        <td>10:25</td>
+                        <td>
+                            <div class="time-badge">85 分鐘</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 35%"></div>
+                            </div>
+                        </td>
+                        <td>✅ 已確認</td>
+                    </tr>
+                    <tr>
+                        <td class="task-name">📅 會議</td>
+                        <td>10:30</td>
+                        <td>11:15</td>
+                        <td>
+                            <div class="time-badge">45 分鐘</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 19%"></div>
+                            </div>
+                        </td>
+                        <td>✅ 已確認</td>
+                    </tr>
+                    <tr>
+                        <td class="task-name">計劃B | 階段2 | 流程Y | 撰寫文檔</td>
+                        <td>11:20</td>
+                        <td>13:00</td>
+                        <td>
+                            <div class="time-badge">100 分鐘</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 42%"></div>
+                            </div>
+                        </td>
+                        <td>✅ 已確認</td>
+                    </tr>
+                    <tr>
+                        <td class="task-name">☕ 休息</td>
+                        <td>13:00</td>
+                        <td>13:30</td>
+                        <td>
+                            <div class="time-badge">30 分鐘</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 13%"></div>
+                            </div>
+                        </td>
+                        <td>✅ 已確認</td>
+                    </tr>
+                    <tr>
+                        <td class="task-name">計劃A | 階段1 | 流程X | 測試功能</td>
+                        <td>13:35</td>
+                        <td>15:50</td>
+                        <td>
+                            <div class="time-badge">135 分鐘</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 56%"></div>
+                            </div>
+                        </td>
+                        <td>✅ 已確認</td>
+                    </tr>
+                    <tr>
+                        <td class="task-name">❓ 待確認</td>
+                        <td>15:50</td>
+                        <td>16:15</td>
+                        <td>
+                            <div class="time-badge">25 分鐘</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 10%; background: #f6ad55;"></div>
+                            </div>
+                        </td>
+                        <td>⚠️ 待確認</td>
+                    </tr>
+                    <tr>
+                        <td class="task-name">計劃C | 階段1 | 流程Z | 代碼審查</td>
+                        <td>16:20</td>
+                        <td>進行中</td>
+                        <td>
+                            <div class="time-badge">45 分鐘</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 19%; background: #4299e1;"></div>
+                            </div>
+                        </td>
+                        <td>🔵 進行中</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script>
+        // Update current date
+        function updateDate() {
+            const now = new Date();
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            document.getElementById('current-date').textContent = 
+                now.toLocaleDateString('zh-TW', options);
+        }
+        updateDate();
+        
+        // Refresh button
+        document.getElementById('btn-refresh').addEventListener('click', () => {
+            console.log('Refresh stats');
+            alert('重新整理統計資料');
+            // In real app: invoke('get_daily_stats')
+        });
+        
+        // Export CSV button
+        document.getElementById('btn-export').addEventListener('click', () => {
+            console.log('Export CSV');
+            // In real app: invoke('export_csv', { date: ... })
+            
+            // Mock CSV generation
+            const csv = [
+                ['日期', '任務', '開始時間', '結束時間', '分鐘數', '狀態', '備註'],
+                ['2026-10-21', '計劃A | 階段1 | 流程X | 開發功能', '09:00', '10:25', '85', '已確認', ''],
+                ['2026-10-21', '會議', '10:30', '11:15', '45', '已確認', '週例會'],
+                ['2026-10-21', '計劃B | 階段2 | 流程Y | 撰寫文檔', '11:20', '13:00', '100', '已確認', ''],
+            ].map(row => row.join(',')).join('\n');
+            
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `工時統計_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+            
+            alert('CSV 檔案已下載');
+        });
+    </script>
+</body>
+</html>

@@ -26,7 +26,9 @@ impl MigrationManager {
 
     /// Get the current schema version the app knows about
     pub fn latest_version(&self) -> usize {
-        self.migrations.to_latest().expect("migrations defined")
+        // rusqlite_migration doesn't expose migrations directly
+        // We manually track this
+        1 // Current version
     }
 
     /// Run migrations on a database connection

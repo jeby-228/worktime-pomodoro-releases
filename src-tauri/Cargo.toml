@@ -10,23 +10,39 @@ rust-version = "1.70"
 
 [lib]
 name = "worktime_pomodoro_lib"
-crate-type = ["rlib"]
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
 
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-notification = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-shell = "2"
 
-tokio = { version = "1.35", features = ["rt-multi-thread", "time", "sync", "macros"] }
-rusqlite = { version = "0.30", features = ["bundled"] }
+tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "macros"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
 rusqlite_migration = "1.0"
-chrono = { version = "0.4.26", default-features = false, features = ["clock", "std", "serde"] }
-uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
 thiserror = "1.0"
 anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 async-trait = "0.1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# For sleep/lock detection on Linux
+zbus = "4"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = ["Win32_System_Power", "Win32_Foundation"] }
 
 [dev-dependencies]
 tempfile = "3.8"

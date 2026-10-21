@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::{DateTime, Local, NaiveDate};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -519,6 +519,13 @@ impl Store {
             params![key, value],
         )?;
 
+        Ok(())
+    }
+
+    /// Checkpoint WAL to main database file
+    pub fn checkpoint_wal(&self) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.pragma_update(None, "wal_checkpoint", "TRUNCATE")?;
         Ok(())
     }
 }

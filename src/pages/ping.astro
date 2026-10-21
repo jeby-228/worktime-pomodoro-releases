@@ -1,0 +1,347 @@
+---
+// Ping 視窗 - 番茄鐘到點時彈出
+const pageTitle = "工作確認";
+---
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{pageTitle}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 32px;
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+        
+        .time-info {
+            color: #718096;
+            font-size: 14px;
+        }
+        
+        .current-task {
+            background: #f7fafc;
+            border-left: 4px solid #667eea;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+        
+        .current-task-label {
+            font-size: 12px;
+            color: #718096;
+            margin-bottom: 4px;
+        }
+        
+        .current-task-name {
+            font-size: 16px;
+            color: #2d3748;
+            font-weight: 600;
+        }
+        
+        .search-box {
+            position: relative;
+            margin-bottom: 16px;
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .task-list {
+            max-height: 240px;
+            overflow-y: auto;
+            margin-bottom: 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+        
+        .task-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .task-item:last-child {
+            border-bottom: none;
+        }
+        
+        .task-item:hover {
+            background-color: #f7fafc;
+        }
+        
+        .task-item.selected {
+            background-color: #edf2f7;
+            border-left: 3px solid #667eea;
+        }
+        
+        .task-item-name {
+            font-size: 14px;
+            color: #2d3748;
+            margin-bottom: 4px;
+        }
+        
+        .task-item-meta {
+            font-size: 12px;
+            color: #a0aec0;
+        }
+        
+        .note-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 16px;
+            resize: vertical;
+            min-height: 60px;
+        }
+        
+        .note-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+            grid-column: 1 / -1;
+        }
+        
+        .btn-primary:hover {
+            background: #5a67d8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #edf2f7;
+            color: #4a5568;
+        }
+        
+        .btn-secondary:hover {
+            background: #e2e8f0;
+        }
+        
+        .special-actions {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        
+        .btn-special {
+            padding: 8px 12px;
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-special:hover {
+            background: #edf2f7;
+            border-color: #cbd5e0;
+        }
+        
+        .timer {
+            text-align: center;
+            color: #a0aec0;
+            font-size: 12px;
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍅 番茄鐘到了！</h1>
+            <div class="time-info">現在時間：<span id="current-time">--:--</span></div>
+        </div>
+        
+        <div class="current-task">
+            <div class="current-task-label">目前工作</div>
+            <div class="current-task-name" id="current-task-name">計劃A | 階段1 | 流程X | 開發功能</div>
+        </div>
+        
+        <div class="search-box">
+            <input type="text" id="task-search" placeholder="搜尋任務...（輸入關鍵字或新任務名稱）">
+        </div>
+        
+        <div class="special-actions">
+            <button class="btn-special" data-special="meeting">📅 會議</button>
+            <button class="btn-special" data-special="problem">🔧 User問題</button>
+            <button class="btn-special" data-special="break">☕ 休息</button>
+        </div>
+        
+        <div class="task-list" id="task-list">
+            <div class="task-item selected" data-task="current">
+                <div class="task-item-name">📌 繼續目前任務</div>
+                <div class="task-item-meta">計劃A | 階段1 | 開發功能</div>
+            </div>
+            <div class="task-item" data-task="task1">
+                <div class="task-item-name">計劃A | 階段1 | 流程X | 測試功能</div>
+                <div class="task-item-meta">最近使用：10:30</div>
+            </div>
+            <div class="task-item" data-task="task2">
+                <div class="task-item-name">計劃B | 階段2 | 流程Y | 撰寫文檔</div>
+                <div class="task-item-meta">最近使用：昨天</div>
+            </div>
+            <div class="task-item" data-task="task3">
+                <div class="task-item-name">計劃C | 階段1 | 流程Z | 代碼審查</div>
+                <div class="task-item-meta">最近使用：本週</div>
+            </div>
+        </div>
+        
+        <textarea class="note-input" id="task-note" placeholder="備註（選填）..."></textarea>
+        
+        <div class="actions">
+            <button class="btn btn-primary" id="btn-continue">✓ 繼續工作 (Enter)</button>
+            <button class="btn btn-secondary" id="btn-snooze">⏰ 延後5分鐘</button>
+            <button class="btn btn-secondary" id="btn-end">⏹ 結束工作</button>
+        </div>
+        
+        <div class="timer">
+            視窗將在 <span id="countdown">5:00</span> 後自動關閉
+        </div>
+    </div>
+    
+    <script>
+        // Update current time
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = 
+                now.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+        }
+        updateTime();
+        setInterval(updateTime, 1000);
+        
+        // Countdown timer
+        let countdown = 300; // 5 minutes
+        function updateCountdown() {
+            const minutes = Math.floor(countdown / 60);
+            const seconds = countdown % 60;
+            document.getElementById('countdown').textContent = 
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            if (countdown > 0) {
+                countdown--;
+            } else {
+                window.close();
+            }
+        }
+        setInterval(updateCountdown, 1000);
+        
+        // Task selection
+        document.querySelectorAll('.task-item').forEach(item => {
+            item.addEventListener('click', () => {
+                document.querySelectorAll('.task-item').forEach(t => t.classList.remove('selected'));
+                item.classList.add('selected');
+            });
+        });
+        
+        // Search functionality
+        document.getElementById('task-search').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            document.querySelectorAll('.task-item').forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(query) ? 'block' : 'none';
+            });
+        });
+        
+        // Button actions (mock - will be replaced with Tauri invoke)
+        document.getElementById('btn-continue').addEventListener('click', () => {
+            console.log('Continue current task');
+            // In real app: invoke('continue_task', { note: ... })
+            alert('繼續工作！');
+        });
+        
+        document.getElementById('btn-snooze').addEventListener('click', () => {
+            console.log('Snooze');
+            alert('延後 5 分鐘');
+        });
+        
+        document.getElementById('btn-end').addEventListener('click', () => {
+            console.log('End task');
+            alert('結束工作');
+        });
+        
+        // Special actions
+        document.querySelectorAll('.btn-special').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const special = btn.dataset.special;
+                console.log('Special action:', special);
+                alert(`選擇特殊動作：${btn.textContent}`);
+            });
+        });
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                document.getElementById('btn-continue').click();
+            }
+        });
+    </script>
+</body>
+</html>

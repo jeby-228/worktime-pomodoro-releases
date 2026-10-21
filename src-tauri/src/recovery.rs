@@ -1,7 +1,7 @@
 use crate::state::StateMachine;
 use crate::store::{Event, EventKind, EventSource, Store};
 use anyhow::Result;
-use chrono::{DateTime, Duration, Local, NaiveDate, TimeZone};
+use chrono::{DateTime, Duration, Local, NaiveDate};
 use std::time::Instant;
 
 pub struct Recovery {
@@ -154,7 +154,7 @@ impl Recovery {
         &self,
         last_event: Event,
         last_date: NaiveDate,
-        now: DateTime<Local>,
+        _now: DateTime<Local>,
     ) -> Result<Option<RecoveryAction>> {
         let mut events = Vec::new();
         let mono_ms = self.elapsed_mono_ms();
