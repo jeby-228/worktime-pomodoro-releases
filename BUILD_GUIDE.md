@@ -324,6 +324,15 @@ npm run build
 npm run tauri:dev
 ```
 
+### 問題：`invalid name "工時番茄鐘"`（Linux .deb / .rpm）
+
+Debian / RPM 套件名稱必須以英數字開頭，不能用中文。Linux 產品名稱已覆寫於 `src-tauri/tauri.linux.conf.json`（`Worktime Pomodoro`），視窗標題仍為「工時番茄鐘」。
+
+打包後檔名會類似：
+
+- `worktime-pomodoro_0.1.0_amd64.deb`
+- `worktime-pomodoro-0.1.0-1.x86_64.rpm`
+
 ### 問題：Astro 7.x 升級後出現錯誤
 
 目前專案使用 Astro 7.4.2。如果遇到相容性問題：

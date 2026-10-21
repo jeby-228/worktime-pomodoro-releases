@@ -344,10 +344,18 @@ npm run tauri:build  # 自動處理建置順序
 sudo apt-get install -y libglib2.0-dev
 ```
 
-### Bundle identifier 錯誤
+### 打包錯誤：`invalid name "工時番茄鐘"`
 
-專案已配置唯一的 bundle identifier `com.worktime.pomodoro`。
-如需自定義，請修改 `src-tauri/tauri.conf.json` 中的 `identifier` 欄位。
+**錯誤訊息：**
+```
+failed to bundle project: invalid name "工時番茄鐘": must start with an alphanumeric character, '_', or '%'
+```
+
+**原因：** Linux 的 `.deb` / `.rpm` 套件名稱只能用英數字、連字號與底線，不能用中文。視窗標題仍可顯示「工時番茄鐘」。
+
+**處理：** 專案已用 `src-tauri/tauri.linux.conf.json` 把 Linux 產品名稱設成 `Worktime Pomodoro`（套件名會變成 `worktime-pomodoro`），並用 `mainBinaryName` 固定執行檔為 `worktime-pomodoro`。
+
+### Bundle identifier 錯誤
 
 ## 授權
 
