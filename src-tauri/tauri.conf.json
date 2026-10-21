@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "tmp-scaffold",
+  "productName": "工時番茄鐘",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.worktime.pomodoro",
   "build": {
     "frontendDist": "../dist",
     "beforeDevCommand": "npm run dev",
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "tmp-scaffold",
+        "title": "工時番茄鐘",
         "width": 800,
         "height": 600,
         "resizable": true,
