@@ -10,7 +10,7 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "lint": "oxlint .",
-    "format:check": "oxlint --fix --dry-run .",
+    "format:check": "oxlint .",
     "fmt": "oxlint --fix ."
   },
   "dependencies": {
