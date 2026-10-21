@@ -3,7 +3,7 @@ use rusqlite::Connection;
 use rusqlite_migration::{Migrations, M};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 const MAX_BACKUPS: usize = 5;
 
@@ -40,7 +40,10 @@ impl MigrationManager {
 
         let latest_version = self.latest_version();
 
-        info!("Database version: {}, App supports up to: {}", current_version, latest_version);
+        info!(
+            "Database version: {}, App supports up to: {}",
+            current_version, latest_version
+        );
 
         // Check if database is from a newer version (user downgraded)
         if current_version > latest_version {
@@ -67,8 +70,11 @@ impl MigrationManager {
         }
 
         // Run migrations
-        info!("Migrating database from version {} to {}...", current_version, latest_version);
-        
+        info!(
+            "Migrating database from version {} to {}...",
+            current_version, latest_version
+        );
+
         self.migrations
             .to_latest(conn)
             .context("Failed to apply migrations")?;
@@ -77,7 +83,10 @@ impl MigrationManager {
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .context("Failed to read user_version after migration")?;
 
-        info!("Migration complete. Database now at version {}", new_version);
+        info!(
+            "Migration complete. Database now at version {}",
+            new_version
+        );
 
         Ok(())
     }
@@ -112,7 +121,7 @@ impl MigrationManager {
     /// Remove old backup files, keeping only the last MAX_BACKUPS
     fn cleanup_old_backups(&self, db_dir: &Path, db_filename: &str) -> Result<()> {
         let backup_prefix = format!("{}.backup_", db_filename);
-        
+
         let mut backups: Vec<PathBuf> = fs::read_dir(db_dir)?
             .filter_map(|entry| entry.ok())
             .map(|e| e.path())
@@ -149,8 +158,8 @@ impl MigrationManager {
 
     /// Check if a database can be opened (for read-only access when version is too new)
     pub fn check_version_compatibility(db_path: &Path) -> Result<VersionCheck> {
-        let conn = Connection::open(db_path)
-            .context("Failed to open database for version check")?;
+        let conn =
+            Connection::open(db_path).context("Failed to open database for version check")?;
 
         let current_version: usize = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
@@ -200,10 +209,10 @@ mod tests {
     fn test_fresh_database_migration() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        
+
         let mut conn = Connection::open(&db_path).unwrap();
         let manager = MigrationManager::new().unwrap();
-        
+
         manager.migrate(&mut conn, Some(&db_path)).unwrap();
 
         // Check that tables exist
@@ -214,14 +223,14 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        
+
         assert_eq!(table_count, 4);
 
         // Check version
         let version: usize = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        
+
         assert_eq!(version, manager.latest_version());
     }
 
@@ -229,7 +238,7 @@ mod tests {
     fn test_migration_preserves_data() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        
+
         // Create initial database
         let mut conn = Connection::open(&db_path).unwrap();
         let manager = MigrationManager::new().unwrap();
@@ -251,7 +260,7 @@ mod tests {
         let count: i32 = conn
             .query_row("SELECT COUNT(*) FROM events", [], |row| row.get(0))
             .unwrap();
-        
+
         assert_eq!(count, 1);
     }
 
@@ -259,13 +268,14 @@ mod tests {
     fn test_newer_version_rejection() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        
+
         let mut conn = Connection::open(&db_path).unwrap();
         let manager = MigrationManager::new().unwrap();
-        
+
         // Set a future version
         let future_version = manager.latest_version() + 10;
-        conn.pragma_update(None, "user_version", future_version).unwrap();
+        conn.pragma_update(None, "user_version", future_version)
+            .unwrap();
 
         // Attempt to migrate should fail
         let result = manager.migrate(&mut conn, Some(&db_path));
@@ -277,12 +287,12 @@ mod tests {
     fn test_backup_creation() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        
+
         // Create and migrate initial database (creates backup #1)
         let mut conn = Connection::open(&db_path).unwrap();
         let manager = MigrationManager::new().unwrap();
         manager.migrate(&mut conn, Some(&db_path)).unwrap();
-        
+
         // Insert data
         conn.execute(
             "INSERT INTO events (uuid, ts, mono_ms, boot_id, kind, source) VALUES (?, ?, ?, ?, ?, ?)",
@@ -314,7 +324,7 @@ mod tests {
     fn test_backup_cleanup() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        
+
         let mut conn = Connection::open(&db_path).unwrap();
         let manager = MigrationManager::new().unwrap();
         manager.migrate(&mut conn, Some(&db_path)).unwrap();
@@ -345,7 +355,7 @@ mod tests {
     fn test_version_check() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        
+
         let mut conn = Connection::open(&db_path).unwrap();
         let manager = MigrationManager::new().unwrap();
         manager.migrate(&mut conn, Some(&db_path)).unwrap();

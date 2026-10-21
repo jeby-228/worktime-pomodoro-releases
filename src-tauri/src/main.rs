@@ -71,17 +71,17 @@ fn main() {
             tauri::async_runtime::block_on(async move {
                 let sm = recovery_sm.lock().await.clone();
                 let recovery = Recovery::new(recovery_store.clone(), sm);
-                
+
                 match recovery.check_on_startup(chrono::Local::now()) {
                     Ok(Some(action)) => {
                         info!("Recovery needed: {}", action.message);
-                        
+
                         // Apply recovery
                         if let Err(e) = recovery.apply_recovery(action) {
                             error!("Failed to apply recovery: {}", e);
                         } else {
                             info!("Recovery applied successfully");
-                            
+
                             // Rebuild segments
                             let deriver = SegmentDeriver::new(recovery_store.clone());
                             if let Err(e) = deriver.rebuild_segments() {
@@ -183,7 +183,8 @@ fn setup_system_tray(app: &mut tauri::App) -> Result<()> {
     let pause_item = MenuItem::with_id(app, "pause_task", "暫停工作", true, None::<&str>)?;
     let stats_item = MenuItem::with_id(app, "show_stats", "今日統計", true, None::<&str>)?;
     let settings_item = MenuItem::with_id(app, "show_settings", "設定", true, None::<&str>)?;
-    let check_updates_item = MenuItem::with_id(app, "check_updates", "檢查更新", true, None::<&str>)?;
+    let check_updates_item =
+        MenuItem::with_id(app, "check_updates", "檢查更新", true, None::<&str>)?;
 
     let menu = Menu::with_items(
         app,
@@ -257,7 +258,7 @@ fn handle_tray_event(app: &AppHandle, menu_id: &str) {
                         error!("Failed to insert end event: {}", e);
                     }
                 }
-                
+
                 // Checkpoint WAL
                 if let Err(e) = state.store.checkpoint_wal() {
                     error!("Failed to checkpoint WAL: {}", e);
@@ -292,16 +293,16 @@ fn setup_global_shortcut(app: &mut tauri::App) -> Result<()> {
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
     let app_handle = app.handle().clone();
-    
-    app.global_shortcut().on_shortcut("Ctrl+Alt+T", move |_app, _shortcut, _event| {
-        if let Err(e) = open_window(&app_handle, "ping", "/ping", 500, 700) {
-            error!("Failed to open ping window via shortcut: {}", e);
-        }
-    })?;
+
+    app.global_shortcut()
+        .on_shortcut("Ctrl+Alt+T", move |_app, _shortcut, _event| {
+            if let Err(e) = open_window(&app_handle, "ping", "/ping", 500, 700) {
+                error!("Failed to open ping window via shortcut: {}", e);
+            }
+        })?;
 
     // Register the shortcut
-    app.global_shortcut()
-        .register("Ctrl+Alt+T")?;
+    app.global_shortcut().register("Ctrl+Alt+T")?;
 
     Ok(())
 }
@@ -311,7 +312,7 @@ fn setup_global_shortcut(app: &mut tauri::App) -> Result<()> {
 fn setup_linux_sleep_detection(app_handle: AppHandle) {
     use futures::StreamExt;
     use zbus::proxy;
-    
+
     #[proxy(
         interface = "org.freedesktop.login1.Manager",
         default_service = "org.freedesktop.login1",
@@ -324,15 +325,15 @@ fn setup_linux_sleep_detection(app_handle: AppHandle) {
 
     tauri::async_runtime::spawn(async move {
         info!("Setting up Linux sleep detection via D-Bus");
-        
+
         match zbus::Connection::system().await {
             Ok(connection) => {
                 info!("Connected to D-Bus system bus");
-                
+
                 match Login1ManagerProxy::new(&connection).await {
                     Ok(proxy) => {
                         info!("Connected to logind Manager");
-                        
+
                         let mut stream = match proxy.receive_prepare_for_sleep().await {
                             Ok(s) => s,
                             Err(e) => {
@@ -340,9 +341,9 @@ fn setup_linux_sleep_detection(app_handle: AppHandle) {
                                 return;
                             }
                         };
-                        
+
                         info!("Subscribed to PrepareForSleep signal");
-                        
+
                         loop {
                             match stream.next().await {
                                 Some(signal) => {
@@ -353,7 +354,7 @@ fn setup_linux_sleep_detection(app_handle: AppHandle) {
                                             continue;
                                         }
                                     };
-                                    
+
                                     if args.start {
                                         info!("System going to sleep");
                                         handle_sleep(&app_handle).await;
@@ -386,14 +387,14 @@ async fn handle_sleep(app_handle: &AppHandle) {
     let state = app_handle.state::<AppState>();
     let sm = state.state_machine.lock().await.clone();
     let recovery = Recovery::new(state.store.clone(), sm);
-    
+
     if let Ok(events) = recovery.handle_sleep(chrono::Local::now()) {
         for event in events {
             if let Err(e) = state.store.insert_event(&event) {
                 error!("Failed to insert sleep event: {}", e);
             }
         }
-        
+
         // Rebuild segments
         let deriver = SegmentDeriver::new(state.store.clone());
         if let Err(e) = deriver.rebuild_segments() {
@@ -407,14 +408,14 @@ async fn handle_wake(app_handle: &AppHandle) {
     let state = app_handle.state::<AppState>();
     let sm = state.state_machine.lock().await.clone();
     let recovery = Recovery::new(state.store.clone(), sm);
-    
+
     if let Ok(events) = recovery.handle_wake(chrono::Local::now()) {
         for event in events {
             if let Err(e) = state.store.insert_event(&event) {
                 error!("Failed to insert wake event: {}", e);
             }
         }
-        
+
         // Rebuild segments
         let deriver = SegmentDeriver::new(state.store.clone());
         if let Err(e) = deriver.rebuild_segments() {
@@ -428,12 +429,12 @@ async fn handle_wake(app_handle: &AppHandle) {
 fn setup_windows_sleep_detection(app_handle: AppHandle) {
     use windows::Win32::Foundation::HWND;
     use windows::Win32::System::Power::{
-        PBT_APMSUSPEND, PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND,
+        PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND, PBT_APMSUSPEND,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, RegisterClassW,
-        TranslateMessage, CS_HREDRAW, CS_VREDRAW, MSG, WNDCLASSW, WM_POWERBROADCAST,
-        WINDOW_EX_STYLE, WS_OVERLAPPEDWINDOW,
+        TranslateMessage, CS_HREDRAW, CS_VREDRAW, MSG, WINDOW_EX_STYLE, WM_POWERBROADCAST,
+        WNDCLASSW, WS_OVERLAPPEDWINDOW,
     };
 
     info!("Setting up Windows sleep detection");
@@ -441,7 +442,7 @@ fn setup_windows_sleep_detection(app_handle: AppHandle) {
     std::thread::spawn(move || {
         unsafe {
             let class_name = windows::core::w!("PowerEventWindow");
-            
+
             let wc = WNDCLASSW {
                 lpfnWndProc: Some(power_window_proc),
                 lpszClassName: class_name,
@@ -459,7 +460,10 @@ fn setup_windows_sleep_detection(app_handle: AppHandle) {
                 class_name,
                 windows::core::w!("PowerEvents"),
                 WS_OVERLAPPEDWINDOW,
-                0, 0, 0, 0,
+                0,
+                0,
+                0,
+                0,
                 HWND(0),
                 None,
                 None,
@@ -473,7 +477,7 @@ fn setup_windows_sleep_detection(app_handle: AppHandle) {
 
             // Store app handle in window user data
             // Note: This is simplified; production code should use SetWindowLongPtrW
-            
+
             info!("Windows power event listener started");
 
             let mut msg = MSG::default();
@@ -492,7 +496,7 @@ unsafe extern "system" fn power_window_proc(
     wparam: windows::Win32::Foundation::WPARAM,
     lparam: windows::Win32::Foundation::LPARAM,
 ) -> windows::Win32::Foundation::LRESULT {
-    use windows::Win32::System::Power::{PBT_APMSUSPEND, PBT_APMRESUMEAUTOMATIC};
+    use windows::Win32::System::Power::{PBT_APMRESUMEAUTOMATIC, PBT_APMSUSPEND};
     use windows::Win32::UI::WindowsAndMessaging::{DefWindowProcW, WM_POWERBROADCAST};
 
     if msg == WM_POWERBROADCAST {

@@ -166,29 +166,29 @@ impl Store {
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         let mut conn = Connection::open(path)?;
-        
+
         // Run migrations first
         let migrator = MigrationManager::new()?;
         migrator.migrate(&mut conn, Some(path))?;
-        
+
         // Enable WAL mode
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
-        
+
         let store = Self {
             conn: Arc::new(Mutex::new(conn)),
         };
-        
+
         Ok(store)
     }
 
     pub fn new_in_memory() -> Result<Self> {
         let mut conn = Connection::open_in_memory()?;
-        
+
         // Run migrations
         let migrator = MigrationManager::new()?;
         migrator.migrate(&mut conn, None)?;
-        
+
         let store = Self {
             conn: Arc::new(Mutex::new(conn)),
         };
@@ -203,7 +203,7 @@ impl Store {
 
     pub fn insert_event(&self, event: &Event) -> Result<i64> {
         let conn = self.conn.lock().unwrap();
-        
+
         conn.execute(
             "INSERT INTO events (uuid, ts, mono_ms, boot_id, kind, task_key, ref_event_id, note, source, synced)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
@@ -226,7 +226,7 @@ impl Store {
 
     pub fn get_events_since(&self, since: DateTime<Local>) -> Result<Vec<Event>> {
         let conn = self.conn.lock().unwrap();
-        
+
         let mut stmt = conn.prepare(
             "SELECT id, uuid, ts, mono_ms, boot_id, kind, task_key, ref_event_id, note, source, synced
              FROM events
@@ -259,7 +259,7 @@ impl Store {
 
     pub fn get_all_events(&self) -> Result<Vec<Event>> {
         let conn = self.conn.lock().unwrap();
-        
+
         let mut stmt = conn.prepare(
             "SELECT id, uuid, ts, mono_ms, boot_id, kind, task_key, ref_event_id, note, source, synced
              FROM events
@@ -291,7 +291,7 @@ impl Store {
 
     pub fn get_last_event(&self) -> Result<Option<Event>> {
         let conn = self.conn.lock().unwrap();
-        
+
         let event = conn
             .query_row(
                 "SELECT id, uuid, ts, mono_ms, boot_id, kind, task_key, ref_event_id, note, source, synced
@@ -324,7 +324,7 @@ impl Store {
 
     pub fn insert_or_update_task(&self, task: &TaskCache) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        
+
         conn.execute(
             "INSERT INTO tasks_cache (task_key, plan_name, stage_name, process_name, task_name, task_id, is_adhoc, is_closed, last_used_at, fetched_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
@@ -357,7 +357,7 @@ impl Store {
 
     pub fn get_task(&self, task_key: &str) -> Result<Option<TaskCache>> {
         let conn = self.conn.lock().unwrap();
-        
+
         let task = conn
             .query_row(
                 "SELECT task_key, plan_name, stage_name, process_name, task_name, task_id, is_adhoc, is_closed, last_used_at, fetched_at
@@ -392,7 +392,7 @@ impl Store {
 
     pub fn get_all_tasks(&self) -> Result<Vec<TaskCache>> {
         let conn = self.conn.lock().unwrap();
-        
+
         let mut stmt = conn.prepare(
             "SELECT task_key, plan_name, stage_name, process_name, task_name, task_id, is_adhoc, is_closed, last_used_at, fetched_at
              FROM tasks_cache
@@ -434,7 +434,7 @@ impl Store {
 
     pub fn insert_segment(&self, segment: &Segment) -> Result<i64> {
         let conn = self.conn.lock().unwrap();
-        
+
         conn.execute(
             "INSERT INTO segments (task_key, start_ts, end_ts, minutes, status, synced)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -453,7 +453,7 @@ impl Store {
 
     pub fn get_segments_for_date(&self, date: NaiveDate) -> Result<Vec<Segment>> {
         let conn = self.conn.lock().unwrap();
-        
+
         let start_of_day = date
             .and_hms_opt(0, 0, 0)
             .unwrap()
@@ -469,7 +469,7 @@ impl Store {
             "SELECT id, task_key, start_ts, end_ts, minutes, status, synced
              FROM segments
              WHERE start_ts >= ?1 AND start_ts <= ?2
-             ORDER BY start_ts ASC"
+             ORDER BY start_ts ASC",
         )?;
 
         let segments = stmt
@@ -499,13 +499,11 @@ impl Store {
 
     pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
         let conn = self.conn.lock().unwrap();
-        
+
         let value = conn
-            .query_row(
-                "SELECT value FROM settings WHERE key = ?1",
-                [key],
-                |row| row.get(0),
-            )
+            .query_row("SELECT value FROM settings WHERE key = ?1", [key], |row| {
+                row.get(0)
+            })
             .optional()?;
 
         Ok(value)
@@ -513,7 +511,7 @@ impl Store {
 
     pub fn set_setting(&self, key: &str, value: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        
+
         conn.execute(
             "INSERT INTO settings (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = ?2",

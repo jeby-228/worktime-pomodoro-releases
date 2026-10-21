@@ -1,0 +1,174 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_id: ${{ steps.create_release.outputs.id }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Extract version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ steps.get_version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+
+  build-tauri:
+    name: Build Tauri App
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            rust_target: x86_64-unknown-linux-gnu
+          - platform: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+          - platform: macos-latest
+            rust_target: x86_64-apple-darwin
+          - platform: macos-latest
+            rust_target: aarch64-apple-darwin
+    
+    runs-on: ${{ matrix.platform }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+      
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            libssl-dev \
+            libglib2.0-dev
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build frontend
+        run: npm run build
+      
+      - name: Build Tauri
+        run: npm run tauri:build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      
+      - name: Upload Release Assets (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./src-tauri/target/release/bundle/appimage/worktime-pomodoro_0.1.0_amd64.AppImage
+          asset_name: worktime-pomodoro-${{ matrix.rust_target }}.AppImage
+          asset_content_type: application/octet-stream
+      
+      - name: Upload Release Assets (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./src-tauri/target/release/bundle/msi/worktime-pomodoro_0.1.0_x64_en-US.msi
+          asset_name: worktime-pomodoro-${{ matrix.rust_target }}.msi
+          asset_content_type: application/octet-stream
+      
+      - name: Upload Release Assets (macOS)
+        if: matrix.platform == 'macos-latest'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./src-tauri/target/release/bundle/dmg/worktime-pomodoro_0.1.0_${{ matrix.rust_target }}.dmg
+          asset_name: worktime-pomodoro-${{ matrix.rust_target }}.dmg
+          asset_content_type: application/octet-stream
+
+  generate-update-manifest:
+    name: Generate Update Manifest
+    needs: [create-release, build-tauri]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      - name: Generate latest.json
+        run: |
+          cat > latest.json << EOF
+          {
+            "version": "${{ steps.version.outputs.VERSION }}",
+            "notes": "Release ${{ steps.version.outputs.VERSION }}",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "linux-x86_64": {
+                "signature": "",
+                "url": "${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/worktime-pomodoro-x86_64-unknown-linux-gnu.AppImage"
+              },
+              "windows-x86_64": {
+                "signature": "",
+                "url": "${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/worktime-pomodoro-x86_64-pc-windows-msvc.msi"
+              },
+              "darwin-x86_64": {
+                "signature": "",
+                "url": "${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/worktime-pomodoro-x86_64-apple-darwin.dmg"
+              },
+              "darwin-aarch64": {
+                "signature": "",
+                "url": "${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/worktime-pomodoro-aarch64-apple-darwin.dmg"
+              }
+            }
+          }
+          EOF
+      
+      - name: Upload latest.json
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./latest.json
+          asset_name: latest.json
+          asset_content_type: application/json

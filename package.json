@@ -8,18 +8,22 @@
     "preview": "astro preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "lint": "oxlint .",
+    "format:check": "oxlint --fix --dry-run ."
   },
   "dependencies": {
     "astro": "^5.0.0"
   },
   "devDependencies": {
+    "@oxc-parser/wasm": "^0.60.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/cli": "^2",
-    "@tauri-apps/plugin-notification": "^2",
-    "@tauri-apps/plugin-global-shortcut": "^2",
     "@tauri-apps/plugin-autostart": "^2",
+    "@tauri-apps/plugin-global-shortcut": "^2",
+    "@tauri-apps/plugin-notification": "^2",
     "@tauri-apps/plugin-shell": "^2",
+    "oxlint": "^1.89.0",
     "typescript": "^5.7.3"
   }
 }

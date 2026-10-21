@@ -29,13 +29,16 @@ impl PomodoroScheduler {
     }
 
     pub async fn start(&self) -> Result<()> {
-        info!("Starting Pomodoro scheduler with {} minute intervals", self.interval_minutes);
+        info!(
+            "Starting Pomodoro scheduler with {} minute intervals",
+            self.interval_minutes
+        );
 
         let mut ticker = interval(Duration::from_secs(self.interval_minutes * 60));
 
         loop {
             ticker.tick().await;
-            
+
             if let Err(e) = self.on_tick().await {
                 error!("Error during scheduler tick: {}", e);
             }
@@ -69,7 +72,7 @@ impl PomodoroScheduler {
     fn is_working_hours(&self) -> bool {
         let now = Local::now();
         let hour = now.hour();
-        
+
         // Default working hours: 8:00 - 17:30
         // TODO: Read from settings
         (8..18).contains(&hour)
@@ -83,17 +86,13 @@ impl PomodoroScheduler {
             return Ok(());
         }
 
-        WebviewWindowBuilder::new(
-            &self.app_handle,
-            "ping",
-            WebviewUrl::App("/ping".into()),
-        )
-        .title("番茄鐘到了！")
-        .inner_size(500.0, 700.0)
-        .resizable(false)
-        .center()
-        .always_on_top(true)
-        .build()?;
+        WebviewWindowBuilder::new(&self.app_handle, "ping", WebviewUrl::App("/ping".into()))
+            .title("番茄鐘到了！")
+            .inner_size(500.0, 700.0)
+            .resizable(false)
+            .center()
+            .always_on_top(true)
+            .build()?;
 
         Ok(())
     }

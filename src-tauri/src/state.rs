@@ -133,12 +133,7 @@ impl StateMachine {
     }
 
     /// End current task
-    pub fn end_task(
-        &self,
-        ts: DateTime<Local>,
-        mono_ms: i64,
-        source: EventSource,
-    ) -> Vec<Event> {
+    pub fn end_task(&self, ts: DateTime<Local>, mono_ms: i64, source: EventSource) -> Vec<Event> {
         let mut state = self.state.lock().unwrap();
         let mut events = Vec::new();
 
@@ -311,9 +306,12 @@ mod tests {
 
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].kind, EventKind::Start);
-        assert_eq!(sm.get_state(), AppState::Working {
-            task_key: "Task1".to_string()
-        });
+        assert_eq!(
+            sm.get_state(),
+            AppState::Working {
+                task_key: "Task1".to_string()
+            }
+        );
     }
 
     #[test]
@@ -337,9 +335,12 @@ mod tests {
         assert_eq!(events[1].task_key, Some("Task2".to_string()));
         // Both events should have same timestamp
         assert_eq!(events[0].ts, events[1].ts);
-        assert_eq!(sm.get_state(), AppState::Working {
-            task_key: "Task2".to_string()
-        });
+        assert_eq!(
+            sm.get_state(),
+            AppState::Working {
+                task_key: "Task2".to_string()
+            }
+        );
     }
 
     #[test]

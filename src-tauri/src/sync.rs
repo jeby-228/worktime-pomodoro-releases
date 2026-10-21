@@ -86,7 +86,7 @@ mod tests {
     async fn test_noop_sync() {
         let sync = NoOpSync;
         assert!(!sync.is_available().await);
-        
+
         let tasks = sync.fetch_tasks("test_user").await.unwrap();
         assert!(tasks.is_empty());
     }
@@ -95,7 +95,7 @@ mod tests {
     async fn test_mock_sync() {
         let sync = MockSync::new();
         assert!(sync.is_available().await);
-        
+
         let tasks = sync.fetch_tasks("test_user").await.unwrap();
         assert!(tasks.is_empty());
     }

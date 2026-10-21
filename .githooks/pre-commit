@@ -1,0 +1,51 @@
+#!/bin/sh
+# Pre-commit hook for worktime-pomodoro
+
+echo "🔍 Running pre-commit checks..."
+
+# Check if we're in the right directory
+if [ ! -f "package.json" ]; then
+    echo "❌ Not in project root"
+    exit 1
+fi
+
+# 1. Rust formatting check
+echo "📝 Checking Rust formatting..."
+if ! cargo fmt --manifest-path=src-tauri/Cargo.toml --all -- --check; then
+    echo "❌ Rust formatting check failed. Run: cargo fmt --manifest-path=src-tauri/Cargo.toml --all"
+    exit 1
+fi
+echo "✅ Rust formatting OK"
+
+# 2. Rust clippy
+echo "🔍 Running Clippy..."
+if ! cargo clippy --manifest-path=src-tauri/Cargo.toml --all-targets -- -D warnings; then
+    echo "❌ Clippy check failed"
+    exit 1
+fi
+echo "✅ Clippy OK"
+
+# 3. Rust tests
+echo "🧪 Running Rust tests..."
+if ! cargo test --manifest-path=src-tauri/Cargo.toml --lib; then
+    echo "❌ Tests failed"
+    exit 1
+fi
+echo "✅ Tests OK"
+
+# 4. Frontend linting with oxlint
+echo "🎨 Running oxlint..."
+if ! npm run lint; then
+    echo "❌ Linting failed"
+    exit 1
+fi
+echo "✅ Linting OK"
+
+# 5. Frontend format check
+echo "📋 Checking frontend formatting..."
+if ! npm run format:check; then
+    echo "⚠️  Frontend formatting issues found (non-blocking)"
+fi
+
+echo "✅ All pre-commit checks passed!"
+exit 0

@@ -1,0 +1,14 @@
+{
+  "categories": {
+    "correctness": "warn",
+    "suspicious": "warn",
+    "perf": "warn",
+    "pedantic": "off"
+  },
+  "env": {
+    "browser": true
+  },
+  "globals": {
+    "__TAURI__": true
+  }
+}

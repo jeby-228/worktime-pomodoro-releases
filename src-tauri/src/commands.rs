@@ -12,23 +12,17 @@ pub struct TaskInfo {
 }
 
 #[tauri::command]
-pub async fn start_task(
-    state: State<'_, AppState>,
-    task: TaskInfo,
-) -> Result<(), String> {
+pub async fn start_task(state: State<'_, AppState>, task: TaskInfo) -> Result<(), String> {
     let sm = state.state_machine.lock().await;
     let now = Local::now();
-    
-    let events = sm.start_task(
-        task.task_key.clone(),
-        now,
-        0,
-        EventSource::User,
-        task.note,
-    );
+
+    let events = sm.start_task(task.task_key.clone(), now, 0, EventSource::User, task.note);
 
     for event in events {
-        state.store.insert_event(&event).map_err(|e| e.to_string())?;
+        state
+            .store
+            .insert_event(&event)
+            .map_err(|e| e.to_string())?;
     }
 
     // Update task cache
@@ -48,7 +42,10 @@ pub async fn start_task(
                 last_used_at: Some(now),
                 fetched_at: None,
             };
-            state.store.insert_or_update_task(&task_cache).map_err(|e| e.to_string())?;
+            state
+                .store
+                .insert_or_update_task(&task_cache)
+                .map_err(|e| e.to_string())?;
         }
     }
 
@@ -65,7 +62,10 @@ pub async fn end_task(state: State<'_, AppState>) -> Result<(), String> {
     let events = sm.end_task(Local::now(), 0, EventSource::User);
 
     for event in events {
-        state.store.insert_event(&event).map_err(|e| e.to_string())?;
+        state
+            .store
+            .insert_event(&event)
+            .map_err(|e| e.to_string())?;
     }
 
     let deriver = SegmentDeriver::new(state.store.clone());
@@ -80,7 +80,10 @@ pub async fn pause_task(state: State<'_, AppState>) -> Result<(), String> {
     let events = sm.pause(Local::now(), 0, EventSource::User);
 
     for event in events {
-        state.store.insert_event(&event).map_err(|e| e.to_string())?;
+        state
+            .store
+            .insert_event(&event)
+            .map_err(|e| e.to_string())?;
     }
 
     let deriver = SegmentDeriver::new(state.store.clone());
@@ -97,7 +100,10 @@ pub async fn continue_task(state: State<'_, crate::AppState>) -> Result<(), Stri
     if let worktime_pomodoro_lib::AppState::Working { task_key: _ } = current_state {
         // Just ping
         let ping_event = sm.ping(chrono::Local::now(), 0);
-        state.store.insert_event(&ping_event).map_err(|e| e.to_string())?;
+        state
+            .store
+            .insert_event(&ping_event)
+            .map_err(|e| e.to_string())?;
     }
 
     Ok(())
@@ -159,14 +165,20 @@ pub async fn export_csv(
         Local::now().date_naive()
     };
 
-    let segments = state.store.get_segments_for_date(date).map_err(|e| e.to_string())?;
+    let segments = state
+        .store
+        .get_segments_for_date(date)
+        .map_err(|e| e.to_string())?;
 
     let mut csv = String::from("日期,任務,開始時間,結束時間,分鐘數,狀態,備註\n");
-    
+
     for segment in segments {
         let task_key = segment.task_key.unwrap_or_else(|| "待確認".to_string());
         let start = segment.start_ts.format("%H:%M").to_string();
-        let end = segment.end_ts.map(|dt| dt.format("%H:%M").to_string()).unwrap_or_else(|| "進行中".to_string());
+        let end = segment
+            .end_ts
+            .map(|dt| dt.format("%H:%M").to_string())
+            .unwrap_or_else(|| "進行中".to_string());
         let minutes = segment.minutes.map(|m| m.to_string()).unwrap_or_default();
         let status = match segment.status {
             SegmentStatus::Confirmed => "已確認",
@@ -208,7 +220,8 @@ impl Default for SettingsData {
             shortcut: "Ctrl+Alt+T".to_string(),
             autostart: true,
             sync_url: "https://mes.company.com/api/worktime".to_string(),
-            update_url: "https://github.com/yourname/worktime-pomodoro/releases/latest/download".to_string(),
+            update_url: "https://github.com/yourname/worktime-pomodoro/releases/latest/download"
+                .to_string(),
             update_check_on_startup: true,
         }
     }
@@ -216,10 +229,24 @@ impl Default for SettingsData {
 
 #[tauri::command]
 pub async fn get_settings(state: State<'_, AppState>) -> Result<SettingsData, String> {
-    let username = state.store.get_setting("username").map_err(|e| e.to_string())?.unwrap_or_else(|| "使用者".to_string());
-    let interval = state.store.get_setting("interval_minutes").map_err(|e| e.to_string())?.and_then(|s| s.parse().ok()).unwrap_or(25);
-    let timeout = state.store.get_setting("timeout_minutes").map_err(|e| e.to_string())?.and_then(|s| s.parse().ok()).unwrap_or(5);
-    
+    let username = state
+        .store
+        .get_setting("username")
+        .map_err(|e| e.to_string())?
+        .unwrap_or_else(|| "使用者".to_string());
+    let interval = state
+        .store
+        .get_setting("interval_minutes")
+        .map_err(|e| e.to_string())?
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(25);
+    let timeout = state
+        .store
+        .get_setting("timeout_minutes")
+        .map_err(|e| e.to_string())?
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(5);
+
     Ok(SettingsData {
         username,
         interval_minutes: interval,
@@ -233,14 +260,41 @@ pub async fn save_settings(
     state: State<'_, AppState>,
     settings: SettingsData,
 ) -> Result<(), String> {
-    state.store.set_setting("username", &settings.username).map_err(|e| e.to_string())?;
-    state.store.set_setting("interval_minutes", &settings.interval_minutes.to_string()).map_err(|e| e.to_string())?;
-    state.store.set_setting("timeout_minutes", &settings.timeout_minutes.to_string()).map_err(|e| e.to_string())?;
-    state.store.set_setting("work_start", &settings.work_start).map_err(|e| e.to_string())?;
-    state.store.set_setting("work_end", &settings.work_end).map_err(|e| e.to_string())?;
-    state.store.set_setting("sync_url", &settings.sync_url).map_err(|e| e.to_string())?;
-    state.store.set_setting("update_url", &settings.update_url).map_err(|e| e.to_string())?;
-    state.store.set_setting("update_check_on_startup", &settings.update_check_on_startup.to_string()).map_err(|e| e.to_string())?;
+    state
+        .store
+        .set_setting("username", &settings.username)
+        .map_err(|e| e.to_string())?;
+    state
+        .store
+        .set_setting("interval_minutes", &settings.interval_minutes.to_string())
+        .map_err(|e| e.to_string())?;
+    state
+        .store
+        .set_setting("timeout_minutes", &settings.timeout_minutes.to_string())
+        .map_err(|e| e.to_string())?;
+    state
+        .store
+        .set_setting("work_start", &settings.work_start)
+        .map_err(|e| e.to_string())?;
+    state
+        .store
+        .set_setting("work_end", &settings.work_end)
+        .map_err(|e| e.to_string())?;
+    state
+        .store
+        .set_setting("sync_url", &settings.sync_url)
+        .map_err(|e| e.to_string())?;
+    state
+        .store
+        .set_setting("update_url", &settings.update_url)
+        .map_err(|e| e.to_string())?;
+    state
+        .store
+        .set_setting(
+            "update_check_on_startup",
+            &settings.update_check_on_startup.to_string(),
+        )
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -256,7 +310,10 @@ pub struct UnknownPeriod {
 #[tauri::command]
 pub async fn get_unknown_periods(state: State<'_, AppState>) -> Result<Vec<UnknownPeriod>, String> {
     let date = Local::now().date_naive();
-    let segments = state.store.get_segments_for_date(date).map_err(|e| e.to_string())?;
+    let segments = state
+        .store
+        .get_segments_for_date(date)
+        .map_err(|e| e.to_string())?;
 
     let unknown: Vec<UnknownPeriod> = segments
         .into_iter()

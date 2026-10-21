@@ -1,4 +1,8 @@
-#![allow(clippy::identity_op, clippy::double_ended_iterator_last, clippy::unnecessary_cast)]
+#![allow(
+    clippy::identity_op,
+    clippy::double_ended_iterator_last,
+    clippy::unnecessary_cast
+)]
 
 /// Integration tests covering all acceptance scenarios from section 12 of the spec
 use chrono::{Duration, Local, TimeZone};
@@ -29,7 +33,13 @@ fn scenario_1_continuous_work_with_switch() {
     store.insert_event(&ping_event).unwrap();
 
     // Ping 2 - switch to B
-    let events = sm.start_task("TaskB".to_string(), ping2, 50 * 60 * 1000, EventSource::Ping, None);
+    let events = sm.start_task(
+        "TaskB".to_string(),
+        ping2,
+        50 * 60 * 1000,
+        EventSource::Ping,
+        None,
+    );
     for e in events {
         store.insert_event(&e).unwrap();
     }
@@ -50,7 +60,7 @@ fn scenario_1_continuous_work_with_switch() {
     assert_eq!(segments[0].task_key, Some("TaskA".to_string()));
     assert_eq!(segments[0].minutes, Some(50));
     assert_eq!(segments[1].task_key, Some("TaskB".to_string()));
-    
+
     // TaskB should be from ping2 to end_of_day
     let expected_b_minutes = (end_of_day.signed_duration_since(ping2).num_seconds() / 60) as i64;
     assert_eq!(segments[1].minutes, Some(expected_b_minutes));
@@ -94,9 +104,15 @@ fn scenario_2_ping_timeout_and_resolve() {
     // User resolves: attribute unknown period to TaskA
     // This would be done via a resolve event in real app
     // For now, we can manually start TaskA at the timeout time
-    let events = sm.start_task("TaskA".to_string(), timeout_time, 30 * 60 * 1000, EventSource::User, None);
+    let events = sm.start_task(
+        "TaskA".to_string(),
+        timeout_time,
+        30 * 60 * 1000,
+        EventSource::User,
+        None,
+    );
     // Note: This creates overlap, which the real resolve mechanism should handle better
-    
+
     deriver.rebuild_segments().unwrap();
 
     let date = chrono::NaiveDate::from_ymd_opt(2026, 10, 21).unwrap();
@@ -104,7 +120,7 @@ fn scenario_2_ping_timeout_and_resolve() {
 
     // Should have segments for TaskA and unknown period
     assert!(!segments.is_empty());
-    
+
     // Check that there's an unknown segment
     let has_unknown = segments.iter().any(|s| s.status == SegmentStatus::Unknown);
     assert!(has_unknown);
@@ -120,7 +136,7 @@ fn scenario_3_crash_recovery() {
     let work_start = Local.with_ymd_and_hms(2026, 10, 21, 10, 0, 0).unwrap();
     let ping1 = work_start + Duration::minutes(25);
     let crash_time = ping1 + Duration::minutes(10); // Crashed 10 min after ping
-    
+
     // Old boot session
     let old_boot_id = "old-boot-123".to_string();
 
@@ -149,20 +165,22 @@ fn scenario_3_crash_recovery() {
     store.insert_event(&event).unwrap();
 
     // Crash happens (no more events)
-    
+
     // New session starts
     let sm_new = StateMachine::new(); // New boot_id
     let recovery = Recovery::new(store.clone(), sm_new);
-    
+
     let restart_time = crash_time;
     let action = recovery.check_on_startup(restart_time).unwrap();
-    
+
     assert!(action.is_some());
     let action = action.unwrap();
     assert!(action.needs_user_resolve);
-    
+
     // Should have ended at ping1
-    let end_event = action.events_to_insert.iter()
+    let end_event = action
+        .events_to_insert
+        .iter()
         .find(|e| matches!(e.kind, EventKind::End))
         .unwrap();
     assert_eq!(end_event.ts, ping1);
@@ -208,11 +226,11 @@ fn scenario_4_sleep_recovery() {
 
     // Should have: TaskA segment, and unknown segment for sleep period
     assert!(segments.len() >= 2);
-    
+
     // First segment should be TaskA for 30 minutes
     assert_eq!(segments[0].task_key, Some("TaskA".to_string()));
     assert_eq!(segments[0].minutes, Some(30));
-    
+
     // Second segment should be unknown for 40 minutes
     assert_eq!(segments[1].task_key, None);
     assert_eq!(segments[1].status, SegmentStatus::Unknown);
@@ -227,7 +245,7 @@ fn scenario_5_offline_all_day() {
     let sm = StateMachine::new();
 
     let work_start = Local.with_ymd_and_hms(2026, 10, 21, 9, 0, 0).unwrap();
-    
+
     // Start task
     let events = sm.start_task("TaskA".to_string(), work_start, 0, EventSource::User, None);
     for e in events {
@@ -251,7 +269,7 @@ fn scenario_5_offline_all_day() {
     // Check all events are unsynced
     let all_events = store.get_all_events().unwrap();
     let unsynced_count = all_events.iter().filter(|e| !e.synced).count();
-    
+
     assert_eq!(unsynced_count, all_events.len());
     assert_eq!(unsynced_count, 12); // 1 start + 10 pings + 1 end
 }
@@ -283,7 +301,13 @@ fn scenario_6_adhoc_task() {
     store.insert_or_update_task(&adhoc_task).unwrap();
 
     // Start adhoc task
-    let events = sm.start_task(adhoc_task.task_key.clone(), work_start, 0, EventSource::User, None);
+    let events = sm.start_task(
+        adhoc_task.task_key.clone(),
+        work_start,
+        0,
+        EventSource::User,
+        None,
+    );
     for e in events {
         store.insert_event(&e).unwrap();
     }
@@ -329,7 +353,7 @@ fn scenario_7_utf8_task_names() {
 
     for (i, task_key) in tasks.iter().enumerate() {
         let ts = work_start + Duration::minutes(30 * i as i64);
-        
+
         let task = TaskCache {
             task_key: task_key.to_string(),
             plan_name: Some("測試".to_string()),
@@ -397,13 +421,13 @@ fn scenario_overnight_recovery() {
     // New session today
     let sm_new = StateMachine::new();
     let recovery = Recovery::new(store.clone(), sm_new);
-    
+
     let today = Local.with_ymd_and_hms(2026, 10, 21, 9, 0, 0).unwrap();
     let action = recovery.check_on_startup(today).unwrap();
-    
+
     assert!(action.is_some());
     let action = action.unwrap();
-    
+
     // Should end yesterday's task at last ping
     let end_event = &action.events_to_insert[0];
     assert!(matches!(end_event.kind, EventKind::End));

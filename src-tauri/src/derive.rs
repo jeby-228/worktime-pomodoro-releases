@@ -114,9 +114,9 @@ impl SegmentDeriver {
     /// Rebuild segments table from events
     pub fn rebuild_segments(&self) -> Result<()> {
         let segments = self.derive_all()?;
-        
+
         self.store.clear_segments()?;
-        
+
         for segment in segments {
             self.store.insert_segment(&segment)?;
         }
@@ -127,7 +127,7 @@ impl SegmentDeriver {
     /// Get segments summary for a date
     pub fn get_daily_summary(&self, date: chrono::NaiveDate) -> Result<DailySummary> {
         let segments = self.store.get_segments_for_date(date)?;
-        
+
         let mut task_minutes: HashMap<String, i64> = HashMap::new();
         let mut total_minutes = 0i64;
         let mut unknown_minutes = 0i64;
@@ -198,11 +198,7 @@ mod tests {
     use chrono::TimeZone;
     use uuid::Uuid;
 
-    fn make_event(
-        kind: EventKind,
-        task_key: Option<&str>,
-        ts: DateTime<Local>,
-    ) -> Event {
+    fn make_event(kind: EventKind, task_key: Option<&str>, ts: DateTime<Local>) -> Event {
         Event {
             id: None,
             uuid: Uuid::new_v4(),

@@ -54,12 +54,14 @@ impl Recovery {
 
         // Check 3: Was the app working when it crashed?
         // Check if there's an unmatched Start event (no corresponding End)
-        let recent_events = self.store.get_events_since(last_event.ts - Duration::hours(24))?;
-        
+        let recent_events = self
+            .store
+            .get_events_since(last_event.ts - Duration::hours(24))?;
+
         let mut start_count = 0;
         let mut end_count = 0;
         let mut last_start: Option<Event> = None;
-        
+
         for event in &recent_events {
             match event.kind {
                 EventKind::Start => {
@@ -72,7 +74,7 @@ impl Recovery {
                 _ => {}
             }
         }
-        
+
         if start_count > end_count {
             // Unmatched start, need crash recovery
             return self.recover_from_crash(last_start.unwrap(), now);
@@ -93,7 +95,7 @@ impl Recovery {
     ) -> Result<Option<RecoveryAction>> {
         // Find the last ping event after this start
         let events_since = self.store.get_events_since(last_start_event.ts)?;
-        
+
         let last_ping = events_since
             .iter()
             .rfind(|e| matches!(e.kind, EventKind::Ping));
@@ -181,16 +183,17 @@ impl Recovery {
 
         // Check if there's an unmatched Start event on the last day
         let events_on_last_day = self.store.get_events_since(
-            last_date.and_hms_opt(0, 0, 0)
+            last_date
+                .and_hms_opt(0, 0, 0)
                 .unwrap()
                 .and_local_timezone(Local)
-                .unwrap()
+                .unwrap(),
         )?;
 
         let mut start_count = 0;
         let mut end_count = 0;
         let mut last_start: Option<Event> = None;
-        
+
         for event in &events_on_last_day {
             match event.kind {
                 EventKind::Start => {
@@ -255,10 +258,7 @@ impl Recovery {
     }
 
     /// Handle sleep/wake cycle
-    pub fn handle_sleep(
-        &self,
-        sleep_start: DateTime<Local>,
-    ) -> Result<Vec<Event>> {
+    pub fn handle_sleep(&self, sleep_start: DateTime<Local>) -> Result<Vec<Event>> {
         let mono_ms = self.elapsed_mono_ms();
         let mut events = Vec::new();
 
@@ -298,10 +298,7 @@ impl Recovery {
         Ok(events)
     }
 
-    pub fn handle_wake(
-        &self,
-        wake_time: DateTime<Local>,
-    ) -> Result<Vec<Event>> {
+    pub fn handle_wake(&self, wake_time: DateTime<Local>) -> Result<Vec<Event>> {
         let mono_ms = self.elapsed_mono_ms();
 
         // Mark unknown end
@@ -323,14 +320,10 @@ impl Recovery {
     }
 
     /// Detect time jump (system clock changed)
-    pub fn detect_time_jump(
-        &self,
-        expected_mono_diff_ms: i64,
-        actual_ts_diff_secs: i64,
-    ) -> bool {
+    pub fn detect_time_jump(&self, expected_mono_diff_ms: i64, actual_ts_diff_secs: i64) -> bool {
         let expected_secs = expected_mono_diff_ms / 1000;
         let diff = (actual_ts_diff_secs - expected_secs).abs();
-        
+
         // If difference is more than 2 minutes, consider it a time jump
         diff > 120
     }
@@ -360,11 +353,11 @@ mod tests {
     fn test_recover_from_crash() {
         let store = Store::new_in_memory().unwrap();
         let sm = StateMachine::new();
-        
+
         // Simulate a crash: last event was a start
         let crash_time = Local.with_ymd_and_hms(2026, 10, 21, 10, 0, 0).unwrap();
         let ping_time = Local.with_ymd_and_hms(2026, 10, 21, 10, 25, 0).unwrap();
-        
+
         let start_event = Event {
             id: None,
             uuid: Uuid::new_v4(),
@@ -378,7 +371,7 @@ mod tests {
             source: EventSource::User,
             synced: false,
         };
-        
+
         let ping_event = Event {
             id: None,
             uuid: Uuid::new_v4(),
@@ -392,22 +385,24 @@ mod tests {
             source: EventSource::Ping,
             synced: false,
         };
-        
+
         store.insert_event(&start_event).unwrap();
         store.insert_event(&ping_event).unwrap();
 
         let recovery = Recovery::new(store, sm);
         let now = Local.with_ymd_and_hms(2026, 10, 21, 11, 0, 0).unwrap();
-        
+
         let action = recovery.check_on_startup(now).unwrap();
         assert!(action.is_some());
-        
+
         let action = action.unwrap();
         assert!(action.needs_user_resolve);
         assert!(!action.events_to_insert.is_empty());
-        
+
         // Should have end event at ping time
-        let end_event = action.events_to_insert.iter()
+        let end_event = action
+            .events_to_insert
+            .iter()
             .find(|e| matches!(e.kind, EventKind::End))
             .unwrap();
         assert_eq!(end_event.ts, ping_time);
@@ -417,10 +412,10 @@ mod tests {
     fn test_recover_from_overnight() {
         let store = Store::new_in_memory().unwrap();
         let sm = StateMachine::new();
-        
+
         let yesterday = Local.with_ymd_and_hms(2026, 10, 20, 16, 0, 0).unwrap();
         let yesterday_ping = Local.with_ymd_and_hms(2026, 10, 20, 16, 25, 0).unwrap();
-        
+
         let start_event = Event {
             id: None,
             uuid: Uuid::new_v4(),
@@ -434,7 +429,7 @@ mod tests {
             source: EventSource::User,
             synced: false,
         };
-        
+
         let ping_event = Event {
             id: None,
             uuid: Uuid::new_v4(),
@@ -448,19 +443,19 @@ mod tests {
             source: EventSource::Ping,
             synced: false,
         };
-        
+
         store.insert_event(&start_event).unwrap();
         store.insert_event(&ping_event).unwrap();
 
         let recovery = Recovery::new(store, sm);
         let today = Local.with_ymd_and_hms(2026, 10, 21, 9, 0, 0).unwrap();
-        
+
         let action = recovery.check_on_startup(today).unwrap();
         assert!(action.is_some());
-        
+
         let action = action.unwrap();
         assert!(!action.needs_user_resolve);
-        
+
         // Should have end event at yesterday's ping time
         let end_event = &action.events_to_insert[0];
         assert!(matches!(end_event.kind, EventKind::End));
@@ -471,22 +466,17 @@ mod tests {
     fn test_handle_sleep_wake() {
         let store = Store::new_in_memory().unwrap();
         let sm = StateMachine::new();
-        
+
         // Start working
         let work_start = Local.with_ymd_and_hms(2026, 10, 21, 10, 0, 0).unwrap();
-        let start_events = sm.start_task(
-            "Task1".to_string(),
-            work_start,
-            0,
-            EventSource::User,
-            None,
-        );
+        let start_events =
+            sm.start_task("Task1".to_string(), work_start, 0, EventSource::User, None);
         for event in start_events {
             store.insert_event(&event).unwrap();
         }
 
         let recovery = Recovery::new(store.clone(), sm);
-        
+
         let sleep_time = Local.with_ymd_and_hms(2026, 10, 21, 10, 30, 0).unwrap();
         let sleep_events = recovery.handle_sleep(sleep_time).unwrap();
         assert_eq!(sleep_events.len(), 2); // End + UnknownBegin
