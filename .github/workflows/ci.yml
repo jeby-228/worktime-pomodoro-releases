@@ -19,6 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Install Just
+        uses: extractions/setup-just@v2
+      
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -43,27 +46,19 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
       
       - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libxdo-dev \
-            libssl-dev \
-            libglib2.0-dev
+        run: just install-system-deps
       
       - name: Check Rust formatting
-        run: cargo fmt --manifest-path=src-tauri/Cargo.toml --all -- --check
+        run: just check-fmt-rust
       
       - name: Run Clippy
-        run: cargo clippy --manifest-path=src-tauri/Cargo.toml --all-targets -- -D warnings
+        run: just clippy
       
       - name: Run tests
-        run: cargo test --manifest-path=src-tauri/Cargo.toml --all
+        run: just test-rust
       
       - name: Build Rust
-        run: cargo build --manifest-path=src-tauri/Cargo.toml --release
+        run: just build-rust-release
 
   # 前端檢查
   frontend-check:
@@ -72,6 +67,9 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Install Just
+        uses: extractions/setup-just@v2
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -83,13 +81,13 @@ jobs:
         run: npm ci
       
       - name: Run oxlint
-        run: npm run lint
+        run: just lint-frontend
       
       - name: Check formatting with oxlint
         run: npm run format:check
       
       - name: Build frontend
-        run: npm run build
+        run: just build-frontend
       
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -107,6 +105,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Install Just
+        uses: extractions/setup-just@v2
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -117,15 +118,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       
       - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libxdo-dev \
-            libssl-dev \
-            libglib2.0-dev
+        run: just install-system-deps
       
       - name: Install dependencies
         run: npm ci

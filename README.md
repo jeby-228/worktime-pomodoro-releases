@@ -31,6 +31,10 @@
 > **⚠️ 重要建置須知：** 此專案需要先建置前端（`npm run build`）才能編譯後端。  
 > 詳細說明請參閱 **[BUILD_GUIDE.md](./BUILD_GUIDE.md)**
 
+> **💡 推薦工具：** 本專案使用 [Just](https://github.com/casey/just) 來管理常用指令。  
+> 安裝：`cargo install just` 或參考 [安裝指南](https://github.com/casey/just#installation)  
+> 查看所有指令：`just --list`
+
 ### 前置需求
 
 - **Rust** 1.70+（推薦最新穩定版）
@@ -53,18 +57,31 @@
 
 ### 初次設置
 
+**使用 Just（推薦）：**
+```bash
+# 完整初始化（安裝依賴、建置前端和後端）
+just init
+```
+
+**手動設置：**
 ```bash
 # 1. 安裝系統依賴（僅 Linux）
 ./check-dependencies.sh
+# 或使用 just
+just install-system-deps
 
 # 2. 安裝 Node 依賴
 npm install
 
 # 3. 建置前端（必須先執行！）
 npm run build
+# 或使用 just
+just build-frontend
 
 # 4. 驗證後端編譯
 cargo build --manifest-path=src-tauri/Cargo.toml
+# 或使用 just
+just build-rust
 ```
 
 ### 開發模式
@@ -72,6 +89,9 @@ cargo build --manifest-path=src-tauri/Cargo.toml
 ```bash
 # 啟動開發伺服器（Tauri + Astro 熱重載）
 npm run tauri:dev
+
+# 或使用 just
+just dev
 ```
 
 ### 生產建置
@@ -79,6 +99,9 @@ npm run tauri:dev
 ```bash
 # 一鍵建置（推薦，自動建置前端 + 後端）
 npm run tauri:build
+
+# 或使用 just 分步建置
+just build-release  # 建置前端 + 後端（release 模式）
 ```
 
 輸出檔案位於 `src-tauri/target/release/bundle/`
@@ -192,6 +215,19 @@ worktime-pomodoro/
 
 ## 測試
 
+**使用 Just（推薦）：**
+```bash
+# 運行所有測試
+just test
+
+# 運行測試並顯示詳細輸出
+just test-verbose
+
+# 僅運行 Rust 測試
+just test-rust
+```
+
+**手動執行：**
 ```bash
 # 運行所有測試（單元 + 整合）
 cd src-tauri
@@ -213,6 +249,53 @@ cargo test recovery::tests
 ## 快捷鍵
 
 - **Ctrl+Alt+T**：開啟任務記錄視窗（全域快捷鍵）
+
+## Just 常用指令
+
+本專案使用 [Just](https://github.com/casey/just) 作為指令執行器（類似 Make）。
+
+```bash
+# 列出所有可用指令
+just --list
+
+# 開發相關
+just dev                  # 啟動 Tauri 開發模式
+just build                # 建置前端 + 後端（debug）
+just build-release        # 建置 release 版本
+just clean                # 清理所有建置產物
+
+# 程式碼品質
+just fmt                  # 格式化所有程式碼
+just check                # 執行所有檢查（CI 使用）
+just clippy               # 執行 Clippy 檢查
+just test                 # 執行所有測試
+
+# Rust 專用
+just fmt-rust             # 格式化 Rust 程式碼
+just check-fmt-rust       # 檢查 Rust 格式
+just test-rust            # 執行 Rust 測試
+just build-rust           # 建置 Rust（debug）
+just build-rust-release   # 建置 Rust（release）
+
+# 前端專用
+just fmt-frontend         # 格式化前端程式碼
+just lint-frontend        # 檢查前端程式碼
+just build-frontend       # 建置前端
+just dev-frontend         # 啟動前端開發伺服器
+
+# 初始化與設置
+just init                 # 完整初始化專案
+just install-system-deps  # 安裝系統依賴（Linux）
+just install-node         # 安裝 Node 依賴
+just status               # 顯示專案狀態
+
+# CI/CD
+just ci-check             # CI 檢查流程
+just ci-build             # CI 建置流程
+just pre-commit           # Pre-commit 檢查
+```
+
+詳細指令說明請參考 [`justfile`](./justfile)
 
 ## 已知限制與待辦
 

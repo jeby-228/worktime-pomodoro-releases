@@ -69,20 +69,26 @@ jobs:
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libxdo-dev \
-            libssl-dev \
-            libglib2.0-dev
+          # Install Just
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+          # Install system dependencies
+          just install-system-deps
       
       - name: Install dependencies
         run: npm ci
       
+      - name: Install Just (non-Linux)
+        if: matrix.platform != 'ubuntu-22.04'
+        run: |
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            brew install just
+          elif [ "$RUNNER_OS" == "Windows" ]; then
+            choco install just
+          fi
+        shell: bash
+      
       - name: Build frontend
-        run: npm run build
+        run: just build-frontend
       
       - name: Build Tauri
         run: npm run tauri:build
