@@ -104,7 +104,7 @@ fn scenario_2_ping_timeout_and_resolve() {
     // User resolves: attribute unknown period to TaskA
     // This would be done via a resolve event in real app
     // For now, we can manually start TaskA at the timeout time
-    let events = sm.start_task(
+    let _events = sm.start_task(
         "TaskA".to_string(),
         timeout_time,
         30 * 60 * 1000,
@@ -131,7 +131,7 @@ fn scenario_3_crash_recovery() {
     // Scenario 3: Force quit while working → restart 10 min later → end at last ping
 
     let store = Store::new_in_memory().unwrap();
-    let sm = StateMachine::new();
+    let _sm = StateMachine::new();
 
     let work_start = Local.with_ymd_and_hms(2026, 10, 21, 10, 0, 0).unwrap();
     let ping1 = work_start + Duration::minutes(25);
@@ -390,7 +390,7 @@ fn scenario_overnight_recovery() {
     // Additional test: Overnight shutdown with recovery
 
     let store = Store::new_in_memory().unwrap();
-    let sm = StateMachine::new();
+    let _sm = StateMachine::new();
 
     let yesterday = Local.with_ymd_and_hms(2026, 10, 20, 16, 0, 0).unwrap();
     let yesterday_ping = Local.with_ymd_and_hms(2026, 10, 20, 16, 45, 0).unwrap();
