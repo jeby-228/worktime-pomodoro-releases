@@ -53,8 +53,29 @@ impl Recovery {
         }
 
         // Check 3: Was the app working when it crashed?
-        if matches!(last_event.kind, EventKind::Start) {
-            return self.recover_from_crash(last_event, now);
+        // Check if there's an unmatched Start event (no corresponding End)
+        let recent_events = self.store.get_events_since(last_event.ts - Duration::hours(24))?;
+        
+        let mut start_count = 0;
+        let mut end_count = 0;
+        let mut last_start: Option<Event> = None;
+        
+        for event in &recent_events {
+            match event.kind {
+                EventKind::Start => {
+                    start_count += 1;
+                    last_start = Some(event.clone());
+                }
+                EventKind::End => {
+                    end_count += 1;
+                }
+                _ => {}
+            }
+        }
+        
+        if start_count > end_count {
+            // Unmatched start, need crash recovery
+            return self.recover_from_crash(last_start.unwrap(), now);
         }
 
         // Check 4: Check for time jump (system clock changed)
@@ -75,8 +96,7 @@ impl Recovery {
         
         let last_ping = events_since
             .iter()
-            .filter(|e| matches!(e.kind, EventKind::Ping))
-            .last();
+            .rfind(|e| matches!(e.kind, EventKind::Ping));
 
         let recovery_end_time = if let Some(ping) = last_ping {
             // End at last ping time
@@ -152,52 +172,74 @@ impl Recovery {
     /// Recover from overnight shutdown
     fn recover_from_overnight(
         &self,
-        last_event: Event,
+        _last_event: Event,
         last_date: NaiveDate,
         _now: DateTime<Local>,
     ) -> Result<Option<RecoveryAction>> {
         let mut events = Vec::new();
         let mono_ms = self.elapsed_mono_ms();
 
-        // If the last event was a Start, we need to end it
-        if matches!(last_event.kind, EventKind::Start) {
-            // Find last ping or use default end-of-workday time
-            let events_on_last_day = self.store.get_events_since(
-                last_date.and_hms_opt(0, 0, 0)
-                    .unwrap()
-                    .and_local_timezone(Local)
-                    .unwrap()
-            )?;
+        // Check if there's an unmatched Start event on the last day
+        let events_on_last_day = self.store.get_events_since(
+            last_date.and_hms_opt(0, 0, 0)
+                .unwrap()
+                .and_local_timezone(Local)
+                .unwrap()
+        )?;
 
-            let last_ping = events_on_last_day
-                .iter()
-                .filter(|e| matches!(e.kind, EventKind::Ping))
-                .last();
+        let mut start_count = 0;
+        let mut end_count = 0;
+        let mut last_start: Option<Event> = None;
+        
+        for event in &events_on_last_day {
+            match event.kind {
+                EventKind::Start => {
+                    start_count += 1;
+                    last_start = Some(event.clone());
+                }
+                EventKind::End => {
+                    end_count += 1;
+                }
+                _ => {}
+            }
+        }
 
-            let end_time = if let Some(ping) = last_ping {
-                ping.ts
-            } else {
-                // Default to 17:30 on that day
-                last_date
-                    .and_hms_opt(17, 30, 0)
-                    .unwrap()
-                    .and_local_timezone(Local)
-                    .unwrap()
-            };
+        // If we have unmatched Start, end it
+        if start_count > end_count {
+            if let Some(start_event) = last_start {
+                let last_ping = events_on_last_day
+                    .iter()
+                    .rfind(|e| matches!(e.kind, EventKind::Ping));
 
-            events.push(Event {
-                id: None,
-                uuid: uuid::Uuid::new_v4(),
-                ts: end_time,
-                mono_ms,
-                boot_id: self.state_machine.get_boot_id(),
-                kind: EventKind::End,
-                task_key: last_event.task_key.clone(),
-                ref_event_id: None,
-                note: Some("跨日自動結束".to_string()),
-                source: EventSource::Recovery,
-                synced: false,
-            });
+                let end_time = if let Some(ping) = last_ping {
+                    ping.ts
+                } else {
+                    // Default to 17:30 on that day
+                    last_date
+                        .and_hms_opt(17, 30, 0)
+                        .unwrap()
+                        .and_local_timezone(Local)
+                        .unwrap()
+                };
+
+                events.push(Event {
+                    id: None,
+                    uuid: uuid::Uuid::new_v4(),
+                    ts: end_time,
+                    mono_ms,
+                    boot_id: self.state_machine.get_boot_id(),
+                    kind: EventKind::End,
+                    task_key: start_event.task_key.clone(),
+                    ref_event_id: None,
+                    note: Some("跨日自動結束".to_string()),
+                    source: EventSource::Recovery,
+                    synced: false,
+                });
+            }
+        }
+
+        if events.is_empty() {
+            return Ok(None);
         }
 
         let message = format!(
@@ -261,10 +303,9 @@ impl Recovery {
         wake_time: DateTime<Local>,
     ) -> Result<Vec<Event>> {
         let mono_ms = self.elapsed_mono_ms();
-        let mut events = Vec::new();
 
         // Mark unknown end
-        events.push(Event {
+        let events = vec![Event {
             id: None,
             uuid: uuid::Uuid::new_v4(),
             ts: wake_time,
@@ -276,7 +317,7 @@ impl Recovery {
             note: Some("電腦喚醒".to_string()),
             source: EventSource::Auto,
             synced: false,
-        });
+        }];
 
         Ok(events)
     }

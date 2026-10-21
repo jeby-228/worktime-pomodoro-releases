@@ -94,7 +94,7 @@ impl MigrationManager {
             .and_then(|n| n.to_str())
             .unwrap_or("worktime.db");
 
-        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S%.3f");
         let backup_filename = format!("{}.backup_{}", db_filename, timestamp);
         let backup_path = db_dir.join(&backup_filename);
 
@@ -278,7 +278,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
         
-        // Create and migrate initial database
+        // Create and migrate initial database (creates backup #1)
         let mut conn = Connection::open(&db_path).unwrap();
         let manager = MigrationManager::new().unwrap();
         manager.migrate(&mut conn, Some(&db_path)).unwrap();
@@ -290,10 +290,10 @@ mod tests {
         ).unwrap();
         drop(conn);
 
-        // Create a backup manually
+        // Create a second backup manually (backup #2)
         manager.backup_database(&db_path).unwrap();
 
-        // Check backup exists
+        // Check backups exist
         let backups: Vec<_> = fs::read_dir(temp_dir.path())
             .unwrap()
             .filter_map(|e| e.ok())
@@ -306,7 +306,8 @@ mod tests {
             })
             .collect();
 
-        assert_eq!(backups.len(), 1);
+        // Should have 2 backups: one from migration, one manual
+        assert_eq!(backups.len(), 2);
     }
 
     #[test]

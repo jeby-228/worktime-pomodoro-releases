@@ -3,7 +3,7 @@
 
 use anyhow::Result;
 use std::sync::Arc;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager};
 use tokio::sync::Mutex;
 use tracing::{error, info};
 use worktime_pomodoro_lib::*;
@@ -43,6 +43,8 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             info!("Setting up application");
 
@@ -63,9 +65,38 @@ fn main() {
             // Initialize state machine
             let state_machine = Arc::new(Mutex::new(StateMachine::new()));
 
-            // TODO: Recovery check on startup
-            // This would require StateMachine to implement Clone
-            // or refactor Recovery to accept Arc<Mutex<StateMachine>>
+            // M3: Recovery check on startup
+            let recovery_store = store.clone();
+            let recovery_sm = state_machine.clone();
+            tauri::async_runtime::block_on(async move {
+                let sm = recovery_sm.lock().await.clone();
+                let recovery = Recovery::new(recovery_store.clone(), sm);
+                
+                match recovery.check_on_startup(chrono::Local::now()) {
+                    Ok(Some(action)) => {
+                        info!("Recovery needed: {}", action.message);
+                        
+                        // Apply recovery
+                        if let Err(e) = recovery.apply_recovery(action) {
+                            error!("Failed to apply recovery: {}", e);
+                        } else {
+                            info!("Recovery applied successfully");
+                            
+                            // Rebuild segments
+                            let deriver = SegmentDeriver::new(recovery_store.clone());
+                            if let Err(e) = deriver.rebuild_segments() {
+                                error!("Failed to rebuild segments after recovery: {}", e);
+                            }
+                        }
+                    }
+                    Ok(None) => {
+                        info!("No recovery needed");
+                    }
+                    Err(e) => {
+                        error!("Recovery check failed: {}", e);
+                    }
+                }
+            });
 
             // Initialize scheduler
             let scheduler = Arc::new(Mutex::new(PomodoroScheduler::new(
@@ -101,6 +132,14 @@ fn main() {
 
             #[cfg(target_os = "windows")]
             setup_windows_sleep_detection(app.handle().clone());
+
+            // Check for updates on startup
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = updater::trigger_update_check(&app_handle).await {
+                    error!("Startup update check failed: {}", e);
+                }
+            });
 
             info!("Application setup complete");
             Ok(())
@@ -269,28 +308,206 @@ fn setup_global_shortcut(app: &mut tauri::App) -> Result<()> {
 
 // M3: Sleep/wake detection for Linux
 #[cfg(target_os = "linux")]
-fn setup_linux_sleep_detection(_app_handle: AppHandle) {
+fn setup_linux_sleep_detection(app_handle: AppHandle) {
+    use futures::StreamExt;
+    use zbus::proxy;
+    
+    #[proxy(
+        interface = "org.freedesktop.login1.Manager",
+        default_service = "org.freedesktop.login1",
+        default_path = "/org/freedesktop/login1"
+    )]
+    trait Login1Manager {
+        #[zbus(signal)]
+        fn prepare_for_sleep(&self, start: bool) -> zbus::Result<()>;
+    }
+
     tauri::async_runtime::spawn(async move {
-        // Best-effort: try to connect to login1 D-Bus for sleep signals
-        if let Ok(_connection) = zbus::Connection::system().await {
-            info!("Connected to D-Bus for sleep detection");
-            
-            // In real implementation, subscribe to PrepareForSleep signal
-            // For now, this is a stub
-            // let proxy = login1::ManagerProxy::new(&connection).await;
-            // let mut signal_stream = proxy.receive_prepare_for_sleep().await;
-            
-            info!("Linux sleep detection stub active");
-        } else {
-            info!("D-Bus not available, sleep detection disabled");
+        info!("Setting up Linux sleep detection via D-Bus");
+        
+        match zbus::Connection::system().await {
+            Ok(connection) => {
+                info!("Connected to D-Bus system bus");
+                
+                match Login1ManagerProxy::new(&connection).await {
+                    Ok(proxy) => {
+                        info!("Connected to logind Manager");
+                        
+                        let mut stream = match proxy.receive_prepare_for_sleep().await {
+                            Ok(s) => s,
+                            Err(e) => {
+                                error!("Failed to subscribe to PrepareForSleep: {}", e);
+                                return;
+                            }
+                        };
+                        
+                        info!("Subscribed to PrepareForSleep signal");
+                        
+                        loop {
+                            match stream.next().await {
+                                Some(signal) => {
+                                    let args = match signal.args() {
+                                        Ok(a) => a,
+                                        Err(e) => {
+                                            error!("Failed to parse signal args: {}", e);
+                                            continue;
+                                        }
+                                    };
+                                    
+                                    if args.start {
+                                        info!("System going to sleep");
+                                        handle_sleep(&app_handle).await;
+                                    } else {
+                                        info!("System waking up from sleep");
+                                        handle_wake(&app_handle).await;
+                                    }
+                                }
+                                None => {
+                                    error!("D-Bus signal stream ended");
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to create logind proxy: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                error!("Failed to connect to D-Bus: {}", e);
+            }
         }
     });
 }
 
+#[cfg(target_os = "linux")]
+async fn handle_sleep(app_handle: &AppHandle) {
+    let state = app_handle.state::<AppState>();
+    let sm = state.state_machine.lock().await.clone();
+    let recovery = Recovery::new(state.store.clone(), sm);
+    
+    if let Ok(events) = recovery.handle_sleep(chrono::Local::now()) {
+        for event in events {
+            if let Err(e) = state.store.insert_event(&event) {
+                error!("Failed to insert sleep event: {}", e);
+            }
+        }
+        
+        // Rebuild segments
+        let deriver = SegmentDeriver::new(state.store.clone());
+        if let Err(e) = deriver.rebuild_segments() {
+            error!("Failed to rebuild segments after sleep: {}", e);
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+async fn handle_wake(app_handle: &AppHandle) {
+    let state = app_handle.state::<AppState>();
+    let sm = state.state_machine.lock().await.clone();
+    let recovery = Recovery::new(state.store.clone(), sm);
+    
+    if let Ok(events) = recovery.handle_wake(chrono::Local::now()) {
+        for event in events {
+            if let Err(e) = state.store.insert_event(&event) {
+                error!("Failed to insert wake event: {}", e);
+            }
+        }
+        
+        // Rebuild segments
+        let deriver = SegmentDeriver::new(state.store.clone());
+        if let Err(e) = deriver.rebuild_segments() {
+            error!("Failed to rebuild segments after wake: {}", e);
+        }
+    }
+}
+
 // M3: Sleep/wake detection for Windows
 #[cfg(target_os = "windows")]
-fn setup_windows_sleep_detection(_app_handle: AppHandle) {
-    info!("Windows sleep detection would use WM_POWERBROADCAST");
-    // Implementation would use windows crate to hook into power events
-    // This is a stub as it requires unsafe Windows API calls
+fn setup_windows_sleep_detection(app_handle: AppHandle) {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::System::Power::{
+        PBT_APMSUSPEND, PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, RegisterClassW,
+        TranslateMessage, CS_HREDRAW, CS_VREDRAW, MSG, WNDCLASSW, WM_POWERBROADCAST,
+        WINDOW_EX_STYLE, WS_OVERLAPPEDWINDOW,
+    };
+
+    info!("Setting up Windows sleep detection");
+
+    std::thread::spawn(move || {
+        unsafe {
+            let class_name = windows::core::w!("PowerEventWindow");
+            
+            let wc = WNDCLASSW {
+                lpfnWndProc: Some(power_window_proc),
+                lpszClassName: class_name,
+                style: CS_HREDRAW | CS_VREDRAW,
+                ..Default::default()
+            };
+
+            if RegisterClassW(&wc) == 0 {
+                error!("Failed to register window class for power events");
+                return;
+            }
+
+            let hwnd = CreateWindowExW(
+                WINDOW_EX_STYLE(0),
+                class_name,
+                windows::core::w!("PowerEvents"),
+                WS_OVERLAPPEDWINDOW,
+                0, 0, 0, 0,
+                HWND(0),
+                None,
+                None,
+                None,
+            );
+
+            if hwnd.0 == 0 {
+                error!("Failed to create window for power events");
+                return;
+            }
+
+            // Store app handle in window user data
+            // Note: This is simplified; production code should use SetWindowLongPtrW
+            
+            info!("Windows power event listener started");
+
+            let mut msg = MSG::default();
+            while GetMessageW(&mut msg, HWND(0), 0, 0).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+    });
+}
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn power_window_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::System::Power::{PBT_APMSUSPEND, PBT_APMRESUMEAUTOMATIC};
+    use windows::Win32::UI::WindowsAndMessaging::{DefWindowProcW, WM_POWERBROADCAST};
+
+    if msg == WM_POWERBROADCAST {
+        match wparam.0 as u32 {
+            PBT_APMSUSPEND => {
+                info!("Windows: System going to sleep");
+                // TODO: Get app_handle from window user data and call handle_sleep
+            }
+            PBT_APMRESUMEAUTOMATIC => {
+                info!("Windows: System waking up");
+                // TODO: Get app_handle from window user data and call handle_wake
+            }
+            _ => {}
+        }
+    }
+
+    DefWindowProcW(hwnd, msg, wparam, lparam)
 }

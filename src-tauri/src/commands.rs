@@ -38,7 +38,7 @@ pub async fn start_task(
             let parts: Vec<&str> = task.task_key.split('|').collect();
             let task_cache = TaskCache {
                 task_key: task.task_key.clone(),
-                plan_name: parts.get(0).map(|s| s.to_string()),
+                plan_name: parts.first().map(|s| s.to_string()),
                 stage_name: parts.get(1).map(|s| s.to_string()),
                 process_name: parts.get(2).map(|s| s.to_string()),
                 task_name: parts.get(3).map(|s| s.to_string()),

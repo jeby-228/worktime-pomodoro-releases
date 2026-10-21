@@ -50,7 +50,7 @@ impl EventKind {
         }
     }
 
-    pub fn from_str(s: &str) -> Result<Self> {
+    pub fn parse_str(s: &str) -> Result<Self> {
         match s {
             "start" => Ok(Self::Start),
             "end" => Ok(Self::End),
@@ -86,7 +86,7 @@ impl EventSource {
         }
     }
 
-    pub fn from_str(s: &str) -> Result<Self> {
+    pub fn parse_str(s: &str) -> Result<Self> {
         match s {
             "user" => Ok(Self::User),
             "ping" => Ok(Self::Ping),
@@ -140,7 +140,7 @@ impl SegmentStatus {
         }
     }
 
-    pub fn from_str(s: &str) -> Result<Self> {
+    pub fn parse_str(s: &str) -> Result<Self> {
         match s {
             "confirmed" => Ok(Self::Confirmed),
             "unknown" => Ok(Self::Unknown),
@@ -195,6 +195,7 @@ impl Store {
         Ok(store)
     }
 
+    #[allow(dead_code)]
     fn migrate(&self) -> Result<()> {
         // Migrations are now run in new() before this
         Ok(())
@@ -243,11 +244,11 @@ impl Store {
                         .with_timezone(&Local),
                     mono_ms: row.get(3)?,
                     boot_id: row.get(4)?,
-                    kind: EventKind::from_str(&row.get::<_, String>(5)?).unwrap(),
+                    kind: EventKind::parse_str(&row.get::<_, String>(5)?).unwrap(),
                     task_key: row.get(6)?,
                     ref_event_id: row.get(7)?,
                     note: row.get(8)?,
-                    source: EventSource::from_str(&row.get::<_, String>(9)?).unwrap(),
+                    source: EventSource::parse_str(&row.get::<_, String>(9)?).unwrap(),
                     synced: row.get::<_, i32>(10)? != 0,
                 })
             })?
@@ -275,11 +276,11 @@ impl Store {
                         .with_timezone(&Local),
                     mono_ms: row.get(3)?,
                     boot_id: row.get(4)?,
-                    kind: EventKind::from_str(&row.get::<_, String>(5)?).unwrap(),
+                    kind: EventKind::parse_str(&row.get::<_, String>(5)?).unwrap(),
                     task_key: row.get(6)?,
                     ref_event_id: row.get(7)?,
                     note: row.get(8)?,
-                    source: EventSource::from_str(&row.get::<_, String>(9)?).unwrap(),
+                    source: EventSource::parse_str(&row.get::<_, String>(9)?).unwrap(),
                     synced: row.get::<_, i32>(10)? != 0,
                 })
             })?
@@ -307,11 +308,11 @@ impl Store {
                             .with_timezone(&Local),
                         mono_ms: row.get(3)?,
                         boot_id: row.get(4)?,
-                        kind: EventKind::from_str(&row.get::<_, String>(5)?).unwrap(),
+                        kind: EventKind::parse_str(&row.get::<_, String>(5)?).unwrap(),
                         task_key: row.get(6)?,
                         ref_event_id: row.get(7)?,
                         note: row.get(8)?,
-                        source: EventSource::from_str(&row.get::<_, String>(9)?).unwrap(),
+                        source: EventSource::parse_str(&row.get::<_, String>(9)?).unwrap(),
                         synced: row.get::<_, i32>(10)? != 0,
                     })
                 },
@@ -486,7 +487,7 @@ impl Store {
                             .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
                             .map(|dt| dt.with_timezone(&Local)),
                         minutes: row.get(4)?,
-                        status: SegmentStatus::from_str(&row.get::<_, String>(5)?).unwrap(),
+                        status: SegmentStatus::parse_str(&row.get::<_, String>(5)?).unwrap(),
                         synced: row.get::<_, i32>(6)? != 0,
                     })
                 },

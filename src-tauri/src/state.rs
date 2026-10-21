@@ -12,6 +12,7 @@ pub enum AppState {
     Paused,
 }
 
+#[derive(Clone)]
 pub struct StateMachine {
     state: Arc<Mutex<AppState>>,
     boot_id: String,

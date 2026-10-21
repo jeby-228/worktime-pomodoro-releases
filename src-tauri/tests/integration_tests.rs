@@ -1,3 +1,5 @@
+#![allow(clippy::identity_op, clippy::double_ended_iterator_last, clippy::unnecessary_cast)]
+
 /// Integration tests covering all acceptance scenarios from section 12 of the spec
 use chrono::{Duration, Local, TimeZone};
 use worktime_pomodoro_lib::*;

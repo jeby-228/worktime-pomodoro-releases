@@ -72,7 +72,7 @@ impl PomodoroScheduler {
         
         // Default working hours: 8:00 - 17:30
         // TODO: Read from settings
-        hour >= 8 && hour < 18
+        (8..18).contains(&hour)
     }
 
     fn show_ping_window(&self) -> Result<()> {
