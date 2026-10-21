@@ -34,21 +34,37 @@
 - **Node.js** 22.23.4+
 - **系統依賴**（Linux）：
   ```bash
+  # 自動檢查並安裝依賴
+  ./check-dependencies.sh
+  
+  # 或手動安裝
   sudo apt update
   sudo apt install -y \
     libwebkit2gtk-4.1-dev \
     libayatana-appindicator3-dev \
     librsvg2-dev \
     libxdo-dev \
-    libssl-dev
+    libssl-dev \
+    libglib2.0-dev
   ```
+
+### 初次設置
+
+```bash
+# 1. 安裝系統依賴
+./check-dependencies.sh
+
+# 2. 安裝 Node 依賴
+npm install
+
+# 3. 驗證建置
+cargo build --manifest-path=src-tauri/Cargo.toml
+npm run build
+```
 
 ### 開發模式
 
 ```bash
-# 安裝前端依賴
-npm install
-
 # 啟動開發伺服器（Tauri + Astro 熱重載）
 npm run tauri:dev
 ```
@@ -193,12 +209,29 @@ cargo test recovery::tests
 
 ## 已知限制與待辦
 
-- [ ] Recovery 整合至 Tauri 啟動流程（目前已佔位）
-- [ ] 完善 Linux 休眠/喚醒檢測（需實作 D-Bus `PrepareForSleep` 信號）
-- [ ] Windows 休眠檢測（需呼叫 Win32 `WM_POWERBROADCAST`）
+- [ ] Recovery 整合至 Tauri 啟動流程（✅ 已完成）
+- [ ] 完善 Linux 休眠/喚醒檢測（✅ 已完成 - D-Bus PrepareForSleep）
+- [ ] Windows 休眠檢測（架構完成，需實作 unsafe Win32 API）
 - [ ] 完整的同步功能（`SyncTarget` trait 已定義，實作留給後續）
-- [ ] 完善 Tauri updater 整合（目前為存根實作）
-- [ ] 修正 3 個失敗的測試（migration 備份清理、recovery 場景）
+- [ ] 完善 Tauri updater 整合（✅ 已完成 - 參考 UPDATER_SETUP.md）
+- [ ] Bundle identifier 已更新為 `com.worktime.pomodoro`
+
+## 常見問題
+
+### 建置錯誤：缺少 glib-2.0 或 gobject-2.0
+
+```bash
+# 執行依賴檢查腳本
+./check-dependencies.sh
+
+# 或手動安裝
+sudo apt-get install -y libglib2.0-dev
+```
+
+### Bundle identifier 錯誤
+
+專案已配置唯一的 bundle identifier `com.worktime.pomodoro`。
+如需自定義，請修改 `src-tauri/tauri.conf.json` 中的 `identifier` 欄位。
 
 ## 授權
 
