@@ -63,9 +63,9 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
+      "pubkey": "YOUR_PUBLIC_KEY_HERE",
       "endpoints": [
-        "https://github.com/yourname/worktime-pomodoro/releases/latest/download/latest.json"
+        "https://github.com/jeby-228/worktime-pomodoro-releases/releases/latest/download/latest.json"
       ]
     }
   }

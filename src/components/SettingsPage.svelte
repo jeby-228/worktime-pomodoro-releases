@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { open } from '@tauri-apps/plugin-dialog';
+  import { check as checkUpdate } from '@tauri-apps/plugin-updater';
+  import { relaunch } from '@tauri-apps/plugin-process';
   import { Settings, Palette, Clock, Calendar, Keyboard, Monitor, Info } from 'lucide-svelte';
   import { t, setLocale, currentLocale } from '$lib/i18n';
   
@@ -35,6 +37,9 @@
   
   let activeSection = $state('general');
   let isDirty = $state(false);
+  let checking = $state(false);
+  let updateAvailable = $state(false);
+  let updateMessage = $state('');
   
   const sections = [
     { id: 'general', icon: Settings, labelKey: 'settings.general' },
@@ -97,6 +102,37 @@
   function exportDefault() {
     // TODO: export default pet
     console.log('Export default pet');
+  }
+
+  async function checkForUpdates() {
+    checking = true;
+    updateMessage = '';
+    updateAvailable = false;
+
+    try {
+      const update = await checkUpdate();
+      
+      if (update?.available) {
+        updateAvailable = true;
+        updateMessage = $t('settings.update_available', { version: update.version });
+        
+        // Ask user to install
+        if (confirm($t('settings.update_confirm', { version: update.version }))) {
+          await update.downloadAndInstall();
+          // Prompt to restart
+          if (confirm($t('settings.restart_confirm'))) {
+            await relaunch();
+          }
+        }
+      } else {
+        updateMessage = $t('settings.no_updates');
+      }
+    } catch (error: any) {
+      console.error('Update check failed:', error);
+      updateMessage = $t('settings.update_check_failed');
+    } finally {
+      checking = false;
+    }
   }
 </script>
 
@@ -384,20 +420,42 @@
       {:else if activeSection === 'about'}
         <div class="space-y-6">
           <div>
-            <h2 class="text-xl font-semibold mb-4">關於</h2>
+            <h2 class="text-xl font-semibold mb-4">{$t('settings.about')}</h2>
           </div>
           
           <div class="space-y-4">
             <div>
-              <div class="text-sm font-medium">番茄工時</div>
-              <div class="text-sm text-muted-foreground">v0.2.0</div>
+              <div class="text-sm font-medium">{$t('app.title')}</div>
+              <div class="text-sm text-muted-foreground">v0.1.0</div>
             </div>
             
             <div>
-              <div class="text-sm font-medium">技術堆疊</div>
+              <div class="text-sm font-medium">{$t('settings.technology')}</div>
               <div class="text-sm text-muted-foreground">
                 Tauri 2 · Rust · Astro · Svelte 5 · Tailwind CSS
               </div>
+            </div>
+
+            <!-- Check for Updates -->
+            <div class="pt-4 border-t border-border">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-sm font-medium">{$t('settings.check_updates')}</div>
+                  <div class="text-xs text-muted-foreground">{$t('settings.check_updates_desc')}</div>
+                </div>
+                <button
+                  onclick={checkForUpdates}
+                  disabled={checking}
+                  class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {checking ? $t('settings.checking') : $t('settings.check_now')}
+                </button>
+              </div>
+              {#if updateMessage}
+                <div class="mt-3 px-3 py-2 rounded-md text-sm {updateAvailable ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}">
+                  {updateMessage}
+                </div>
+              {/if}
             </div>
           </div>
         </div>

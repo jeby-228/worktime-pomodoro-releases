@@ -180,6 +180,8 @@
     "pomodoro": "番茄鐘",
     "schedule": "時程",
     "mini_mode": "迷你模式",
+    "shortcuts": "快捷鍵",
+    "about": "關於",
     "language": "語言",
     "language_follow_system": "跟隨系統",
     "theme": "主題",
@@ -201,7 +203,17 @@
     "pet_selection": "寵物選擇",
     "pet_current": "目前寵物",
     "pet_import": "匯入寵物",
-    "pet_import_hint": "支援 .codex-pet.zip 格式"
+    "pet_import_hint": "支援 .codex-pet.zip 格式",
+    "technology": "技術堆疊",
+    "check_updates": "檢查更新",
+    "check_updates_desc": "檢查是否有新版本可用",
+    "check_now": "立即檢查",
+    "checking": "檢查中...",
+    "update_available": "發現新版本 {version}",
+    "update_confirm": "下載並安裝版本 {version}？",
+    "restart_confirm": "安裝完成，現在重啟應用？",
+    "no_updates": "目前已是最新版本",
+    "update_check_failed": "檢查更新失敗"
   },
   "idle_return": {
     "title": "離開檢測",
