@@ -19,9 +19,47 @@
     "warning": "警告",
     "info": "資訊"
   },
+  "actions": {
+    "close": "關閉",
+    "cancel": "取消",
+    "save": "儲存",
+    "saving": "儲存中...",
+    "delete": "刪除",
+    "fill": "補登",
+    "fill_gap": "補記",
+    "skip_all": "跳過全部"
+  },
+  "slot_types": {
+    "work": "工作",
+    "interrupt": "插隊",
+    "meeting": "會議",
+    "lunch": "午休"
+  },
+  "slot_edit": {
+    "title": "編輯時段",
+    "type": "類型",
+    "task_title": "任務名稱",
+    "person": "聯絡人",
+    "start_time": "開始時間",
+    "end_time": "結束時間",
+    "note": "備註"
+  },
+  "placeholders": {
+    "task_title": "輸入任務名稱...",
+    "person": "輸入聯絡人（選填）...",
+    "note": "輸入備註（選填）..."
+  },
+  "errors": {
+    "task_title_required": "請輸入任務名稱",
+    "start_time_required": "請選擇開始時間"
+  },
+  "confirm": {
+    "delete_slot": "確定要刪除這個時段嗎？"
+  },
   "time": {
-    "minutes": "分鐘",
-    "hours": "小時",
+    "minutes": "{minutes} 分鐘",
+    "hours": "{hours} 小時",
+    "hours_minutes": "{hours} 小時 {minutes} 分",
     "seconds": "秒",
     "minute_short": "分",
     "hour_short": "時",
@@ -94,6 +132,10 @@
     "fill_gap": "補登",
     "ignore_gap": "忽略"
   },
+  "timeline": {
+    "gap_unrecorded": "未記錄 {minutes} 分",
+    "interrupt_badge": "插隊"
+  },
   "records": {
     "title": "紀錄",
     "date_range": "日期範圍",
@@ -158,9 +200,13 @@
     "title": "離開檢測",
     "message": "離開 {minutes} 分鐘，要算成：",
     "continue_task": "繼續原任務",
+    "continue_desc": "將閒置時間計入當前任務",
     "lunch": "午休",
+    "lunch_desc": "將閒置時間記為午休",
     "meeting": "會議",
-    "ignore": "不算"
+    "meeting_desc": "將閒置時間記為會議",
+    "discard": "不算",
+    "discard_desc": "不記錄這段閒置時間"
   },
   "eod_review": {
     "title": "下班前檢查",

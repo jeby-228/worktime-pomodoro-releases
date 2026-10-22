@@ -85,12 +85,18 @@
     if (onClose) onClose();
   }
   
+  function handleGlobalEvent(e: Event) {
+    visible = true;
+  }
+  
   onMount(() => {
     document.addEventListener('keydown', handleKeydown);
+    window.addEventListener('show-quick-input', handleGlobalEvent);
   });
   
   onDestroy(() => {
     document.removeEventListener('keydown', handleKeydown);
+    window.removeEventListener('show-quick-input', handleGlobalEvent);
   });
 </script>
 
