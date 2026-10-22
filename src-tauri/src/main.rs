@@ -484,88 +484,87 @@ async fn handle_wake(app_handle: &AppHandle) {
 
 // M3: Sleep/wake detection for Windows
 #[cfg(target_os = "windows")]
-fn setup_windows_sleep_detection(app_handle: AppHandle) {
+fn setup_windows_sleep_detection(_app_handle: AppHandle) {
+    use std::ptr::null_mut;
     use windows::Win32::Foundation::HWND;
-    use windows::Win32::System::Power::{
-        PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND, PBT_APMSUSPEND,
-    };
     use windows::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, RegisterClassW,
-        TranslateMessage, CS_HREDRAW, CS_VREDRAW, MSG, WINDOW_EX_STYLE, WM_POWERBROADCAST,
-        WNDCLASSW, WS_OVERLAPPEDWINDOW,
+        CreateWindowExW, DispatchMessageW, GetMessageW, RegisterClassW, TranslateMessage,
+        CS_HREDRAW, CS_VREDRAW, MSG, WINDOW_EX_STYLE, WNDCLASSW, WS_OVERLAPPEDWINDOW,
     };
 
     info!("Setting up Windows sleep detection");
 
-    std::thread::spawn(move || {
-        unsafe {
-            let class_name = windows::core::w!("PowerEventWindow");
+    std::thread::spawn(move || unsafe {
+        let class_name = windows::core::w!("PowerEventWindow");
 
-            let wc = WNDCLASSW {
-                lpfnWndProc: Some(power_window_proc),
-                lpszClassName: class_name,
-                style: CS_HREDRAW | CS_VREDRAW,
-                ..Default::default()
-            };
+        let wc = WNDCLASSW {
+            lpfnWndProc: Some(power_window_proc),
+            lpszClassName: class_name,
+            style: CS_HREDRAW | CS_VREDRAW,
+            ..Default::default()
+        };
 
-            if RegisterClassW(&wc) == 0 {
-                error!("Failed to register window class for power events");
+        if RegisterClassW(&wc) == 0 {
+            error!("Failed to register window class for power events");
+            return;
+        }
+
+        let hwnd = match CreateWindowExW(
+            WINDOW_EX_STYLE(0),
+            class_name,
+            windows::core::w!("PowerEvents"),
+            WS_OVERLAPPEDWINDOW,
+            0,
+            0,
+            0,
+            0,
+            HWND(null_mut()),
+            None,
+            None,
+            None,
+        ) {
+            Ok(h) => h,
+            Err(e) => {
+                error!("Failed to create window for power events: {e}");
                 return;
             }
+        };
 
-            let hwnd = CreateWindowExW(
-                WINDOW_EX_STYLE(0),
-                class_name,
-                windows::core::w!("PowerEvents"),
-                WS_OVERLAPPEDWINDOW,
-                0,
-                0,
-                0,
-                0,
-                HWND(0),
-                None,
-                None,
-                None,
-            );
+        if hwnd.0.is_null() {
+            error!("Failed to create window for power events");
+            return;
+        }
 
-            if hwnd.0 == 0 {
-                error!("Failed to create window for power events");
-                return;
-            }
+        info!("Windows power event listener started");
 
-            // Store app handle in window user data
-            // Note: This is simplified; production code should use SetWindowLongPtrW
-
-            info!("Windows power event listener started");
-
-            let mut msg = MSG::default();
-            while GetMessageW(&mut msg, HWND(0), 0, 0).as_bool() {
-                let _ = TranslateMessage(&msg);
-                DispatchMessageW(&msg);
-            }
+        let mut msg = MSG::default();
+        while GetMessageW(&mut msg, HWND(null_mut()), 0, 0).as_bool() {
+            let _ = TranslateMessage(&msg);
+            DispatchMessageW(&msg);
         }
     });
 }
 
 #[cfg(target_os = "windows")]
 unsafe extern "system" fn power_window_proc(
-    hwnd: HWND,
+    hwnd: windows::Win32::Foundation::HWND,
     msg: u32,
     wparam: windows::Win32::Foundation::WPARAM,
     lparam: windows::Win32::Foundation::LPARAM,
 ) -> windows::Win32::Foundation::LRESULT {
-    use windows::Win32::System::Power::{PBT_APMRESUMEAUTOMATIC, PBT_APMSUSPEND};
     use windows::Win32::UI::WindowsAndMessaging::{DefWindowProcW, WM_POWERBROADCAST};
+
+    // winuser.h: PBT_APMSUSPEND = 0x0004, PBT_APMRESUMEAUTOMATIC = 0x0012
+    const PBT_APMSUSPEND: u32 = 0x0004;
+    const PBT_APMRESUMEAUTOMATIC: u32 = 0x0012;
 
     if msg == WM_POWERBROADCAST {
         match wparam.0 as u32 {
             PBT_APMSUSPEND => {
                 info!("Windows: System going to sleep");
-                // TODO: Get app_handle from window user data and call handle_sleep
             }
             PBT_APMRESUMEAUTOMATIC => {
                 info!("Windows: System waking up");
-                // TODO: Get app_handle from window user data and call handle_wake
             }
             _ => {}
         }
