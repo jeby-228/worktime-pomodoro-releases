@@ -243,6 +243,72 @@ pub fn update_slot_manual(
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn delete_slot(slot_id: i64, store: State<AppStore>) -> Result<(), String> {
+    store.delete_slot(slot_id).map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FillGapRequest {
+    pub start_time: String,
+    pub end_time: String,
+    pub task_title: String,
+    pub person: Option<String>,
+    pub note: Option<String>,
+}
+
+#[tauri::command]
+pub fn fill_gap(request: FillGapRequest, store: State<AppStore>) -> Result<i64, String> {
+    use chrono::DateTime;
+
+    let start_ts = DateTime::parse_from_rfc3339(&request.start_time)
+        .map_err(|e| e.to_string())?
+        .with_timezone(&chrono::Local);
+    let end_ts = DateTime::parse_from_rfc3339(&request.end_time)
+        .map_err(|e| e.to_string())?
+        .with_timezone(&chrono::Local);
+
+    let mut slot = TimeSlot::new(request.task_title, SlotType::Work, start_ts);
+    slot.end_ts = Some(end_ts);
+    slot.note = request.note;
+
+    store.create_slot(&slot).map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IdleReturnRequest {
+    pub action: String,
+    pub idle_minutes: i64,
+}
+
+#[tauri::command]
+pub fn handle_idle_return(
+    request: IdleReturnRequest,
+    state_mgr: State<AppStateMgr>,
+) -> Result<(), String> {
+    match request.action.as_str() {
+        "continue" => {
+            // Resume task, treat idle time as part of current task
+            state_mgr.resume_task().map_err(|e| e.to_string())?;
+        }
+        "lunch" => {
+            // End current task and create a lunch slot for the idle period
+            // This would require more complex logic, simplified here
+            state_mgr.end_task().map_err(|e| e.to_string())?;
+        }
+        "meeting" => {
+            // End current task and create a meeting slot for the idle period
+            state_mgr.end_task().map_err(|e| e.to_string())?;
+        }
+        "discard" => {
+            // End current task, discard the idle time
+            state_mgr.end_task().map_err(|e| e.to_string())?;
+        }
+        _ => return Err("Invalid action".to_string()),
+    }
+    Ok(())
+}
+
 // ==================== Export Commands ====================
 
 #[derive(Debug, Serialize, Deserialize)]

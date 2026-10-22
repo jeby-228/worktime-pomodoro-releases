@@ -146,6 +146,8 @@
     "type_filter": "類型篩選",
     "all_types": "所有類型",
     "view_mode": "檢視模式",
+    "list_view": "列表",
+    "table_view": "表格",
     "detail_view": "明細",
     "summary_view": "依任務彙總",
     "export": "匯出",
@@ -154,7 +156,12 @@
     "file_format": "檔案格式",
     "columns": "欄位選擇",
     "preview": "預覽",
-    "export_btn": "匯出"
+    "export_btn": "匯出",
+    "search_placeholder": "搜尋任務...",
+    "no_records": "無記錄",
+    "items": "筆",
+    "total_items": "共 {count} 筆",
+    "summary_by_task": "依任務彙總"
   },
   "export": {
     "filename": "工時記錄_{date}",
