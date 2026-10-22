@@ -151,7 +151,6 @@
           class:bg-accent={activeSection === section.id}
           class:text-accent-foreground={activeSection === section.id}
           class:text-muted-foreground={activeSection !== section.id}
-          class:hover:bg-accent/50={activeSection !== section.id}
         >
           <svelte:component this={section.icon} class="size-4" />
           {$t(section.labelKey)}

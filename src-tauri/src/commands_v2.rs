@@ -1,6 +1,6 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{Manager, State};
 
 // When commands_v2 is a submodule of main.rs (the binary crate),
 // we can't import worktime_pomodoro_lib directly here.
