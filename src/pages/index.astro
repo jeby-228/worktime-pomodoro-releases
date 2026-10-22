@@ -2,6 +2,8 @@
 import DesktopLayout from '$components/DesktopLayout.svelte';
 import TimerCard from '$components/TimerCard.svelte';
 import TodayTimeline from '$components/TodayTimeline.svelte';
+import QuickInputPalette from '$components/QuickInputPalette.svelte';
+import InterruptDialog from '$components/InterruptDialog.svelte';
 import '$styles/global.css';
 ---
 
@@ -17,4 +19,25 @@ import '$styles/global.css';
       <TodayTimeline />
     </div>
   </div>
+  
+  <!-- Global Dialogs -->
+  <QuickInputPalette client:only="svelte" />
+  <InterruptDialog client:only="svelte" />
 </DesktopLayout>
+
+<script>
+  // Global keyboard shortcuts
+  if (typeof window !== 'undefined') {
+    import('@tauri-apps/plugin-global-shortcut').then(({ register }) => {
+      // Register Ctrl+Alt+T for quick input
+      register('Ctrl+Alt+T', () => {
+        window.dispatchEvent(new CustomEvent('show-quick-input'));
+      }).catch(err => console.error('Failed to register Ctrl+Alt+T:', err));
+      
+      // Register Ctrl+Alt+I for interrupt
+      register('Ctrl+Alt+I', () => {
+        window.dispatchEvent(new CustomEvent('show-interrupt'));
+      }).catch(err => console.error('Failed to register Ctrl+Alt+I:', err));
+    });
+  }
+</script>
