@@ -41,5 +41,13 @@
     "android": {
       "debugApplicationIdSuffix": ".debug"
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": [
+        "https://github.com/yourname/worktime-pomodoro/releases/latest/download/latest.json"
+      ]
+    }
   }
 }
