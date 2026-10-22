@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Briefcase, Zap, Users, Coffee, AlertTriangle, ChevronDown } from 'lucide-svelte';
+  import { Briefcase, Zap, Users, Coffee, Clock, AlertTriangle } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   
   interface TimeSlot {
@@ -11,6 +11,7 @@
     end_ts: number | null;
     note: string | null;
     duration_minutes: number;
+    parent_id: string | null;
   }
   
   interface Gap {
@@ -36,7 +37,6 @@
     lunch_minutes: 0,
     total_recorded: 0,
   });
-  let showGapReview = $state(false);
   
   const slotTypeIcons = {
     work: Briefcase,
@@ -44,6 +44,41 @@
     meeting: Users,
     lunch: Coffee,
   };
+  
+  // Build display list with gaps interspersed
+  let displayItems = $derived(() => {
+    const items: Array<{ type: 'slot' | 'gap'; data: TimeSlot | Gap; isNested?: boolean }> = [];
+    const allSlots = [...slots].sort((a, b) => a.start_ts - b.start_ts);
+    const allGaps = [...gaps].sort((a, b) => a.start_ts - b.start_ts);
+    
+    let gapIndex = 0;
+    for (const slot of allSlots) {
+      // Insert gaps before this slot
+      while (gapIndex < allGaps.length && allGaps[gapIndex].end_ts <= slot.start_ts) {
+        items.push({ type: 'gap', data: allGaps[gapIndex] });
+        gapIndex++;
+      }
+      
+      // Skip interrupt slots (they'll be nested under parent)
+      if (slot.parent_id) continue;
+      
+      items.push({ type: 'slot', data: slot });
+      
+      // Find and nest interrupts under this parent
+      const interrupts = allSlots.filter(s => s.parent_id === slot.id);
+      for (const interrupt of interrupts) {
+        items.push({ type: 'slot', data: interrupt, isNested: true });
+      }
+    }
+    
+    // Add remaining gaps
+    while (gapIndex < allGaps.length) {
+      items.push({ type: 'gap', data: allGaps[gapIndex] });
+      gapIndex++;
+    }
+    
+    return items;
+  });
   
   function formatTime(ts: number): string {
     const date = new Date(ts * 1000);
@@ -83,103 +118,106 @@
   <!-- Header -->
   <div class="flex items-center justify-between border-b border-border px-6 py-4">
     <h2 class="text-lg font-semibold">{$t('today.title')}</h2>
-    {#if gaps.length > 0}
-      <button 
-        onclick={() => showGapReview = !showGapReview}
-        class="flex items-center gap-2 rounded-md bg-warning/10 px-3 py-1.5 text-sm font-medium text-warning hover:bg-warning/20"
-      >
-        <AlertTriangle class="size-4" />
-        {$t('today.gaps')} ({gaps.length})
-        <ChevronDown class="size-4" class:rotate-180={showGapReview} />
-      </button>
-    {/if}
-  </div>
-  
-  <!-- Stats Summary -->
-  <div class="grid grid-cols-4 gap-4 border-b border-border px-6 py-4">
-    <div>
-      <div class="text-xs text-muted-foreground">{$t('today.work_time')}</div>
-      <div class="text-2xl font-semibold tabular-nums">{formatDuration(stats.work_minutes)}</div>
-    </div>
-    <div>
-      <div class="text-xs text-muted-foreground">{$t('today.interrupt_time')}</div>
-      <div class="text-2xl font-semibold tabular-nums">{formatDuration(stats.interrupt_minutes)}</div>
-    </div>
-    <div>
-      <div class="text-xs text-muted-foreground">{$t('today.meeting_time')}</div>
-      <div class="text-2xl font-semibold tabular-nums">{formatDuration(stats.meeting_minutes)}</div>
-    </div>
-    <div>
-      <div class="text-xs text-muted-foreground">{$t('common.loading')}</div>
-      <div class="text-2xl font-semibold tabular-nums">{formatDuration(stats.total_recorded)}</div>
+    <div class="text-sm text-muted-foreground">
+      10/23 {$t('time.today')}
     </div>
   </div>
   
-  <!-- Gap Review (collapsible) -->
-  {#if showGapReview && gaps.length > 0}
-    <div class="border-b border-border bg-warning/5 px-6 py-3">
-      <div class="space-y-2">
-        {#each gaps as gap}
-          <div class="flex items-center justify-between text-sm">
-            <span class="text-muted-foreground">
-              {formatTime(gap.start_ts)} - {formatTime(gap.end_ts)}
-              <span class="ml-2 text-warning">({gap.minutes} {$t('time.minute_short')})</span>
-            </span>
-            <button 
-              onclick={() => handleFillGap(gap)}
-              class="rounded px-2 py-1 text-xs font-medium text-warning hover:bg-warning/10"
-            >
-              {$t('today.fill_gap')}
-            </button>
-          </div>
-        {/each}
-      </div>
+  <!-- Stats Summary (one-line totals) -->
+  <div class="flex items-center gap-6 border-b border-border px-6 py-3 text-sm">
+    <div class="flex items-center gap-2">
+      <span class="text-muted-foreground">{$t('common.loading')}</span>
+      <span class="font-semibold tabular-nums">{formatDuration(stats.total_recorded)}</span>
     </div>
-  {/if}
+    <div class="h-4 w-px bg-border"></div>
+    <div class="flex items-center gap-2">
+      <Briefcase class="size-4 text-muted-foreground" />
+      <span class="tabular-nums">{formatDuration(stats.work_minutes)}</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <Zap class="size-4 text-muted-foreground" />
+      <span class="tabular-nums">{formatDuration(stats.interrupt_minutes)}</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <Users class="size-4 text-muted-foreground" />
+      <span class="tabular-nums">{formatDuration(stats.meeting_minutes)}</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <Coffee class="size-4 text-muted-foreground" />
+      <span class="tabular-nums">{formatDuration(stats.lunch_minutes)}</span>
+    </div>
+  </div>
   
-  <!-- Timeline -->
-  <div class="flex-1 overflow-y-auto px-6 py-4">
-    {#if slots.length === 0}
+  <!-- Timeline List (shadcn Item style) -->
+  <div class="flex-1 overflow-y-auto">
+    {#if displayItems().length === 0}
       <div class="flex h-full items-center justify-center text-center">
         <div class="text-sm text-muted-foreground">
           {$t('today.no_slots')}
         </div>
       </div>
     {:else}
-      <div class="relative space-y-3 border-l-2 border-border pl-6">
-        {#each slots as slot}
-          <button
-            onclick={() => handleSlotClick(slot)}
-            class="relative block w-full text-left transition-colors hover:bg-accent/50 rounded-md -ml-6 pl-6 py-2"
-          >
-            <!-- Timeline dot -->
-            <div class="absolute -left-[9px] top-3 size-4 rounded-full border-2 border-background
-                        {slot.slot_type === 'work' ? 'bg-primary' : ''}
-                        {slot.slot_type === 'interrupt' ? 'bg-accent' : ''}
-                        {slot.slot_type === 'meeting' ? 'bg-muted-foreground' : ''}
-                        {slot.slot_type === 'lunch' ? 'bg-muted' : ''}">
-            </div>
-            
-            <div class="flex items-start justify-between gap-4">
-              <div class="flex-1">
-                <div class="flex items-center gap-2 text-sm font-medium">
-                  <svelte:component this={slotTypeIcons[slot.slot_type]} class="size-4" />
-                  {slot.task_name}
+      <div class="divide-y divide-border">
+        {#each displayItems() as item}
+          {#if item.type === 'slot'}
+            {@const slot = item.data as TimeSlot}
+            <button
+              onclick={() => handleSlotClick(slot)}
+              class="flex w-full items-center gap-3 px-6 py-3 text-left transition-colors hover:bg-accent/50"
+              class:pl-12={item.isNested}
+            >
+              <!-- Icon box -->
+              <div class="flex size-10 flex-shrink-0 items-center justify-center rounded-md bg-muted">
+                <svelte:component this={slotTypeIcons[slot.slot_type]} class="size-5" />
+              </div>
+              
+              <!-- Content -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <div class="font-medium truncate">{slot.task_name}</div>
                   {#if !slot.end_ts}
-                    <span class="rounded bg-accent px-1.5 py-0.5 text-xs text-accent-foreground">
+                    <span class="flex-shrink-0 rounded bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
                       {$t('today.ongoing')}
                     </span>
                   {/if}
+                  {#if item.isNested}
+                    <span class="flex-shrink-0 rounded bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
+                      {$t('slot_type.interrupt')}
+                    </span>
+                  {/if}
                 </div>
-                <div class="mt-1 text-xs text-muted-foreground">
+                <div class="mt-1 text-sm text-muted-foreground">
                   {formatTime(slot.start_ts)} - {slot.end_ts ? formatTime(slot.end_ts) : '...'} · {formatDuration(slot.duration_minutes)}
                 </div>
-                {#if slot.note}
-                  <div class="mt-1 text-xs text-muted-foreground italic">{slot.note}</div>
-                {/if}
               </div>
+            </button>
+          {:else}
+            {@const gap = item.data as Gap}
+            <div class="flex items-center gap-3 border-dashed px-6 py-3">
+              <!-- Icon box (dashed) -->
+              <div class="flex size-10 flex-shrink-0 items-center justify-center rounded-md border-2 border-dashed border-warning/50">
+                <AlertTriangle class="size-5 text-warning" />
+              </div>
+              
+              <!-- Content -->
+              <div class="flex-1 min-w-0">
+                <div class="font-medium text-warning">
+                  {$t('today.gaps')} {gap.minutes} {$t('time.minute_short')}
+                </div>
+                <div class="mt-1 text-sm text-muted-foreground">
+                  {formatTime(gap.start_ts)} - {formatTime(gap.end_ts)}
+                </div>
+              </div>
+              
+              <!-- Action -->
+              <button
+                onclick={() => handleFillGap(gap)}
+                class="flex-shrink-0 rounded px-3 py-1.5 text-sm font-medium text-warning hover:bg-warning/10"
+              >
+                {$t('today.fill_gap')}
+              </button>
             </div>
-          </button>
+          {/if}
         {/each}
       </div>
     {/if}
