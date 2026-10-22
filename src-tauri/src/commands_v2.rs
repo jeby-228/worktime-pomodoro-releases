@@ -309,6 +309,24 @@ pub fn handle_idle_return(
     Ok(())
 }
 
+// ==================== Window Management Commands ====================
+
+#[tauri::command]
+pub fn show_minibar(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("minibar") {
+        window.show().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn hide_minibar(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("minibar") {
+        window.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 // ==================== Export Commands ====================
 
 #[derive(Debug, Serialize, Deserialize)]
