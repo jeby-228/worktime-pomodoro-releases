@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { Briefcase, Zap, Users, Coffee, Clock, AlertTriangle } from 'lucide-svelte';
   import { t } from '$lib/i18n';
+  import { invoke } from '@tauri-apps/api/core';
   
   interface TimeSlot {
     id: string;
@@ -96,11 +97,30 @@
   
   onMount(() => {
     loadToday();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(loadToday, 30000);
+    return () => clearInterval(interval);
   });
   
   async function loadToday() {
-    // TODO: invoke backend commands
-    console.log('Loading today slots');
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Load today's slots
+      const todaySlots = await invoke<TimeSlot[]>('get_slots_for_date', { date: today });
+      slots = todaySlots;
+      
+      // Load day stats
+      const dayStats = await invoke<DayStats>('get_day_stats', { date: today });
+      stats = dayStats;
+      
+      // Load gaps
+      const todayGaps = await invoke<Gap[]>('find_gaps', { date: today });
+      gaps = todayGaps;
+    } catch (err) {
+      console.error('Failed to load today data:', err);
+    }
   }
   
   function handleSlotClick(slot: TimeSlot) {
@@ -119,14 +139,14 @@
   <div class="flex items-center justify-between border-b border-border px-6 py-4">
     <h2 class="text-lg font-semibold">{$t('today.title')}</h2>
     <div class="text-sm text-muted-foreground">
-      10/23 {$t('time.today')}
+      {new Date().toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit', weekday: 'short' })}
     </div>
   </div>
   
   <!-- Stats Summary (one-line totals) -->
   <div class="flex items-center gap-6 border-b border-border px-6 py-3 text-sm">
     <div class="flex items-center gap-2">
-      <span class="text-muted-foreground">{$t('common.loading')}</span>
+      <span class="text-muted-foreground">{$t('today.total')}</span>
       <span class="font-semibold tabular-nums">{formatDuration(stats.total_recorded)}</span>
     </div>
     <div class="h-4 w-px bg-border"></div>
