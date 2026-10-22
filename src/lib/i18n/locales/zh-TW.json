@@ -1,0 +1,220 @@
+{
+  "app": {
+    "name": "工時記錄",
+    "title": "番茄工時追蹤"
+  },
+  "common": {
+    "ok": "確定",
+    "cancel": "取消",
+    "save": "儲存",
+    "delete": "刪除",
+    "edit": "編輯",
+    "close": "關閉",
+    "back": "返回",
+    "next": "下一步",
+    "confirm": "確認",
+    "loading": "載入中...",
+    "error": "錯誤",
+    "success": "成功",
+    "warning": "警告",
+    "info": "資訊"
+  },
+  "time": {
+    "minutes": "分鐘",
+    "hours": "小時",
+    "seconds": "秒",
+    "minute_short": "分",
+    "hour_short": "時",
+    "today": "今天",
+    "yesterday": "昨天",
+    "this_week": "本週",
+    "last_week": "上週",
+    "this_month": "本月",
+    "custom_range": "自訂範圍"
+  },
+  "nav": {
+    "timer": "計時",
+    "today": "今天",
+    "records": "紀錄",
+    "settings": "設定"
+  },
+  "timer": {
+    "idle": "目前閒置",
+    "working": "工作中",
+    "paused": "已暫停",
+    "interrupt": "插隊中",
+    "start_task": "開始工作",
+    "end_task": "結束",
+    "pause": "暫停",
+    "resume": "繼續",
+    "interrupt_btn": "插隊",
+    "back_to_work": "回到原本工作",
+    "elapsed": "已用時",
+    "remaining": "剩餘",
+    "task_name": "任務名稱",
+    "note": "備註（選填）",
+    "quick_input_hint": "Ctrl+Alt+T 快速輸入",
+    "interrupt_hint": "Ctrl+Alt+I 插隊"
+  },
+  "slot_type": {
+    "work": "工作",
+    "interrupt": "插隊",
+    "meeting": "會議",
+    "lunch": "午休"
+  },
+  "quick_input": {
+    "title": "快速輸入",
+    "placeholder": "搜尋或輸入任務名稱...",
+    "recent_tasks": "最近任務",
+    "quick_blocks": "快速區塊",
+    "no_results": "無結果"
+  },
+  "interrupt": {
+    "title": "插隊",
+    "who": "是誰？",
+    "who_placeholder": "選擇或輸入...",
+    "reason": "原因？",
+    "reason_placeholder": "選填",
+    "recent_people": "最近聯絡人",
+    "current_task_paused": "當前任務已暫停"
+  },
+  "today": {
+    "title": "今天",
+    "total": "總計",
+    "work_time": "工作時間",
+    "interrupt_time": "插隊時間",
+    "meeting_time": "會議時間",
+    "lunch_time": "午休時間",
+    "timeline": "時間軸",
+    "gaps": "未記錄時段",
+    "no_slots": "今天還沒有記錄",
+    "ongoing": "進行中",
+    "fill_gap": "補登",
+    "ignore_gap": "忽略"
+  },
+  "records": {
+    "title": "紀錄",
+    "date_range": "日期範圍",
+    "start_date": "開始日期",
+    "end_date": "結束日期",
+    "filter": "篩選",
+    "task_filter": "任務篩選",
+    "type_filter": "類型篩選",
+    "all_types": "所有類型",
+    "view_mode": "檢視模式",
+    "detail_view": "明細",
+    "summary_view": "依任務彙總",
+    "export": "匯出",
+    "export_dialog_title": "匯出工時記錄",
+    "include_interrupts": "包含插隊記錄",
+    "file_format": "檔案格式",
+    "columns": "欄位選擇",
+    "preview": "預覽",
+    "export_btn": "匯出"
+  },
+  "export": {
+    "filename": "工時記錄_{date}",
+    "date": "日期",
+    "task": "任務",
+    "type": "類型",
+    "start_time": "開始時間",
+    "end_time": "結束時間",
+    "duration": "時長",
+    "note": "備註"
+  },
+  "settings": {
+    "title": "設定",
+    "general": "一般",
+    "appearance": "外觀",
+    "pomodoro": "番茄鐘",
+    "schedule": "時程",
+    "mini_mode": "迷你模式",
+    "language": "語言",
+    "language_follow_system": "跟隨系統",
+    "theme": "主題",
+    "theme_light": "淺色",
+    "theme_dark": "深色",
+    "theme_system": "跟隨系統",
+    "pomodoro_duration": "番茄鐘時長",
+    "idle_threshold": "閒置偵測閾值",
+    "lunch_time": "午休時間",
+    "lunch_start": "午休開始",
+    "lunch_end": "午休結束",
+    "work_end_time": "下班時間",
+    "eod_check_enabled": "啟用下班前檢查",
+    "eod_check_time": "檢查時間",
+    "mini_mode_none": "無",
+    "mini_mode_bar": "迷你 Bar",
+    "mini_mode_pet": "桌面寵物",
+    "mini_mode_both": "Bar + 寵物",
+    "pet_selection": "寵物選擇",
+    "pet_current": "目前寵物",
+    "pet_import": "匯入寵物",
+    "pet_import_hint": "支援 .codex-pet.zip 格式"
+  },
+  "idle_return": {
+    "title": "離開檢測",
+    "message": "離開 {minutes} 分鐘，要算成：",
+    "continue_task": "繼續原任務",
+    "lunch": "午休",
+    "meeting": "會議",
+    "ignore": "不算"
+  },
+  "eod_review": {
+    "title": "下班前檢查",
+    "message": "今天有 {count} 個未記錄時段",
+    "gaps_list": "未記錄時段",
+    "fill_all": "全部補登",
+    "skip": "跳過"
+  },
+  "tray": {
+    "show": "顯示主視窗",
+    "hide": "隱藏",
+    "quick_input": "快速輸入",
+    "start_work": "開始工作",
+    "end_task": "結束任務",
+    "pause": "暫停",
+    "resume": "繼續",
+    "interrupt": "插隊",
+    "quit": "退出"
+  },
+  "notification": {
+    "task_started": "已開始：{task}",
+    "task_ended": "已結束：{task}",
+    "task_paused": "已暫停",
+    "task_resumed": "已繼續",
+    "interrupt_started": "插隊：{who}",
+    "interrupt_ended": "已返回工作",
+    "pomodoro_complete": "番茄鐘完成！",
+    "idle_detected": "偵測到閒置 {minutes} 分鐘",
+    "eod_check": "下班前檢查：有 {count} 個未記錄時段"
+  },
+  "mini_bar": {
+    "no_task": "無任務"
+  },
+  "pet": {
+    "default_name": "番茄君",
+    "state_working": "工作中",
+    "state_interrupt": "插隊中",
+    "state_idle": "閒置",
+    "state_lunch": "午休",
+    "state_unrecorded": "未記錄",
+    "state_done": "完成"
+  },
+  "validation": {
+    "required": "此欄位為必填",
+    "invalid_time": "無效的時間格式",
+    "invalid_date": "無效的日期格式",
+    "overlap_detected": "時段重疊",
+    "future_time": "不能選擇未來時間"
+  },
+  "error_messages": {
+    "failed_to_start": "啟動失敗：{error}",
+    "failed_to_end": "結束失敗：{error}",
+    "failed_to_load": "載入失敗：{error}",
+    "failed_to_save": "儲存失敗：{error}",
+    "failed_to_export": "匯出失敗：{error}",
+    "no_active_task": "沒有進行中的任務",
+    "already_has_task": "已有進行中的任務"
+  }
+}

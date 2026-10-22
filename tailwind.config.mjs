@@ -14,7 +14,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Noto Sans TC", "Inter", ...defaultTheme.fontFamily.sans],
+        sans: ["Noto Sans TC", "Noto Sans Thai", "Inter", ...defaultTheme.fontFamily.sans],
         mono: ["JetBrains Mono", "Geist Mono", "Noto Sans Mono", ...defaultTheme.fontFamily.mono],
       },
       colors: {
