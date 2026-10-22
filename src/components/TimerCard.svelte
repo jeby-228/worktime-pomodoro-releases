@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { Play, Pause, Square, Zap } from 'lucide-svelte';
   import { t } from '$lib/i18n';
+  import { invoke } from '@tauri-apps/api/core';
   
   interface Props {
     compact?: boolean;
@@ -9,16 +10,25 @@
   
   let { compact = false }: Props = $props();
   
-  let state = $state({
-    status: 'idle' as 'idle' | 'working' | 'paused' | 'interrupt',
-    currentTask: null as string | null,
-    elapsedSeconds: 0,
-    remainingSeconds: 0,
-    pomodoroLength: 25 * 60,
+  interface StateData {
+    status: 'idle' | 'working' | 'paused' | 'interrupt';
+    current_task: string | null;
+    elapsed_seconds: number;
+    remaining_seconds: number;
+  }
+  
+  let state = $state<StateData>({
+    status: 'idle',
+    current_task: null,
+    elapsed_seconds: 0,
+    remaining_seconds: 0,
   });
   
+  let pomodoroLength = $state(25 * 60);
+  let updateInterval: number | undefined;
+  
   let displayTime = $derived(() => {
-    const seconds = state.status === 'idle' ? 0 : state.elapsedSeconds;
+    const seconds = state.status === 'idle' ? 0 : state.elapsed_seconds;
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
@@ -26,52 +36,105 @@
   
   let progress = $derived(() => {
     if (state.status === 'idle') return 0;
-    return Math.min(100, (state.elapsedSeconds / state.pomodoroLength) * 100);
+    return Math.min(100, (state.elapsed_seconds / pomodoroLength) * 100);
   });
   
   onMount(() => {
-    // TODO: load state from backend
     loadState();
+    loadSettings();
     
-    const interval = setInterval(() => {
+    updateInterval = setInterval(() => {
       if (state.status === 'working' || state.status === 'interrupt') {
-        state.elapsedSeconds++;
-        if (state.remainingSeconds > 0) {
-          state.remainingSeconds--;
-        }
+        loadState();
       }
-    }, 1000);
-    
-    return () => clearInterval(interval);
+    }, 1000) as unknown as number;
+  });
+  
+  onDestroy(() => {
+    if (updateInterval) clearInterval(updateInterval);
   });
   
   async function loadState() {
-    // TODO: invoke backend command
-    console.log('Loading state...');
+    try {
+      const data = await invoke<StateData>('get_app_state');
+      state = data;
+      
+      const elapsed = await invoke<number | null>('get_elapsed_seconds');
+      const remaining = await invoke<number | null>('get_remaining_seconds');
+      
+      if (elapsed !== null) state.elapsed_seconds = elapsed;
+      if (remaining !== null) state.remaining_seconds = remaining;
+    } catch (err) {
+      console.error('Failed to load state:', err);
+    }
+  }
+  
+  async function loadSettings() {
+    try {
+      const settings = await invoke<any>('get_settings');
+      if (settings.pomodoro_length_minutes) {
+        pomodoroLength = settings.pomodoro_length_minutes * 60;
+      }
+    } catch (err) {
+      console.error('Failed to load settings:', err);
+    }
   }
   
   async function startTask() {
     // TODO: show quick input dialog
-    console.log('Starting task');
+    // For now, start with a default task
+    try {
+      await invoke('start_task', {
+        request: {
+          task_name: '新任務',
+          slot_type: 'work'
+        }
+      });
+      await loadState();
+    } catch (err) {
+      console.error('Failed to start task:', err);
+    }
   }
   
   async function pauseTask() {
-    state.status = 'paused';
+    try {
+      await invoke('pause_task');
+      await loadState();
+    } catch (err) {
+      console.error('Failed to pause task:', err);
+    }
   }
   
   async function resumeTask() {
-    state.status = 'working';
+    try {
+      await invoke('resume_task');
+      await loadState();
+    } catch (err) {
+      console.error('Failed to resume task:', err);
+    }
   }
   
   async function endTask() {
-    state.status = 'idle';
-    state.currentTask = null;
-    state.elapsedSeconds = 0;
+    try {
+      await invoke('end_task', { note: null });
+      await loadState();
+    } catch (err) {
+      console.error('Failed to end task:', err);
+    }
   }
   
   async function startInterrupt() {
     // TODO: show interrupt dialog
-    console.log('Starting interrupt');
+    // For now, start a default interrupt
+    try {
+      await invoke('start_interrupt', {
+        who: '臨時事件',
+        reason: null
+      });
+      await loadState();
+    } catch (err) {
+      console.error('Failed to start interrupt:', err);
+    }
   }
 </script>
 
@@ -82,16 +145,16 @@
       {#if state.status === 'idle'}
         {$t('timer.idle')}
       {:else if state.status === 'working'}
-        {$t('timer.working')} · {$t('common.loading')} 3/8
+        {$t('timer.working')}
       {:else if state.status === 'paused'}
         {$t('timer.paused')}
       {:else}
         {$t('timer.interrupt')}
       {/if}
     </div>
-    {#if state.currentTask}
+    {#if state.current_task}
       <div class="text-sm font-medium">
-        {state.currentTask}
+        {state.current_task}
       </div>
     {/if}
   </div>

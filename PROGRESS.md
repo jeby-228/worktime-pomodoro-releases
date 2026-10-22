@@ -32,18 +32,34 @@
 
 ### 計時·今天雙面板儀表板
 - [x] TimerCard.svelte 大數字計時器卡片
-- [x] TodayTimeline.svelte 今天時間軸 + 統計摘要
+- [x] TodayTimeline.svelte D-mono Item rows 風格
+  - [x] 垂直列表，shadcn Item style
+  - [x] 插隊縮排顯示 + 插隊標籤
+  - [x] Gap 虛線行 + amber 文字 + 補記按鈕
+  - [x] 一行式統計摘要（總計 + 各類型時長）
+  - [x] 自動合併 slots 與 gaps 到統一列表
 - [x] index.astro 雙面板佈局 (384px timer + flex-1 timeline)
-- [x] 狀態指示、控制按鈕、Gap 警告
+- [x] 狀態指示、控制按鈕
+
+### 紀錄頁面
+- [x] records.astro 基本架構
+  - [x] 工具列：視圖切換、日期、篩選、搜尋、匯出按鈕
+  - [x] Item rows 列表（與 TodayTimeline 一致）
+  - [x] 日期分組 header
+  - [x] 依任務彙總側邊欄
 
 ## 🚧 進行中 / 待實作
 
 ### Phase 2: 主要 UI 頁面
-- [ ] 紀錄頁面 (records.astro)
-  - [ ] 全寬數據表格 + 工具列
-  - [ ] 依任務彙總側邊欄
-  - [ ] 日期篩選、搜尋、類型篩選
+- [x] 紀錄頁面 (records.astro) - 列表視圖
+  - [x] 工具列（列表/表格切換、日期範圍、類型篩選、搜尋）
+  - [x] 日期分組 Item rows (與 TodayTimeline 一致風格)
+  - [x] 插隊縮排 pl-12 + 插隊標籤
+  - [x] Gap 虛線行 + amber 未記錄文字 + 補記按鈕
+  - [x] 依任務彙總側邊欄 (320px) + 進度條 + 統計
+  - [ ] 表格視圖（可排序）
   - [ ] 匯出對話框（欄位選擇、格式選擇）
+  - [ ] 篩選功能實作
 - [ ] 設定頁面 (settings.astro)
   - [ ] 兩欄佈局 (section list + form)
   - [ ] 一般：語言（跟隨系統）、主題（淺/深/系統）、開機自啟動
