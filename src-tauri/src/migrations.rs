@@ -17,8 +17,7 @@ impl MigrationManager {
     pub fn new() -> Result<Self> {
         let migrations = Migrations::new(vec![
             M::up(include_str!("../migrations/0001_init.sql")),
-            // Future migrations go here:
-            // M::up(include_str!("../migrations/0002_add_xyz.sql")),
+            M::up(include_str!("../migrations/0002_v2_slots.sql")),
         ]);
 
         Ok(Self { migrations })
@@ -26,9 +25,7 @@ impl MigrationManager {
 
     /// Get the current schema version the app knows about
     pub fn latest_version(&self) -> usize {
-        // rusqlite_migration doesn't expose migrations directly
-        // We manually track this
-        1 // Current version
+        2
     }
 
     /// Run migrations on a database connection
