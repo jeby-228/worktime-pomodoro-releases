@@ -1,9 +1,9 @@
 [package]
 name = "worktime-pomodoro"
 version = "0.1.0"
-description = "what are you doing"
-authors = ["你"]
-license = ""
+description = "Offline-first desktop time tracking tool with Pomodoro timer"
+authors = ["jeby-228"]
+license = "MIT"
 repository = ""
 edition = "2021"
 rust-version = "1.70"

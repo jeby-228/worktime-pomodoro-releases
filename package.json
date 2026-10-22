@@ -2,6 +2,7 @@
   "name": "worktime-pomodoro",
   "type": "module",
   "version": "0.2.0",
+  "license": "MIT",
   "scripts": {
     "dev": "astro dev --port 4321",
     "build": "astro build",
