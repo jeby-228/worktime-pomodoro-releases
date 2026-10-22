@@ -26,7 +26,7 @@ import '$styles/global.css';
 </DesktopLayout>
 
 <script>
-  // Global keyboard shortcuts
+  // Global keyboard shortcuts and tray events
   if (typeof window !== 'undefined') {
     import('@tauri-apps/plugin-global-shortcut').then(({ register }) => {
       // Register Ctrl+Alt+T for quick input
@@ -38,6 +38,25 @@ import '$styles/global.css';
       register('Ctrl+Alt+I', () => {
         window.dispatchEvent(new CustomEvent('show-interrupt'));
       }).catch(err => console.error('Failed to register Ctrl+Alt+I:', err));
+    });
+
+    // Listen to tray events
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen('tray:quick_input', () => {
+        window.dispatchEvent(new CustomEvent('show-quick-input'));
+      });
+
+      listen('tray:interrupt', () => {
+        window.dispatchEvent(new CustomEvent('show-interrupt'));
+      });
+
+      listen('tray:pause_resume', () => {
+        window.dispatchEvent(new CustomEvent('toggle-pause-resume'));
+      });
+
+      listen('tray:end_task', () => {
+        window.dispatchEvent(new CustomEvent('end-task'));
+      });
     });
   }
 </script>

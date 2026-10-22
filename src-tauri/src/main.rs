@@ -16,6 +16,8 @@ type AppStateMgr = Arc<StateManager>;
 mod commands_v2;
 use commands_v2::*;
 
+mod tray;
+
 fn setup_logging() {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
@@ -78,6 +80,9 @@ pub fn run() {
 
             app.manage(store as AppStore);
             app.manage(state_mgr as AppStateMgr);
+
+            // Create tray icon
+            tray::create_tray(app.handle())?;
 
             let window = tauri::WebviewWindowBuilder::new(app, "main", Default::default())
                 .title("Worktime Pomodoro")
