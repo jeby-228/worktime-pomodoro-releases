@@ -93,24 +93,24 @@ export const t = derived(locale, ($locale) => {
 });
 
 // Format date
-export function formatDate(date: Date, locale?: Locale): string {
-  const currentLocale = locale || get(locale);
+export function formatDate(date: Date, localeOverride?: Locale): string {
+  const currentLocale = localeOverride || get(locale);
   const format = dateFormats[currentLocale];
   
   return new Intl.DateTimeFormat(currentLocale, format).format(date);
 }
 
 // Format time
-export function formatTime(date: Date, locale?: Locale): string {
-  const currentLocale = locale || get(locale);
+export function formatTime(date: Date, localeOverride?: Locale): string {
+  const currentLocale = localeOverride || get(locale);
   const format = timeFormats[currentLocale];
   
   return new Intl.DateTimeFormat(currentLocale, format).format(date);
 }
 
 // Format datetime
-export function formatDateTime(date: Date, locale?: Locale): string {
-  const currentLocale = locale || get(locale);
+export function formatDateTime(date: Date, localeOverride?: Locale): string {
+  const currentLocale = localeOverride || get(locale);
   
   return new Intl.DateTimeFormat(currentLocale, {
     ...dateFormats[currentLocale],

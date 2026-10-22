@@ -30,7 +30,8 @@
     "this_week": "本周",
     "last_week": "上周",
     "this_month": "本月",
-    "custom_range": "自定义范围"
+    "custom_range": "自定义范围",
+    "hours_minutes": "{hours} 小時 {minutes} 分"
   },
   "nav": {
     "timer": "计时",
@@ -112,7 +113,14 @@
     "file_format": "文件格式",
     "columns": "栏位选择",
     "preview": "预览",
-    "export_btn": "导出"
+    "export_btn": "导出",
+    "list_view": "列表",
+    "table_view": "表格",
+    "search_placeholder": "搜尋任務...",
+    "no_records": "無記錄",
+    "items": "筆",
+    "total_items": "共 {count} 筆",
+    "summary_by_task": "依任務彙總"
   },
   "export": {
     "filename": "工时记录_{date}",
@@ -152,7 +160,19 @@
     "pet_selection": "宠物选择",
     "pet_current": "当前宠物",
     "pet_import": "导入宠物",
-    "pet_import_hint": "支持 .codex-pet.zip 格式"
+    "pet_import_hint": "支持 .codex-pet.zip 格式",
+    "shortcuts": "快捷鍵",
+    "about": "關於",
+    "technology": "技術堆疊",
+    "check_updates": "檢查更新",
+    "check_updates_desc": "檢查是否有新版本可用",
+    "check_now": "立即檢查",
+    "checking": "檢查中...",
+    "update_available": "發現新版本 {version}",
+    "update_confirm": "下載並安裝版本 {version}？",
+    "restart_confirm": "安裝完成，現在重啟應用？",
+    "no_updates": "目前已是最新版本",
+    "update_check_failed": "檢查更新失敗"
   },
   "idle_return": {
     "title": "离开检测",
@@ -160,7 +180,12 @@
     "continue_task": "继续原任务",
     "lunch": "午休",
     "meeting": "会议",
-    "ignore": "不算"
+    "ignore": "不算",
+    "continue_desc": "將閒置時間計入當前任務",
+    "lunch_desc": "將閒置時間記為午休",
+    "meeting_desc": "將閒置時間記為會議",
+    "discard": "不算",
+    "discard_desc": "不記錄這段閒置時間"
   },
   "eod_review": {
     "title": "下班前检查",
@@ -218,5 +243,46 @@
     "failed_to_export": "导出失败：{error}",
     "no_active_task": "没有进行中的任务",
     "already_has_task": "已有进行中的任务"
+  },
+  "actions": {
+    "close": "关闭",
+    "cancel": "取消",
+    "save": "保存",
+    "saving": "保存中...",
+    "delete": "删除",
+    "fill": "补登",
+    "fill_gap": "补记",
+    "skip_all": "跳过全部"
+  },
+  "slot_types": {
+    "work": "工作",
+    "interrupt": "插队",
+    "meeting": "会议",
+    "lunch": "午休"
+  },
+  "slot_edit": {
+    "title": "编辑时段",
+    "type": "类型",
+    "task_title": "任务名称",
+    "person": "联系人",
+    "start_time": "开始时间",
+    "end_time": "结束时间",
+    "note": "备注"
+  },
+  "placeholders": {
+    "task_title": "输入任务名称...",
+    "person": "输入联系人（选填）...",
+    "note": "输入备注（选填）..."
+  },
+  "errors": {
+    "task_title_required": "请输入任务名称",
+    "start_time_required": "请选择开始时间"
+  },
+  "confirm": {
+    "delete_slot": "确定要删除这个时段吗？"
+  },
+  "timeline": {
+    "gap_unrecorded": "未记录 {minutes} 分",
+    "interrupt_badge": "插队"
   }
 }
