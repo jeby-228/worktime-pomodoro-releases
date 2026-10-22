@@ -36,7 +36,9 @@
     "timer": "計時",
     "today": "今天",
     "records": "紀錄",
-    "settings": "設定"
+    "settings": "設定",
+    "collapse": "收合",
+    "expand": "展開"
   },
   "timer": {
     "idle": "目前閒置",

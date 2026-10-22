@@ -2,7 +2,7 @@
   "app": {"name": "บันทึกเวลา", "title": "ติดตามเวลา Pomodoro"},
   "common": {"ok": "ตกลง", "cancel": "ยกเลิก", "save": "บันทึก", "delete": "ลบ", "edit": "แก้ไข", "close": "ปิด", "back": "กลับ", "next": "ถัดไป", "confirm": "ยืนยัน", "loading": "กำลังโหลด...", "error": "ข้อผิดพลาด", "success": "สำเร็จ", "warning": "คำเตือน", "info": "ข้อมูล"},
   "time": {"minutes": "นาที", "hours": "ชั่วโมง", "seconds": "วินาที", "minute_short": "น", "hour_short": "ชม", "today": "วันนี้", "yesterday": "เมื่อวาน", "this_week": "สัปดาห์นี้", "last_week": "สัปดาห์ที่แล้ว", "this_month": "เดือนนี้", "custom_range": "กำหนดเอง"},
-  "nav": {"timer": "จับเวลา", "today": "วันนี้", "records": "บันทึก", "settings": "ตั้งค่า"},
+  "nav": {"timer": "จับเวลา", "today": "วันนี้", "records": "บันทึก", "settings": "ตั้งค่า", "collapse": "ยุบ", "expand": "ขยาย"},
   "timer": {"idle": "ว่างอยู่", "working": "กำลังทำงาน", "paused": "หยุดชั่วคราว", "interrupt": "ถูกขัดจังหวะ", "start_task": "เริ่มทำงาน", "end_task": "จบ", "pause": "หยุด", "resume": "ทำต่อ", "interrupt_btn": "ขัดจังหวะ", "back_to_work": "กลับไปทำงาน", "elapsed": "ใช้ไปแล้ว", "remaining": "เหลือ", "task_name": "ชื่องาน", "note": "หมายเหตุ (ไม่บังคับ)", "quick_input_hint": "Ctrl+Alt+T ป้อนเร็ว", "interrupt_hint": "Ctrl+Alt+I ขัดจังหวะ"},
   "slot_type": {"work": "ทำงาน", "interrupt": "ขัดจังหวะ", "meeting": "ประชุม", "lunch": "พักกลางวัน"},
   "quick_input": {"title": "ป้อนเร็ว", "placeholder": "ค้นหาหรือป้อนชื่องาน...", "recent_tasks": "งานล่าสุด", "quick_blocks": "บล็อกด่วน", "no_results": "ไม่มีผลลัพธ์"},

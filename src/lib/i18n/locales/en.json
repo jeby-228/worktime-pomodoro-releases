@@ -2,7 +2,7 @@
   "app": {"name": "Time Tracker", "title": "Pomodoro Time Tracker"},
   "common": {"ok": "OK", "cancel": "Cancel", "save": "Save", "delete": "Delete", "edit": "Edit", "close": "Close", "back": "Back", "next": "Next", "confirm": "Confirm", "loading": "Loading...", "error": "Error", "success": "Success", "warning": "Warning", "info": "Info"},
   "time": {"minutes": "minutes", "hours": "hours", "seconds": "seconds", "minute_short": "min", "hour_short": "hr", "today": "Today", "yesterday": "Yesterday", "this_week": "This Week", "last_week": "Last Week", "this_month": "This Month", "custom_range": "Custom Range"},
-  "nav": {"timer": "Timer", "today": "Today", "records": "Records", "settings": "Settings"},
+  "nav": {"timer": "Timer", "today": "Today", "records": "Records", "settings": "Settings", "collapse": "Collapse", "expand": "Expand"},
   "timer": {"idle": "Currently Idle", "working": "Working", "paused": "Paused", "interrupt": "Interrupted", "start_task": "Start Work", "end_task": "End", "pause": "Pause", "resume": "Resume", "interrupt_btn": "Interrupt", "back_to_work": "Back to Work", "elapsed": "Elapsed", "remaining": "Remaining", "task_name": "Task Name", "note": "Note (optional)", "quick_input_hint": "Ctrl+Alt+T for quick input", "interrupt_hint": "Ctrl+Alt+I to interrupt"},
   "slot_type": {"work": "Work", "interrupt": "Interrupt", "meeting": "Meeting", "lunch": "Lunch"},
   "quick_input": {"title": "Quick Input", "placeholder": "Search or enter task name...", "recent_tasks": "Recent Tasks", "quick_blocks": "Quick Blocks", "no_results": "No Results"},

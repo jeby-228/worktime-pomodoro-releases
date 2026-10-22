@@ -36,7 +36,9 @@
     "timer": "计时",
     "today": "今天",
     "records": "记录",
-    "settings": "设置"
+    "settings": "设置",
+    "collapse": "收合",
+    "expand": "展开"
   },
   "timer": {
     "idle": "当前闲置",

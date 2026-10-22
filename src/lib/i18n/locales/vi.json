@@ -2,7 +2,7 @@
   "app": {"name": "Ghi chép Thời gian", "title": "Theo dõi Thời gian Pomodoro"},
   "common": {"ok": "Đồng ý", "cancel": "Hủy", "save": "Lưu", "delete": "Xóa", "edit": "Sửa", "close": "Đóng", "back": "Quay lại", "next": "Tiếp", "confirm": "Xác nhận", "loading": "Đang tải...", "error": "Lỗi", "success": "Thành công", "warning": "Cảnh báo", "info": "Thông tin"},
   "time": {"minutes": "phút", "hours": "giờ", "seconds": "giây", "minute_short": "p", "hour_short": "g", "today": "Hôm nay", "yesterday": "Hôm qua", "this_week": "Tuần này", "last_week": "Tuần trước", "this_month": "Tháng này", "custom_range": "Tùy chỉnh"},
-  "nav": {"timer": "Bấm giờ", "today": "Hôm nay", "records": "Ghi chép", "settings": "Cài đặt"},
+  "nav": {"timer": "Bấm giờ", "today": "Hôm nay", "records": "Ghi chép", "settings": "Cài đặt", "collapse": "Thu gọn", "expand": "Mở rộng"},
   "timer": {"idle": "Đang rảnh", "working": "Đang làm", "paused": "Đã tạm dừng", "interrupt": "Bị gián đoạn", "start_task": "Bắt đầu làm", "end_task": "Kết thúc", "pause": "Tạm dừng", "resume": "Tiếp tục", "interrupt_btn": "Gián đoạn", "back_to_work": "Quay lại công việc", "elapsed": "Đã dùng", "remaining": "Còn lại", "task_name": "Tên công việc", "note": "Ghi chú (tùy chọn)", "quick_input_hint": "Ctrl+Alt+T nhập nhanh", "interrupt_hint": "Ctrl+Alt+I gián đoạn"},
   "slot_type": {"work": "Làm việc", "interrupt": "Gián đoạn", "meeting": "Họp", "lunch": "Nghỉ trưa"},
   "quick_input": {"title": "Nhập nhanh", "placeholder": "Tìm hoặc nhập tên công việc...", "recent_tasks": "Công việc gần đây", "quick_blocks": "Khối nhanh", "no_results": "Không có kết quả"},
