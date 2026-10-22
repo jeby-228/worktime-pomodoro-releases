@@ -129,6 +129,12 @@ impl StoreV2 {
         Ok(slot)
     }
 
+
+    pub fn delete_slot(&self, id: i64) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM time_slots WHERE id = ?", params![id])?;
+        Ok(())
+    }
     pub fn get_slots_for_date(&self, date: NaiveDate) -> Result<Vec<TimeSlot>> {
         let conn = self.conn.lock().unwrap();
         let start = date.and_hms_opt(0, 0, 0).unwrap();

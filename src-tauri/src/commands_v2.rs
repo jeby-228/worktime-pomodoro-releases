@@ -294,15 +294,15 @@ pub fn handle_idle_return(
         "lunch" => {
             // End current task and create a lunch slot for the idle period
             // This would require more complex logic, simplified here
-            state_mgr.end_task().map_err(|e| e.to_string())?;
+            state_mgr.end_task(None).map_err(|e| e.to_string())?;
         }
         "meeting" => {
             // End current task and create a meeting slot for the idle period
-            state_mgr.end_task().map_err(|e| e.to_string())?;
+            state_mgr.end_task(None).map_err(|e| e.to_string())?;
         }
         "discard" => {
             // End current task, discard the idle time
-            state_mgr.end_task().map_err(|e| e.to_string())?;
+            state_mgr.end_task(None).map_err(|e| e.to_string())?;
         }
         _ => return Err("Invalid action".to_string()),
     }
@@ -368,7 +368,6 @@ pub fn prepare_export_data(
 }
 
 use std::fs::File;
-use std::io::Write;
 use std::path::PathBuf;
 use rust_xlsxwriter::*;
 
