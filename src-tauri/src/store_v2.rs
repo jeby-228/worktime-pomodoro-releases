@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chrono::{DateTime, Local, NaiveDate, NaiveTime};
+use chrono::{DateTime, Local, NaiveDate};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -14,11 +14,11 @@ pub struct StoreV2 {
 
 impl StoreV2 {
     pub fn new(path: &Path) -> Result<Self> {
-        let conn = Connection::open(path)?;
+        let mut conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
 
-        let mut mgr = MigrationManager::new(&conn)?;
-        mgr.run_migrations()?;
+        let mgr = MigrationManager::new()?;
+        mgr.migrate(&mut conn, Some(path))?;
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),

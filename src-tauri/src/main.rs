@@ -7,10 +7,14 @@ use tauri::{Manager, WindowEvent};
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
+// Re-export types from lib for commands_v2 to use
+use worktime_pomodoro_lib::*;
+
+type AppStore = Arc<StoreV2>;
+type AppStateMgr = Arc<StateManager>;
+
 mod commands_v2;
 use commands_v2::*;
-
-use worktime_pomodoro_lib::{StateManager, StoreV2};
 
 fn setup_logging() {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
@@ -53,47 +57,43 @@ pub fn run() {
             }
         }))
         .setup(|app| {
-            info!("Setting up application...");
+            info!("App setup started");
 
             let db_path = get_db_path(app.handle());
-            info!("Database path: {}", db_path.display());
+            info!("Database path: {:?}", db_path);
 
             let store = match StoreV2::new(&db_path) {
-                Ok(s) => Arc::new(s),
+                Ok(s) => {
+                    info!("StoreV2 initialized successfully");
+                    Arc::new(s)
+                }
                 Err(e) => {
-                    error!("Failed to initialize database: {}", e);
-                    std::process::exit(1);
+                    error!("Failed to initialize StoreV2: {}", e);
+                    return Err(e.into());
                 }
             };
 
-            let state_mgr = Arc::new(StateManager::new(store.clone()));
+            let state_mgr = Arc::new(StateManager::new(Arc::clone(&store)));
+            info!("StateManager initialized");
 
             app.manage(store as AppStore);
             app.manage(state_mgr as AppStateMgr);
 
-            // Create main window
-            let _main_window = tauri::WebviewWindowBuilder::new(
-                app,
-                "main",
-                tauri::WebviewUrl::App("timer.html".into()),
-            )
-            .title("工時記錄")
-            .inner_size(420.0, 640.0)
-            .min_inner_size(380.0, 560.0)
-            .center()
-            .build()?;
+            let window = tauri::WebviewWindowBuilder::new(app, "main", Default::default())
+                .title("Worktime Pomodoro")
+                .inner_size(960.0, 640.0)
+                .min_inner_size(800.0, 560.0)
+                .resizable(true)
+                .build()?;
 
-            info!("Application setup complete");
-            Ok(())
-        })
-        .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                // Hide instead of close for main window
-                if window.label() == "main" {
-                    window.hide().unwrap();
-                    api.prevent_close();
+            window.on_window_event(|event| {
+                if let WindowEvent::CloseRequested { .. } = event {
+                    info!("Window close requested");
                 }
-            }
+            });
+
+            info!("App setup completed");
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             get_app_state,
@@ -123,4 +123,8 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn main() {
+    run();
 }

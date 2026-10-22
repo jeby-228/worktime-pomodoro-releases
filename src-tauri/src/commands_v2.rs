@@ -1,14 +1,16 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use tauri::State;
 
-use crate::models::*;
-use crate::state_v2::{AppStateEnum, StateData, StateManager};
-use crate::store_v2::StoreV2;
+// When commands_v2 is a submodule of main.rs (the binary crate),
+// we can't import worktime_pomodoro_lib directly here.
+// Instead, main.rs will re-export what we need.
 
-pub type AppStore = Arc<StoreV2>;
-pub type AppStateMgr = Arc<StateManager>;
+// These will be imported via `use crate::*` from main.rs
+use crate::{
+    AppSettings, AppStateMgr, AppStore, DayStats, Gap, RecentPerson, RecentTask, SlotType,
+    StateData, TaskSummary, TimeSlot,
+};
 
 // ==================== State & Info Commands ====================
 
@@ -243,12 +245,6 @@ pub fn update_slot_manual(
 
 // ==================== Export Commands ====================
 
-#[derive(Debug, Serialize)]
-pub struct ExportData {
-    pub filename: String,
-    pub rows: Vec<ExportRowV2>,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExportRowV2 {
     pub date: String,
@@ -306,6 +302,7 @@ pub fn prepare_export_data(
 }
 
 use std::fs::File;
+use std::io::Write;
 use std::path::PathBuf;
 use rust_xlsxwriter::*;
 
