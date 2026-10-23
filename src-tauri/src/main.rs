@@ -82,11 +82,7 @@ pub fn run() {
             app.manage(store.clone() as AppStore);
             app.manage(state_mgr as AppStateMgr);
 
-            let labels: Vec<String> = app
-                .webview_windows()
-                .keys()
-                .cloned()
-                .collect();
+            let labels: Vec<String> = app.webview_windows().keys().cloned().collect();
             info!("windows at setup: {:?}", labels);
             if let Ok(settings) = store.get_settings() {
                 match sync_companion_windows(app.handle(), &settings.mini_mode) {
@@ -100,7 +96,7 @@ pub fn run() {
 
             // Note: The main window is already created from tauri.conf.json
             // No need to create it again here to avoid "webview with label 'main' already exists" error
-            
+
             info!("App setup completed");
             Ok(())
         })

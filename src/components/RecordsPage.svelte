@@ -33,12 +33,19 @@
     lunch: Coffee,
   };
 
+  function localDateString(date: Date): string {
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${date.getFullYear()}-${month}-${day}`;
+  }
+
   function getDateString(date: Date): string {
-    return date.toISOString().split('T')[0];
+    return localDateString(date);
   }
 
   function formatDate(isoDate: string): string {
-    const date = new Date(isoDate);
+    const [year, month, day] = isoDate.split('-').map(Number);
+    const date = new Date(year, (month || 1) - 1, day || 1);
     const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
     return `${date.getMonth() + 1}/${date.getDate()} 週${weekdays[date.getDay()]}`;
   }
@@ -70,6 +77,42 @@
     return slotInstant(slot.end_time ?? slot.end_ts);
   }
 
+  function slotDate(slot: TimeSlot): string {
+    const raw = slotStart(slot);
+    if (!raw) return '';
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return raw.split('T')[0];
+    return localDateString(parsed);
+  }
+
+  function slotMinutes(slot: TimeSlot): number {
+    const start = Date.parse(slotStart(slot));
+    if (Number.isNaN(start)) return 0;
+    const endRaw = slotEnd(slot);
+    const end = endRaw ? Date.parse(endRaw) : Date.now();
+    if (Number.isNaN(end)) return 0;
+    return Math.max(0, Math.round((end - start) / 60000));
+  }
+
+  function summarize(slots: TimeSlot[]): DayStats {
+    const stats: DayStats = {
+      work_minutes: 0,
+      interrupt_minutes: 0,
+      meeting_minutes: 0,
+      lunch_minutes: 0,
+      total_recorded: 0,
+    };
+    for (const slot of slots) {
+      const minutes = slotMinutes(slot);
+      if (slot.slot_type === 'interrupt') stats.interrupt_minutes += minutes;
+      else if (slot.slot_type === 'meeting') stats.meeting_minutes += minutes;
+      else if (slot.slot_type === 'lunch') stats.lunch_minutes += minutes;
+      else stats.work_minutes += minutes;
+      stats.total_recorded += minutes;
+    }
+    return stats;
+  }
+
   function formatDuration(minutes: number): string {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
@@ -83,23 +126,40 @@
     loading = true;
     try {
       const slots: TimeSlot[] = await invoke('get_slots_for_range', {
-        startDate,
-        endDate,
+        request: { startDate, endDate },
       });
 
-      // Group by date
       const grouped: GroupedSlots = {};
       for (const slot of slots) {
-        const date = slotStart(slot).split('T')[0];
+        const date = slotDate(slot);
+        if (!date) continue;
         if (!grouped[date]) {
-          grouped[date] = { slots: [], stats: await invoke('get_day_stats', { date }) };
+          grouped[date] = {
+            slots: [],
+            stats: {
+              work_minutes: 0,
+              interrupt_minutes: 0,
+              meeting_minutes: 0,
+              lunch_minutes: 0,
+              total_recorded: 0,
+            },
+          };
         }
         grouped[date].slots.push(slot);
       }
+      for (const data of Object.values(grouped)) {
+        data.stats = summarize(data.slots);
+      }
       groupedData = grouped;
 
-      // Load task summary
-      taskSummary = await invoke('get_task_summary', { startDate, endDate });
+      const totals: Record<string, number> = {};
+      for (const slot of slots) {
+        const name = slotTitle(slot) || '未命名任務';
+        totals[name] = (totals[name] ?? 0) + slotMinutes(slot);
+      }
+      taskSummary = Object.entries(totals)
+        .map(([task, minutes]) => ({ task, minutes }))
+        .sort((a, b) => b.minutes - a.minutes);
     } catch (err) {
       console.error('Failed to load records:', err);
     } finally {
@@ -272,7 +332,7 @@
                     {/if}
                   </div>
                   <div class="mt-1 text-sm text-muted-foreground">
-                    {formatTime(slotStart(slot))}-{end ? formatTime(end) : $t('timer.ongoing')} · {slot.duration_minutes || 0} {$t('time.minute_short')}
+                    {formatTime(slotStart(slot))}-{end ? formatTime(end) : $t('today.ongoing')} · {slotMinutes(slot)} {$t('time.minute_short')}
                   </div>
                 </div>
               </button>

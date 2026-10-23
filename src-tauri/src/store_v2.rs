@@ -5,8 +5,8 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
-use crate::models::*;
 use crate::migrations::MigrationManager;
+use crate::models::*;
 
 pub struct StoreV2 {
     conn: Arc<Mutex<Connection>>,
@@ -47,7 +47,12 @@ impl StoreV2 {
         Ok(conn.last_insert_rowid())
     }
 
-    pub fn update_slot(&self, id: i64, end_ts: Option<DateTime<Local>>, note: Option<String>) -> Result<()> {
+    pub fn update_slot(
+        &self,
+        id: i64,
+        end_ts: Option<DateTime<Local>>,
+        note: Option<String>,
+    ) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "UPDATE time_slots SET end_ts = ?1, note = ?2, updated_at = ?3 WHERE id = ?4",
@@ -159,7 +164,6 @@ impl StoreV2 {
         Ok(slot)
     }
 
-
     pub fn delete_slot(&self, id: i64) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM time_slots WHERE id = ?", params![id])?;
@@ -189,9 +193,11 @@ impl StoreV2 {
                     start_ts: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
                         .unwrap()
                         .with_timezone(&Local),
-                    end_ts: row
-                        .get::<_, Option<String>>(5)?
-                        .map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Local)),
+                    end_ts: row.get::<_, Option<String>>(5)?.map(|s| {
+                        DateTime::parse_from_rfc3339(&s)
+                            .unwrap()
+                            .with_timezone(&Local)
+                    }),
                     note: row.get(6)?,
                     parent_id: row.get(7)?,
                     created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
@@ -209,8 +215,16 @@ impl StoreV2 {
 
     pub fn get_slots_for_range(&self, start: NaiveDate, end: NaiveDate) -> Result<Vec<TimeSlot>> {
         let conn = self.conn.lock().unwrap();
-        let start_dt = start.and_hms_opt(0, 0, 0).unwrap().and_local_timezone(Local).unwrap();
-        let end_dt = end.and_hms_opt(23, 59, 59).unwrap().and_local_timezone(Local).unwrap();
+        let start_dt = start
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_local_timezone(Local)
+            .unwrap();
+        let end_dt = end
+            .and_hms_opt(23, 59, 59)
+            .unwrap()
+            .and_local_timezone(Local)
+            .unwrap();
 
         let mut stmt = conn.prepare(
             "SELECT id, uuid, task_name, slot_type, start_ts, end_ts, note, parent_id, created_at, updated_at
@@ -229,9 +243,11 @@ impl StoreV2 {
                     start_ts: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
                         .unwrap()
                         .with_timezone(&Local),
-                    end_ts: row
-                        .get::<_, Option<String>>(5)?
-                        .map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Local)),
+                    end_ts: row.get::<_, Option<String>>(5)?.map(|s| {
+                        DateTime::parse_from_rfc3339(&s)
+                            .unwrap()
+                            .with_timezone(&Local)
+                    }),
                     note: row.get(6)?,
                     parent_id: row.get(7)?,
                     created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
@@ -280,8 +296,16 @@ impl StoreV2 {
 
     pub fn get_task_summaries(&self, start: NaiveDate, end: NaiveDate) -> Result<Vec<TaskSummary>> {
         let conn = self.conn.lock().unwrap();
-        let start_dt = start.and_hms_opt(0, 0, 0).unwrap().and_local_timezone(Local).unwrap();
-        let end_dt = end.and_hms_opt(23, 59, 59).unwrap().and_local_timezone(Local).unwrap();
+        let start_dt = start
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_local_timezone(Local)
+            .unwrap();
+        let end_dt = end
+            .and_hms_opt(23, 59, 59)
+            .unwrap()
+            .and_local_timezone(Local)
+            .unwrap();
 
         let mut stmt = conn.prepare(
             "SELECT task_name, slot_type, 
@@ -330,9 +354,7 @@ impl StoreV2 {
         for i in 0..slots.len().saturating_sub(1) {
             if let Some(current_end) = slots[i].end_ts {
                 let next_start = slots[i + 1].start_ts;
-                let gap_minutes = next_start
-                    .signed_duration_since(current_end)
-                    .num_minutes();
+                let gap_minutes = next_start.signed_duration_since(current_end).num_minutes();
 
                 if gap_minutes >= 5 {
                     gaps.push(Gap {
@@ -429,9 +451,11 @@ impl StoreV2 {
     pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
         let conn = self.conn.lock().unwrap();
         let value = conn
-            .query_row("SELECT value FROM app_state WHERE key = ?1", params![key], |row| {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT value FROM app_state WHERE key = ?1",
+                params![key],
+                |row| row.get(0),
+            )
             .optional()?;
         Ok(value)
     }
@@ -480,7 +504,14 @@ impl StoreV2 {
         self.set_setting("lunch_start", &settings.lunch_start)?;
         self.set_setting("lunch_end", &settings.lunch_end)?;
         self.set_setting("work_end", &settings.work_end)?;
-        self.set_setting("eod_check_enabled", if settings.eod_check_enabled { "true" } else { "false" })?;
+        self.set_setting(
+            "eod_check_enabled",
+            if settings.eod_check_enabled {
+                "true"
+            } else {
+                "false"
+            },
+        )?;
         self.set_setting("pomodoro_minutes", &settings.pomodoro_minutes.to_string())?;
         self.set_setting("theme", &settings.theme)?;
         self.set_setting("mini_mode", &settings.mini_mode)?;
@@ -501,7 +532,14 @@ mod tests {
         let id = store.create_slot(&slot).unwrap();
 
         store
-            .update_slot_details(id, "新名稱", SlotType::Meeting, slot.start_ts, None, Some("備註"))
+            .update_slot_details(
+                id,
+                "新名稱",
+                SlotType::Meeting,
+                slot.start_ts,
+                None,
+                Some("備註"),
+            )
             .unwrap();
 
         let retrieved = store.get_slot(id).unwrap().unwrap();
@@ -540,7 +578,11 @@ mod tests {
         slot1.end_ts = Some(now + chrono::Duration::minutes(30));
         store.create_slot(&slot1).unwrap();
 
-        let mut slot2 = TimeSlot::new("Lunch".to_string(), SlotType::Lunch, now + chrono::Duration::minutes(30));
+        let mut slot2 = TimeSlot::new(
+            "Lunch".to_string(),
+            SlotType::Lunch,
+            now + chrono::Duration::minutes(30),
+        );
         slot2.end_ts = Some(now + chrono::Duration::minutes(90));
         store.create_slot(&slot2).unwrap();
 
@@ -553,9 +595,15 @@ mod tests {
     #[test]
     fn test_recent_tasks() {
         let store = StoreV2::new(Path::new(":memory:")).unwrap();
-        store.add_or_update_recent_task("Task A", SlotType::Work).unwrap();
-        store.add_or_update_recent_task("Task B", SlotType::Work).unwrap();
-        store.add_or_update_recent_task("Task A", SlotType::Work).unwrap();
+        store
+            .add_or_update_recent_task("Task A", SlotType::Work)
+            .unwrap();
+        store
+            .add_or_update_recent_task("Task B", SlotType::Work)
+            .unwrap();
+        store
+            .add_or_update_recent_task("Task A", SlotType::Work)
+            .unwrap();
 
         let recent = store.get_recent_tasks(10).unwrap();
         assert_eq!(recent.len(), 2);

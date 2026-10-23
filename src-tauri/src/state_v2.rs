@@ -63,7 +63,8 @@ impl StateManager {
         let now = Local::now();
         let slot = TimeSlot::new(task_name.clone(), slot_type.clone(), now);
         let id = self.store.create_slot(&slot)?;
-        self.store.add_or_update_recent_task(&task_name, slot_type)?;
+        self.store
+            .add_or_update_recent_task(&task_name, slot_type)?;
 
         state.state = AppStateEnum::Working;
         state.current_slot_id = Some(id);
@@ -133,7 +134,7 @@ impl StateManager {
             state.state = AppStateEnum::Working;
             state.current_slot_id = Some(slot_id);
             state.paused_slot_id = None;
-            
+
             if state.remaining_seconds.is_some() {
                 state.pomodoro_start = Some(Local::now());
             }
@@ -144,7 +145,11 @@ impl StateManager {
         }
     }
 
-    pub fn start_interrupt(&self, who: Option<String>, reason: Option<String>) -> anyhow::Result<i64> {
+    pub fn start_interrupt(
+        &self,
+        who: Option<String>,
+        reason: Option<String>,
+    ) -> anyhow::Result<i64> {
         let mut state = self.state.lock().unwrap();
 
         let parent_id = if let Some(slot_id) = state.current_slot_id {
@@ -166,7 +171,7 @@ impl StateManager {
         let mut slot = TimeSlot::new(task_name, SlotType::Interrupt, Local::now());
         slot.parent_id = parent_id;
         slot.note = reason;
-        
+
         let interrupt_id = self.store.create_slot(&slot)?;
 
         if let Some(name) = who {
@@ -187,14 +192,15 @@ impl StateManager {
         }
 
         if let Some(interrupt_id) = state.current_slot_id {
-            self.store.update_slot(interrupt_id, Some(Local::now()), None)?;
+            self.store
+                .update_slot(interrupt_id, Some(Local::now()), None)?;
         }
 
         if let Some(paused_id) = state.paused_slot_id {
             state.state = AppStateEnum::Working;
             state.current_slot_id = Some(paused_id);
             state.paused_slot_id = None;
-            
+
             if state.remaining_seconds.is_some() {
                 state.pomodoro_start = Some(Local::now());
             }
@@ -209,9 +215,9 @@ impl StateManager {
 
     pub fn get_elapsed_seconds(&self) -> Option<i64> {
         let state = self.state.lock().unwrap();
-        state.pomodoro_start.map(|start| {
-            Local::now().signed_duration_since(start).num_seconds()
-        })
+        state
+            .pomodoro_start
+            .map(|start| Local::now().signed_duration_since(start).num_seconds())
     }
 
     pub fn get_remaining_seconds(&self) -> Option<i64> {
@@ -243,7 +249,9 @@ mod tests {
         let store = Arc::new(StoreV2::new(Path::new(":memory:")).unwrap());
         let mgr = StateManager::new(store.clone());
 
-        let id = mgr.start_task("Test Task".to_string(), SlotType::Work).unwrap();
+        let id = mgr
+            .start_task("Test Task".to_string(), SlotType::Work)
+            .unwrap();
         assert_eq!(mgr.get_state().state, AppStateEnum::Working);
         assert_eq!(mgr.get_state().current_slot_id, Some(id));
 
@@ -260,9 +268,11 @@ mod tests {
         let store = Arc::new(StoreV2::new(Path::new(":memory:")).unwrap());
         let mgr = StateManager::new(store.clone());
 
-        let id = mgr.start_task("Test Task".to_string(), SlotType::Work).unwrap();
+        let id = mgr
+            .start_task("Test Task".to_string(), SlotType::Work)
+            .unwrap();
         mgr.pause_task().unwrap();
-        
+
         assert_eq!(mgr.get_state().state, AppStateEnum::Paused);
         assert_eq!(mgr.get_state().paused_slot_id, Some(id));
 
@@ -276,8 +286,12 @@ mod tests {
         let store = Arc::new(StoreV2::new(Path::new(":memory:")).unwrap());
         let mgr = StateManager::new(store.clone());
 
-        let work_id = mgr.start_task("Work Task".to_string(), SlotType::Work).unwrap();
-        let interrupt_id = mgr.start_interrupt(Some("Kelly".to_string()), Some("緊急事項".to_string())).unwrap();
+        let work_id = mgr
+            .start_task("Work Task".to_string(), SlotType::Work)
+            .unwrap();
+        let interrupt_id = mgr
+            .start_interrupt(Some("Kelly".to_string()), Some("緊急事項".to_string()))
+            .unwrap();
 
         assert_eq!(mgr.get_state().state, AppStateEnum::Interrupt);
         assert_eq!(mgr.get_state().current_slot_id, Some(interrupt_id));

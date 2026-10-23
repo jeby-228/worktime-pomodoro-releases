@@ -43,10 +43,7 @@ pub struct StartTaskRequest {
 }
 
 #[tauri::command]
-pub fn start_task(
-    request: StartTaskRequest,
-    state_mgr: State<AppStateMgr>,
-) -> Result<i64, String> {
+pub fn start_task(request: StartTaskRequest, state_mgr: State<AppStateMgr>) -> Result<i64, String> {
     let slot_type = SlotType::from_str(&request.slot_type).map_err(|e| e.to_string())?;
     state_mgr
         .start_task(request.task_name, slot_type)
@@ -118,8 +115,8 @@ pub fn get_slots_for_range(
     request: DateRangeRequest,
     store: State<AppStore>,
 ) -> Result<Vec<TimeSlot>, String> {
-    let start = NaiveDate::parse_from_str(&request.start_date, "%Y-%m-%d")
-        .map_err(|e| e.to_string())?;
+    let start =
+        NaiveDate::parse_from_str(&request.start_date, "%Y-%m-%d").map_err(|e| e.to_string())?;
     let end =
         NaiveDate::parse_from_str(&request.end_date, "%Y-%m-%d").map_err(|e| e.to_string())?;
     store
@@ -132,8 +129,8 @@ pub fn get_task_summaries(
     request: DateRangeRequest,
     store: State<AppStore>,
 ) -> Result<Vec<TaskSummary>, String> {
-    let start = NaiveDate::parse_from_str(&request.start_date, "%Y-%m-%d")
-        .map_err(|e| e.to_string())?;
+    let start =
+        NaiveDate::parse_from_str(&request.start_date, "%Y-%m-%d").map_err(|e| e.to_string())?;
     let end =
         NaiveDate::parse_from_str(&request.end_date, "%Y-%m-%d").map_err(|e| e.to_string())?;
     store
@@ -150,14 +147,20 @@ pub fn find_gaps(date: String, store: State<AppStore>) -> Result<Vec<Gap>, Strin
 // ==================== Recent Items Commands ====================
 
 #[tauri::command]
-pub fn get_recent_tasks(limit: Option<usize>, store: State<AppStore>) -> Result<Vec<RecentTask>, String> {
+pub fn get_recent_tasks(
+    limit: Option<usize>,
+    store: State<AppStore>,
+) -> Result<Vec<RecentTask>, String> {
     store
         .get_recent_tasks(limit.unwrap_or(10))
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn get_recent_people(limit: Option<usize>, store: State<AppStore>) -> Result<Vec<RecentPerson>, String> {
+pub fn get_recent_people(
+    limit: Option<usize>,
+    store: State<AppStore>,
+) -> Result<Vec<RecentPerson>, String> {
     store
         .get_recent_people(limit.unwrap_or(10))
         .map_err(|e| e.to_string())
@@ -261,7 +264,14 @@ pub fn update_slot_manual(
         .filter(|text| !text.is_empty());
 
     store
-        .update_slot_details(request.id, task_name, slot_type.clone(), start_ts, end_ts, note)
+        .update_slot_details(
+            request.id,
+            task_name,
+            slot_type.clone(),
+            start_ts,
+            end_ts,
+            note,
+        )
         .map_err(|e| e.to_string())?;
     store
         .add_or_update_recent_task(task_name, slot_type)
@@ -381,9 +391,7 @@ pub fn hide_minibar(app: tauri::AppHandle) -> Result<(), String> {
 
 fn fit_minibar(window: &tauri::WebviewWindow, height: f64) -> Result<(), String> {
     let next = height.clamp(48.0, 220.0);
-    window
-        .set_resizable(true)
-        .map_err(|e| e.to_string())?;
+    window.set_resizable(true).map_err(|e| e.to_string())?;
     window
         .set_min_size(Some(tauri::LogicalSize::new(240.0, 48.0)))
         .map_err(|e| e.to_string())?;
@@ -529,8 +537,8 @@ pub fn prepare_export_data(
     request: ExportRequest,
     store: State<AppStore>,
 ) -> Result<Vec<ExportRowV2>, String> {
-    let start = NaiveDate::parse_from_str(&request.start_date, "%Y-%m-%d")
-        .map_err(|e| e.to_string())?;
+    let start =
+        NaiveDate::parse_from_str(&request.start_date, "%Y-%m-%d").map_err(|e| e.to_string())?;
     let end =
         NaiveDate::parse_from_str(&request.end_date, "%Y-%m-%d").map_err(|e| e.to_string())?;
 
@@ -540,9 +548,7 @@ pub fn prepare_export_data(
 
     let rows: Vec<ExportRowV2> = slots
         .into_iter()
-        .filter(|slot| {
-            request.include_interrupts || slot.slot_type != SlotType::Interrupt
-        })
+        .filter(|slot| request.include_interrupts || slot.slot_type != SlotType::Interrupt)
         .filter_map(|slot| {
             let end_ts = slot.end_ts?;
             let duration = slot.duration_minutes()?;
@@ -562,8 +568,8 @@ pub fn prepare_export_data(
     Ok(rows)
 }
 
-use std::path::PathBuf;
 use rust_xlsxwriter::*;
+use std::path::PathBuf;
 
 #[tauri::command]
 pub fn export_to_xlsx(
@@ -578,33 +584,75 @@ pub fn export_to_xlsx(
     let worksheet = workbook.add_worksheet();
 
     let header_format = Format::new().set_bold();
-    
-    worksheet.write_with_format(0, 0, "日期", &header_format).map_err(|e| e.to_string())?;
-    worksheet.write_with_format(0, 1, "任務", &header_format).map_err(|e| e.to_string())?;
-    worksheet.write_with_format(0, 2, "類型", &header_format).map_err(|e| e.to_string())?;
-    worksheet.write_with_format(0, 3, "開始時間", &header_format).map_err(|e| e.to_string())?;
-    worksheet.write_with_format(0, 4, "結束時間", &header_format).map_err(|e| e.to_string())?;
-    worksheet.write_with_format(0, 5, "分鐘", &header_format).map_err(|e| e.to_string())?;
-    worksheet.write_with_format(0, 6, "備註", &header_format).map_err(|e| e.to_string())?;
+
+    worksheet
+        .write_with_format(0, 0, "日期", &header_format)
+        .map_err(|e| e.to_string())?;
+    worksheet
+        .write_with_format(0, 1, "任務", &header_format)
+        .map_err(|e| e.to_string())?;
+    worksheet
+        .write_with_format(0, 2, "類型", &header_format)
+        .map_err(|e| e.to_string())?;
+    worksheet
+        .write_with_format(0, 3, "開始時間", &header_format)
+        .map_err(|e| e.to_string())?;
+    worksheet
+        .write_with_format(0, 4, "結束時間", &header_format)
+        .map_err(|e| e.to_string())?;
+    worksheet
+        .write_with_format(0, 5, "分鐘", &header_format)
+        .map_err(|e| e.to_string())?;
+    worksheet
+        .write_with_format(0, 6, "備註", &header_format)
+        .map_err(|e| e.to_string())?;
 
     for (i, row) in rows.iter().enumerate() {
         let row_num = (i + 1) as u32;
-        worksheet.write(row_num, 0, &row.date).map_err(|e| e.to_string())?;
-        worksheet.write(row_num, 1, &row.task_name).map_err(|e| e.to_string())?;
-        worksheet.write(row_num, 2, &row.slot_type).map_err(|e| e.to_string())?;
-        worksheet.write(row_num, 3, &row.start_time).map_err(|e| e.to_string())?;
-        worksheet.write(row_num, 4, &row.end_time).map_err(|e| e.to_string())?;
-        worksheet.write(row_num, 5, row.duration_minutes).map_err(|e| e.to_string())?;
-        worksheet.write(row_num, 6, &row.note).map_err(|e| e.to_string())?;
+        worksheet
+            .write(row_num, 0, &row.date)
+            .map_err(|e| e.to_string())?;
+        worksheet
+            .write(row_num, 1, &row.task_name)
+            .map_err(|e| e.to_string())?;
+        worksheet
+            .write(row_num, 2, &row.slot_type)
+            .map_err(|e| e.to_string())?;
+        worksheet
+            .write(row_num, 3, &row.start_time)
+            .map_err(|e| e.to_string())?;
+        worksheet
+            .write(row_num, 4, &row.end_time)
+            .map_err(|e| e.to_string())?;
+        worksheet
+            .write(row_num, 5, row.duration_minutes)
+            .map_err(|e| e.to_string())?;
+        worksheet
+            .write(row_num, 6, &row.note)
+            .map_err(|e| e.to_string())?;
     }
 
-    worksheet.set_column_width(0, 12).map_err(|e| e.to_string())?;
-    worksheet.set_column_width(1, 30).map_err(|e| e.to_string())?;
-    worksheet.set_column_width(2, 10).map_err(|e| e.to_string())?;
-    worksheet.set_column_width(3, 10).map_err(|e| e.to_string())?;
-    worksheet.set_column_width(4, 10).map_err(|e| e.to_string())?;
-    worksheet.set_column_width(5, 8).map_err(|e| e.to_string())?;
-    worksheet.set_column_width(6, 40).map_err(|e| e.to_string())?;
+    worksheet
+        .set_column_width(0, 12)
+        .map_err(|e| e.to_string())?;
+    worksheet
+        .set_column_width(1, 30)
+        .map_err(|e| e.to_string())?;
+    worksheet
+        .set_column_width(2, 10)
+        .map_err(|e| e.to_string())?;
+    worksheet
+        .set_column_width(3, 10)
+        .map_err(|e| e.to_string())?;
+    worksheet
+        .set_column_width(4, 10)
+        .map_err(|e| e.to_string())?;
+    worksheet
+        .set_column_width(5, 8)
+        .map_err(|e| e.to_string())?;
+    worksheet
+        .set_column_width(6, 40)
+        .map_err(|e| e.to_string())?;
 
     workbook.save(&path).map_err(|e| e.to_string())?;
 
@@ -621,9 +669,17 @@ pub fn export_to_csv(
     let path = PathBuf::from(output_path);
 
     let mut wtr = csv::Writer::from_path(&path).map_err(|e| e.to_string())?;
-    
-    wtr.write_record(&["日期", "任務", "類型", "開始時間", "結束時間", "分鐘", "備註"])
-        .map_err(|e| e.to_string())?;
+
+    wtr.write_record(&[
+        "日期",
+        "任務",
+        "類型",
+        "開始時間",
+        "結束時間",
+        "分鐘",
+        "備註",
+    ])
+    .map_err(|e| e.to_string())?;
 
     for row in rows {
         wtr.write_record(&[

@@ -7,7 +7,8 @@ use tracing::info;
 
 pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let show_i = MenuItemBuilder::with_id("show", "顯示主視窗").build(app)?;
-    let quick_input_i = MenuItemBuilder::with_id("quick_input", "快速輸入 (Ctrl+Alt+T)").build(app)?;
+    let quick_input_i =
+        MenuItemBuilder::with_id("quick_input", "快速輸入 (Ctrl+Alt+T)").build(app)?;
     let interrupt_i = MenuItemBuilder::with_id("interrupt", "插隊 (Ctrl+Alt+I)").build(app)?;
     let separator_i = PredefinedMenuItem::separator(app)?;
     let pause_resume_i = MenuItemBuilder::with_id("pause_resume", "暫停 / 繼續").build(app)?;
