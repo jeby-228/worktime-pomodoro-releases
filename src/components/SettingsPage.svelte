@@ -3,8 +3,9 @@
   import { invoke } from '@tauri-apps/api/core';
   import { check as checkUpdate } from '@tauri-apps/plugin-updater';
   import { relaunch } from '@tauri-apps/plugin-process';
-  import { Settings, Palette, Clock, Calendar, Keyboard, Monitor, Info } from 'lucide-svelte';
-  import { t, setLocale, currentLocale } from '$lib/i18n';
+  import { Palette, Clock, Calendar, Keyboard, Monitor, Info } from 'lucide-svelte';
+  import { t } from '$lib/i18n';
+  import { applyTheme, type ThemeChoice } from '$lib/theme';
   
   interface AppSettings {
     theme: string;
@@ -47,10 +48,24 @@
     await loadSettings();
   });
   
+  function chooseTheme(theme: ThemeChoice) {
+    settings.theme = theme;
+    applyTheme(theme);
+    markDirty();
+  }
+
+  async function chooseCompanion(mode: string) {
+    settings.mini_mode = mode;
+    markDirty();
+    await applyMiniMode(mode);
+  }
+
   async function loadSettings() {
     try {
       const loaded = await invoke<AppSettings>('get_settings');
       settings = loaded;
+      applyTheme(settings.theme as ThemeChoice);
+      await applyMiniMode(settings.mini_mode);
       isDirty = false;
     } catch (err) {
       console.error('Failed to load settings:', err);
@@ -63,7 +78,7 @@
       isDirty = false;
       
       // Apply theme change immediately
-      applyTheme(settings.theme);
+      applyTheme(settings.theme as ThemeChoice);
       
       // Apply mini mode changes immediately
       await applyMiniMode(settings.mini_mode);
@@ -90,27 +105,6 @@
       }
     } catch (err) {
       console.error('Failed to apply mini mode:', err);
-    }
-  }
-  
-  function applyTheme(theme: string) {
-    if (typeof window === 'undefined') return;
-    
-    if (theme === 'system') {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-      if (prefersDark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    } else {
-      document.documentElement.setAttribute('data-theme', theme);
-      if (theme === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
     }
   }
   
@@ -159,15 +153,13 @@
     </div>
     
     <nav class="space-y-1 px-3">
-      {#each sections as section}
+      {#each sections as section (section.id)}
+        {@const Icon = section.icon}
         <button
           onclick={() => activeSection = section.id}
-          class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors"
-          class:bg-accent={activeSection === section.id}
-          class:text-accent-foreground={activeSection === section.id}
-          class:text-muted-foreground={activeSection !== section.id}
+          class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors {activeSection === section.id ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}"
         >
-          <svelte:component this={section.icon} class="size-4" />
+          <Icon class="size-4" />
           {$t(section.labelKey)}
         </button>
       {/each}
@@ -185,29 +177,23 @@
           
           <!-- Theme -->
           <div class="space-y-2">
-            <label class="text-sm font-medium">{$t('settings.theme')}</label>
+            <p class="text-sm font-medium">{$t('settings.theme')}</p>
             <div class="flex gap-3">
               <button
-                onclick={() => { settings.theme = 'light'; markDirty(); }}
-                class="flex flex-1 items-center justify-center gap-2 rounded-md border px-4 py-3 text-sm transition-colors"
-                class:border-primary={settings.theme === 'light'}
-                class:bg-accent={settings.theme === 'light'}
+                onclick={() => chooseTheme('light')}
+                class="flex flex-1 items-center justify-center gap-2 rounded-md border px-4 py-3 text-sm transition-colors {settings.theme === 'light' ? 'border-primary bg-accent' : ''}"
               >
                 {$t('settings.theme_light')}
               </button>
               <button
-                onclick={() => { settings.theme = 'dark'; markDirty(); }}
-                class="flex flex-1 items-center justify-center gap-2 rounded-md border px-4 py-3 text-sm transition-colors"
-                class:border-primary={settings.theme === 'dark'}
-                class:bg-accent={settings.theme === 'dark'}
+                onclick={() => chooseTheme('dark')}
+                class="flex flex-1 items-center justify-center gap-2 rounded-md border px-4 py-3 text-sm transition-colors {settings.theme === 'dark' ? 'border-primary bg-accent' : ''}"
               >
                 {$t('settings.theme_dark')}
               </button>
               <button
-                onclick={() => { settings.theme = 'system'; markDirty(); }}
-                class="flex flex-1 items-center justify-center gap-2 rounded-md border px-4 py-3 text-sm transition-colors"
-                class:border-primary={settings.theme === 'system'}
-                class:bg-accent={settings.theme === 'system'}
+                onclick={() => chooseTheme('system')}
+                class="flex flex-1 items-center justify-center gap-2 rounded-md border px-4 py-3 text-sm transition-colors {settings.theme === 'system' ? 'border-primary bg-accent' : ''}"
               >
                 {$t('settings.theme_system')}
               </button>
@@ -223,9 +209,10 @@
           
           <!-- Pomodoro Duration -->
           <div class="space-y-2">
-            <label class="text-sm font-medium">{$t('settings.pomodoro_duration')}</label>
+            <label for="pomodoro-minutes" class="text-sm font-medium">{$t('settings.pomodoro_duration')}</label>
             <div class="flex items-center gap-3">
               <input
+                id="pomodoro-minutes"
                 type="number"
                 bind:value={settings.pomodoro_minutes}
                 oninput={markDirty}
@@ -246,7 +233,7 @@
           
           <!-- Lunch Time -->
           <div class="space-y-2">
-            <label class="text-sm font-medium">{$t('settings.lunch_time')}</label>
+            <p class="text-sm font-medium">{$t('settings.lunch_time')}</p>
             <div class="flex items-center gap-3">
               <input
                 type="time"
@@ -266,8 +253,9 @@
           
           <!-- Work End Time -->
           <div class="space-y-2">
-            <label class="text-sm font-medium">{$t('settings.work_end_time')}</label>
+            <label for="work-end" class="text-sm font-medium">{$t('settings.work_end_time')}</label>
             <input
+              id="work-end"
               type="time"
               bind:value={settings.work_end}
               oninput={markDirty}
@@ -316,37 +304,29 @@
           
           <!-- Mini Mode -->
           <div class="space-y-2">
-            <label class="text-sm font-medium">迷你模式</label>
+            <p class="text-sm font-medium">迷你模式</p>
             <div class="grid grid-cols-2 gap-3">
               <button
-                onclick={() => { settings.mini_mode = 'none'; markDirty(); }}
-                class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors"
-                class:border-primary={settings.mini_mode === 'none'}
-                class:bg-accent={settings.mini_mode === 'none'}
+                onclick={() => chooseCompanion('none')}
+                class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors {settings.mini_mode === 'none' ? 'border-primary bg-accent' : ''}"
               >
                 {$t('settings.mini_mode_none')}
               </button>
               <button
-                onclick={() => { settings.mini_mode = 'mini'; markDirty(); }}
-                class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors"
-                class:border-primary={settings.mini_mode === 'mini'}
-                class:bg-accent={settings.mini_mode === 'mini'}
+                onclick={() => chooseCompanion('mini')}
+                class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors {settings.mini_mode === 'mini' ? 'border-primary bg-accent' : ''}"
               >
                 {$t('settings.mini_mode_bar')}
               </button>
               <button
-                onclick={() => { settings.mini_mode = 'pet'; markDirty(); }}
-                class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors"
-                class:border-primary={settings.mini_mode === 'pet'}
-                class:bg-accent={settings.mini_mode === 'pet'}
+                onclick={() => chooseCompanion('pet')}
+                class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors {settings.mini_mode === 'pet' ? 'border-primary bg-accent' : ''}"
               >
                 {$t('settings.mini_mode_pet')}
               </button>
               <button
-                onclick={() => { settings.mini_mode = 'both'; markDirty(); }}
-                class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors"
-                class:border-primary={settings.mini_mode === 'both'}
-                class:bg-accent={settings.mini_mode === 'both'}
+                onclick={() => chooseCompanion('both')}
+                class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors {settings.mini_mode === 'both' ? 'border-primary bg-accent' : ''}"
               >
                 {$t('settings.mini_mode_both')}
               </button>
@@ -356,7 +336,7 @@
           <!-- Pet Selection -->
           {#if settings.mini_mode === 'pet' || settings.mini_mode === 'both'}
             <div class="space-y-2">
-              <label class="text-sm font-medium">{$t('settings.pet_selection')}</label>
+              <p class="text-sm font-medium">{$t('settings.pet_selection')}</p>
               <div class="rounded-md border border-border p-4">
                 <div class="mb-3 text-sm text-muted-foreground">
                   當前寵物：番茄君 (D-mono)

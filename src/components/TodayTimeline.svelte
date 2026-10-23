@@ -1,23 +1,24 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Briefcase, Zap, Users, Coffee, Clock, AlertTriangle } from 'lucide-svelte';
+  import SlotEditDrawer from './SlotEditDrawer.svelte';
   import { t } from '$lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
   
   interface TimeSlot {
-    id: string;
+    id: string | number;
     task_name: string;
     slot_type: 'work' | 'interrupt' | 'meeting' | 'lunch';
-    start_ts: number;
-    end_ts: number | null;
+    start_ts: number | string;
+    end_ts: number | string | null;
     note: string | null;
     duration_minutes: number;
-    parent_id: string | null;
+    parent_id: string | number | null;
   }
   
   interface Gap {
-    start_ts: number;
-    end_ts: number;
+    start_ts: number | string;
+    end_ts: number | string;
     minutes: number;
   }
   
@@ -31,6 +32,12 @@
   
   let slots = $state<TimeSlot[]>([]);
   let gaps = $state<Gap[]>([]);
+  let fillingGap = $state<Gap | null>(null);
+  let fillTask = $state('');
+  let fillError = $state('');
+  let savingFill = $state(false);
+  let editingSlot = $state<TimeSlot | null>(null);
+  let editOpen = $state(false);
   let stats = $state<DayStats>({
     work_minutes: 0,
     interrupt_minutes: 0,
@@ -47,15 +54,15 @@
   };
   
   // Build display list with gaps interspersed
-  let displayItems = $derived(() => {
+  let displayItems = $derived.by(() => {
     const items: Array<{ type: 'slot' | 'gap'; data: TimeSlot | Gap; isNested?: boolean }> = [];
-    const allSlots = [...slots].sort((a, b) => a.start_ts - b.start_ts);
-    const allGaps = [...gaps].sort((a, b) => a.start_ts - b.start_ts);
+    const allSlots = [...slots].sort((a, b) => tsValue(a.start_ts) - tsValue(b.start_ts));
+    const allGaps = [...gaps].sort((a, b) => tsValue(a.start_ts) - tsValue(b.start_ts));
     
     let gapIndex = 0;
     for (const slot of allSlots) {
       // Insert gaps before this slot
-      while (gapIndex < allGaps.length && allGaps[gapIndex].end_ts <= slot.start_ts) {
+      while (gapIndex < allGaps.length && tsValue(allGaps[gapIndex].end_ts) <= tsValue(slot.start_ts)) {
         items.push({ type: 'gap', data: allGaps[gapIndex] });
         gapIndex++;
       }
@@ -81,9 +88,24 @@
     return items;
   });
   
-  function formatTime(ts: number): string {
-    const date = new Date(ts * 1000);
+  function tsValue(ts: number | string): number {
+    if (typeof ts === 'number') return ts < 1e12 ? ts * 1000 : ts;
+    const numeric = Number(ts);
+    if (ts.trim() !== '' && !Number.isNaN(numeric)) return numeric < 1e12 ? numeric * 1000 : numeric;
+    return new Date(ts).getTime();
+  }
+
+  function toRfc3339(ts: number | string): string {
+    return new Date(tsValue(ts)).toISOString();
+  }
+
+  function formatTime(ts: number | string): string {
+    const date = new Date(tsValue(ts));
     return date.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+
+  function sameGap(a: Gap, b: Gap): boolean {
+    return a.start_ts === b.start_ts && a.end_ts === b.end_ts;
   }
   
   function formatDuration(minutes: number): string {
@@ -98,10 +120,14 @@
   
   onMount(() => {
     loadToday();
+    window.addEventListener('task-started', loadToday);
     
     // Refresh every 30 seconds
     const interval = setInterval(loadToday, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('task-started', loadToday);
+    };
   });
   
   async function loadToday() {
@@ -125,13 +151,47 @@
   }
   
   function handleSlotClick(slot: TimeSlot) {
-    // TODO: open edit drawer
-    console.log('Edit slot', slot);
+    editingSlot = slot;
+    editOpen = true;
   }
   
   function handleFillGap(gap: Gap) {
-    // TODO: open fill gap dialog
-    console.log('Fill gap', gap);
+    fillingGap = gap;
+    fillTask = '';
+    fillError = '';
+  }
+
+  function cancelFill() {
+    fillingGap = null;
+    fillError = '';
+  }
+
+  async function submitFill() {
+    if (!fillingGap) return;
+    if (!fillTask.trim()) {
+      fillError = $t('errors.task_title_required');
+      return;
+    }
+
+    savingFill = true;
+    fillError = '';
+    try {
+      await invoke('fill_gap', {
+        request: {
+          start_time: toRfc3339(fillingGap.start_ts),
+          end_time: toRfc3339(fillingGap.end_ts),
+          task_title: fillTask.trim(),
+          person: null,
+          note: null,
+        },
+      });
+      fillingGap = null;
+      await loadToday();
+    } catch (err) {
+      fillError = String(err);
+    } finally {
+      savingFill = false;
+    }
   }
 </script>
 
@@ -171,7 +231,7 @@
   
   <!-- Timeline List (shadcn Item style) -->
   <div class="flex-1 overflow-y-auto">
-    {#if displayItems().length === 0}
+    {#if displayItems.length === 0}
       <div class="flex h-full items-center justify-center text-center">
         <div class="text-sm text-muted-foreground">
           {$t('today.no_slots')}
@@ -179,17 +239,17 @@
       </div>
     {:else}
       <div class="divide-y divide-border">
-        {#each displayItems() as item}
+        {#each displayItems as item (`${item.type}-${item.type === 'slot' ? (item.data as TimeSlot).id : String((item.data as Gap).start_ts)}`)}
           {#if item.type === 'slot'}
             {@const slot = item.data as TimeSlot}
+            {@const Icon = slotTypeIcons[slot.slot_type]}
             <button
               onclick={() => handleSlotClick(slot)}
-              class="flex w-full items-center gap-3 px-6 py-3 text-left transition-colors hover:bg-accent/50"
-              class:pl-12={item.isNested}
+              class="flex w-full items-center gap-3 px-6 py-3 text-left transition-colors hover:bg-accent/50 {item.isNested ? 'pl-12' : ''}"
             >
               <!-- Icon box -->
               <div class="flex size-10 flex-shrink-0 items-center justify-center rounded-md bg-muted">
-                <svelte:component this={slotTypeIcons[slot.slot_type]} class="size-5" />
+                <Icon class="size-5" />
               </div>
               
               <!-- Content -->
@@ -214,7 +274,8 @@
             </button>
           {:else}
             {@const gap = item.data as Gap}
-            <div class="flex items-center gap-3 border-dashed px-6 py-3">
+            <div class="border-dashed px-6 py-3">
+            <div class="flex items-center gap-3">
               <!-- Icon box (dashed) -->
               <div class="flex size-10 flex-shrink-0 items-center justify-center rounded-md border-2 border-dashed border-warning/50">
                 <AlertTriangle class="size-5 text-warning" />
@@ -238,9 +299,41 @@
                 {$t('today.fill_gap')}
               </button>
             </div>
+            {#if fillingGap && sameGap(fillingGap, gap)}
+              <div class="mt-3 space-y-2 pl-12">
+                <input
+                  type="text"
+                  bind:value={fillTask}
+                  placeholder={$t('placeholders.task_title')}
+                  class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                {#if fillError}
+                  <div class="text-sm text-destructive">{fillError}</div>
+                {/if}
+                <div class="flex gap-2">
+                  <button
+                    onclick={cancelFill}
+                    disabled={savingFill}
+                    class="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
+                  >
+                    {$t('actions.cancel')}
+                  </button>
+                  <button
+                    onclick={submitFill}
+                    disabled={savingFill}
+                    class="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {savingFill ? $t('actions.saving') : $t('actions.fill')}
+                  </button>
+                </div>
+              </div>
+            {/if}
+            </div>
           {/if}
         {/each}
       </div>
     {/if}
   </div>
 </div>
+
+<SlotEditDrawer bind:open={editOpen} bind:slot={editingSlot} onSaved={loadToday} />

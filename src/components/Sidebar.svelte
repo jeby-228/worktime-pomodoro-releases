@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { Timer, Calendar, Database, Settings, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-svelte';
   import { t } from '$lib/i18n';
+  import { applyTheme, type ThemeChoice } from '$lib/theme';
   import { invoke } from '@tauri-apps/api/core';
   
   interface Props {
@@ -18,7 +19,7 @@
     { id: 'settings', icon: Settings, labelKey: 'nav.settings' },
   ];
   
-  let currentTheme = $state<'light' | 'dark' | 'system'>('system');
+  let currentTheme = $state<ThemeChoice>('system');
   let isDark = $state(false);
   
   onMount(() => {
@@ -29,38 +30,15 @@
     try {
       const settings = await invoke<any>('get_settings');
       currentTheme = settings.theme || 'system';
-      applyTheme();
+      isDark = applyTheme(currentTheme);
     } catch (err) {
       console.error('Failed to load theme:', err);
-      applyTheme();
-    }
-  }
-  
-  function applyTheme() {
-    if (typeof window === 'undefined') return;
-    
-    if (currentTheme === 'system') {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      isDark = prefersDark;
-      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-      if (prefersDark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    } else {
-      isDark = currentTheme === 'dark';
-      document.documentElement.setAttribute('data-theme', currentTheme);
-      if (currentTheme === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
+      isDark = applyTheme(currentTheme);
     }
   }
   
   async function toggleTheme() {
-    const themes: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system'];
+    const themes: ThemeChoice[] = ['light', 'dark', 'system'];
     const currentIndex = themes.indexOf(currentTheme);
     const nextTheme = themes[(currentIndex + 1) % themes.length];
     
@@ -69,7 +47,7 @@
       settings.theme = nextTheme;
       await invoke('save_settings', { settings });
       currentTheme = nextTheme;
-      applyTheme();
+      isDark = applyTheme(currentTheme);
     } catch (err) {
       console.error('Failed to toggle theme:', err);
     }
@@ -80,9 +58,7 @@
   }
 </script>
 
-<nav class="flex h-screen flex-col border-r border-border bg-sidebar transition-all duration-200"
-     class:w-16={collapsed}
-     class:w-56={!collapsed}>
+<nav class="flex h-screen flex-col border-r border-border bg-sidebar transition-all duration-200 {collapsed ? 'w-16' : 'w-56'}">
   <!-- Logo / Title -->
   <div class="flex h-14 items-center border-b border-border px-4">
     {#if !collapsed}
@@ -97,17 +73,14 @@
   
   <!-- Nav Items -->
   <div class="flex-1 space-y-1 p-3">
-    {#each navItems as item}
+    {#each navItems as item (item.id)}
+      {@const Icon = item.icon}
       <button
         onclick={() => navigate(item.id)}
-        class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-        class:bg-accent={currentRoute === item.id}
-        class:text-accent-foreground={currentRoute === item.id}
-        class:text-muted-foreground={currentRoute !== item.id}
-        class:justify-center={collapsed}
+        class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground {currentRoute === item.id ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'} {collapsed ? 'justify-center' : ''}"
         title={collapsed ? $t(item.labelKey) : undefined}
       >
-        <svelte:component this={item.icon} class="size-5 flex-shrink-0" />
+        <Icon class="size-5 flex-shrink-0" />
         {#if !collapsed}
           <span>{$t(item.labelKey)}</span>
         {/if}
@@ -120,8 +93,7 @@
     <!-- Theme toggle -->
     <button
       onclick={toggleTheme}
-      class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-      class:justify-center={collapsed}
+      class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground {collapsed ? 'justify-center' : ''}"
       title={collapsed ? $t('settings.theme') : undefined}
     >
       {#if isDark}
@@ -137,8 +109,7 @@
     <!-- Collapse toggle -->
     <button
       onclick={() => collapsed = !collapsed}
-      class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-      class:justify-center={collapsed}
+      class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground {collapsed ? 'justify-center' : ''}"
       title={collapsed ? $t('nav.expand') : $t('nav.collapse')}
     >
       {#if collapsed}

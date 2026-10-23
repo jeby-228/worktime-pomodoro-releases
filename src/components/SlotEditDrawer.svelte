@@ -10,26 +10,30 @@
     onSaved?: () => void;
   }>();
 
-  let taskTitle = $state('');
-  let person = $state('');
-  let note = $state('');
-  let startTime = $state('');
-  let endTime = $state('');
-  let slotType = $state<'work' | 'interrupt' | 'meeting' | 'lunch'>('work');
+  let taskTitle = $derived(open && slot ? slot.task_name || slot.task_title || '' : '');
+  let person = $derived(open && slot ? slot.person || '' : '');
+  let note = $derived(open && slot ? slot.note || '' : '');
+  let startTime = $derived(open && slot ? toLocalInput(slot.start_time ?? slot.start_ts) : '');
+  let endTime = $derived(open && slot ? toLocalInput(slot.end_time ?? slot.end_ts) : '');
+  let slotType = $derived(open && slot ? slot.slot_type : 'work');
   let saving = $state(false);
   let error = $state('');
 
-  $effect(() => {
-    if (open && slot) {
-      taskTitle = slot.task_title || '';
-      person = slot.person || '';
-      note = slot.note || '';
-      startTime = new Date(slot.start_time).toISOString().slice(0, 16);
-      endTime = slot.end_time ? new Date(slot.end_time).toISOString().slice(0, 16) : '';
-      slotType = slot.slot_type;
-      error = '';
+  function slotInstant(value: string | number | null | undefined): Date | null {
+    if (value == null || value === '') return null;
+    if (typeof value === 'number') {
+      return new Date(value < 1e12 ? value * 1000 : value);
     }
-  });
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function toLocalInput(value: string | number | null | undefined): string {
+    const date = slotInstant(value);
+    if (!date) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
 
   function close() {
     open = false;
@@ -52,18 +56,17 @@
     error = '';
 
     try {
-      const updatedSlot = {
-        id: slot.id,
-        slot_type: slotType,
-        task_title: taskTitle.trim(),
-        person: person.trim() || null,
-        note: note.trim() || null,
-        start_time: new Date(startTime).toISOString(),
-        end_time: endTime ? new Date(endTime).toISOString() : null,
-        parent_id: slot.parent_id,
-      };
-
-      await invoke('update_slot_manual', { slot: updatedSlot });
+      await invoke('update_slot_manual', {
+        request: {
+          id: Number(slot.id),
+          task_name: taskTitle.trim(),
+          slot_type: slotType,
+          start_ts: new Date(startTime).toISOString(),
+          end_ts: endTime ? new Date(endTime).toISOString() : null,
+          note: note.trim() || null,
+        },
+      });
+      window.dispatchEvent(new CustomEvent('task-started'));
       onSaved();
       close();
     } catch (err: any) {
@@ -80,7 +83,7 @@
     error = '';
 
     try {
-      await invoke('delete_slot', { slotId: slot.id });
+      await invoke('delete_slot', { slotId: Number(slot.id) });
       onSaved();
       close();
     } catch (err: any) {
@@ -95,10 +98,11 @@
   <div class="fixed inset-0 z-50 flex">
     <!-- Backdrop -->
     <button
+      type="button"
       class="absolute inset-0 bg-black/50"
       onclick={close}
       aria-label={$t('actions.close')}
-    />
+    ></button>
 
     <!-- Drawer -->
     <div class="ml-auto relative w-full max-w-md bg-background shadow-xl flex flex-col h-full">
@@ -130,7 +134,7 @@
               { value: 'interrupt', label: $t('slot_types.interrupt') },
               { value: 'meeting', label: $t('slot_types.meeting') },
               { value: 'lunch', label: $t('slot_types.lunch') }
-            ] as type}
+            ] as type (type.value)}
               <button
                 onclick={() => slotType = type.value as typeof slotType}
                 class="px-3 py-2 rounded-md text-sm font-medium transition-colors {slotType === type.value
@@ -214,7 +218,7 @@
             rows="3"
             class="w-full px-3 py-2 bg-background border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
             placeholder={$t('placeholders.note')}
-          />
+          ></textarea>
         </div>
 
         <!-- Error -->

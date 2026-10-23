@@ -3,6 +3,15 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    color-scheme: light;
+  }
+
+  html.dark,
+  html[data-theme="dark"] {
+    color-scheme: dark;
+  }
+
   :root,
   [data-theme="light"] {
     --background: 0 0% 100%;

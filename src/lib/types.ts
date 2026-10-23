@@ -1,12 +1,15 @@
 export interface TimeSlot {
-  id: string;
+  id: string | number;
   slot_type: "work" | "interrupt" | "meeting" | "lunch";
-  task_title: string;
-  person: string | null;
+  task_title?: string;
+  task_name?: string;
+  person?: string | null;
   note: string | null;
-  start_time: string; // ISO 8601
-  end_time: string | null; // ISO 8601
-  parent_id: string | null;
+  start_time?: string;
+  end_time?: string | null;
+  start_ts?: string | number;
+  end_ts?: string | number | null;
+  parent_id?: string | number | null;
   duration_minutes?: number;
 }
 

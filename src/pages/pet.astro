@@ -10,7 +10,14 @@ import '../styles/global.css';
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Desktop Pet</title>
 </head>
-<body class="overflow-hidden bg-transparent">
+<body class="overflow-hidden">
   <DesktopPet client:only="svelte" />
 </body>
+<style is:global>
+  html,
+  body {
+    margin: 0;
+    background: transparent !important;
+  }
+</style>
 </html>

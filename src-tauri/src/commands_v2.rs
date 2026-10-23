@@ -171,8 +171,13 @@ pub fn get_settings(store: State<AppStore>) -> Result<AppSettings, String> {
 }
 
 #[tauri::command]
-pub fn save_settings(settings: AppSettings, store: State<AppStore>) -> Result<(), String> {
-    store.save_settings(&settings).map_err(|e| e.to_string())
+pub fn save_settings(
+    app: tauri::AppHandle,
+    settings: AppSettings,
+    store: State<AppStore>,
+) -> Result<(), String> {
+    store.save_settings(&settings).map_err(|e| e.to_string())?;
+    sync_companion_windows(&app, &settings.mini_mode)
 }
 
 // ==================== Slot Edit Commands ====================
@@ -217,6 +222,9 @@ pub fn create_slot_manual(
 #[derive(Debug, Deserialize)]
 pub struct UpdateSlotRequest {
     pub id: i64,
+    pub task_name: String,
+    pub slot_type: String,
+    pub start_ts: String,
     pub end_ts: Option<String>,
     pub note: Option<String>,
 }
@@ -228,6 +236,15 @@ pub fn update_slot_manual(
 ) -> Result<(), String> {
     use chrono::DateTime;
 
+    let task_name = request.task_name.trim();
+    if task_name.is_empty() {
+        return Err("請輸入任務名稱".to_string());
+    }
+
+    let slot_type = SlotType::from_str(&request.slot_type).map_err(|e| e.to_string())?;
+    let start_ts = DateTime::parse_from_rfc3339(&request.start_ts)
+        .map_err(|e| e.to_string())?
+        .with_timezone(&chrono::Local);
     let end_ts = if let Some(end_str) = request.end_ts {
         Some(
             DateTime::parse_from_rfc3339(&end_str)
@@ -237,10 +254,19 @@ pub fn update_slot_manual(
     } else {
         None
     };
+    let note = request
+        .note
+        .as_deref()
+        .map(str::trim)
+        .filter(|text| !text.is_empty());
 
     store
-        .update_slot(request.id, end_ts, request.note)
-        .map_err(|e| e.to_string())
+        .update_slot_details(request.id, task_name, slot_type.clone(), start_ts, end_ts, note)
+        .map_err(|e| e.to_string())?;
+    store
+        .add_or_update_recent_task(task_name, slot_type)
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -366,6 +392,64 @@ pub fn hide_pet(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("pet") {
         window.hide().map_err(|e| e.to_string())?;
     }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn preview_companion_mode(app: tauri::AppHandle, mode: String) -> Result<(), String> {
+    sync_companion_windows(&app, &mode)
+}
+
+pub fn sync_companion_windows(app: &tauri::AppHandle, mode: &str) -> Result<(), String> {
+    let show_pet = mode == "pet" || mode == "both";
+    let show_bar = mode == "mini" || mode == "both";
+    set_companion_window(app, "pet", show_pet, true)?;
+    set_companion_window(app, "minibar", show_bar, false)?;
+    Ok(())
+}
+
+fn set_companion_window(
+    app: &tauri::AppHandle,
+    label: &str,
+    visible: bool,
+    bottom: bool,
+) -> Result<(), String> {
+    let Some(window) = app.get_webview_window(label) else {
+        return Ok(());
+    };
+    if visible {
+        if !window.is_visible().unwrap_or(false) {
+            if let Err(err) = place_companion_window(&window, bottom) {
+                tracing::warn!("failed to place {label}: {err}");
+            }
+        }
+        let _ = window.set_background_color(Some(tauri::utils::config::Color(0, 0, 0, 0)));
+        window.show().map_err(|e| e.to_string())?;
+        let _ = window.set_always_on_top(true);
+        tracing::info!("showed companion window {label}");
+    } else if window.is_visible().unwrap_or(false) {
+        window.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn place_companion_window(window: &tauri::WebviewWindow, bottom: bool) -> Result<(), String> {
+    let Some(monitor) = window.primary_monitor().map_err(|e| e.to_string())? else {
+        return Ok(());
+    };
+    let size = window.outer_size().map_err(|e| e.to_string())?;
+    let area = monitor.position();
+    let screen = monitor.size();
+    let margin = 32;
+    let x = area.x + screen.width as i32 - size.width as i32 - margin;
+    let y = if bottom {
+        area.y + screen.height as i32 - size.height as i32 - margin
+    } else {
+        area.y + margin
+    };
+    window
+        .set_position(tauri::PhysicalPosition::new(x, y))
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 

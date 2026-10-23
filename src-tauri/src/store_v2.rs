@@ -61,6 +61,36 @@ impl StoreV2 {
         Ok(())
     }
 
+    pub fn update_slot_details(
+        &self,
+        id: i64,
+        task_name: &str,
+        slot_type: SlotType,
+        start_ts: DateTime<Local>,
+        end_ts: Option<DateTime<Local>>,
+        note: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let changed = conn.execute(
+            "UPDATE time_slots
+             SET task_name = ?1, slot_type = ?2, start_ts = ?3, end_ts = ?4, note = ?5, updated_at = ?6
+             WHERE id = ?7",
+            params![
+                task_name,
+                slot_type.as_str(),
+                start_ts.to_rfc3339(),
+                end_ts.map(|t| t.to_rfc3339()),
+                note,
+                Local::now().to_rfc3339(),
+                id,
+            ],
+        )?;
+        if changed == 0 {
+            anyhow::bail!("找不到這個時段");
+        }
+        Ok(())
+    }
+
     pub fn get_slot(&self, id: i64) -> Result<Option<TimeSlot>> {
         let conn = self.conn.lock().unwrap();
         let slot = conn
@@ -463,6 +493,22 @@ impl StoreV2 {
 mod tests {
     use super::*;
     use chrono::Timelike;
+
+    #[test]
+    fn test_update_slot_name() {
+        let store = StoreV2::new(Path::new(":memory:")).unwrap();
+        let slot = TimeSlot::new("舊名稱".to_string(), SlotType::Work, Local::now());
+        let id = store.create_slot(&slot).unwrap();
+
+        store
+            .update_slot_details(id, "新名稱", SlotType::Meeting, slot.start_ts, None, Some("備註"))
+            .unwrap();
+
+        let retrieved = store.get_slot(id).unwrap().unwrap();
+        assert_eq!(retrieved.task_name, "新名稱");
+        assert_eq!(retrieved.slot_type, SlotType::Meeting);
+        assert_eq!(retrieved.note.as_deref(), Some("備註"));
+    }
 
     #[test]
     fn test_create_and_get_slot() {

@@ -79,8 +79,21 @@ pub fn run() {
             let state_mgr = Arc::new(StateManager::new(Arc::clone(&store)));
             info!("StateManager initialized");
 
-            app.manage(store as AppStore);
+            app.manage(store.clone() as AppStore);
             app.manage(state_mgr as AppStateMgr);
+
+            let labels: Vec<String> = app
+                .webview_windows()
+                .keys()
+                .cloned()
+                .collect();
+            info!("windows at setup: {:?}", labels);
+            if let Ok(settings) = store.get_settings() {
+                match sync_companion_windows(app.handle(), &settings.mini_mode) {
+                    Ok(()) => info!("companion windows synced for {}", settings.mini_mode),
+                    Err(err) => error!("failed to sync companion windows: {err}"),
+                }
+            }
 
             // Create tray icon
             tray::create_tray(app.handle())?;
@@ -123,6 +136,7 @@ pub fn run() {
             hide_minibar,
             show_pet,
             hide_pet,
+            preview_companion_mode,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

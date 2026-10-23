@@ -38,7 +38,8 @@
         "decorations": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
-        "transparent": true
+        "transparent": true,
+        "shadow": false
       },
       {
         "label": "pet",
@@ -52,7 +53,8 @@
         "decorations": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
-        "transparent": true
+        "transparent": true,
+        "shadow": false
       }
     ],
     "security": {

@@ -50,6 +50,26 @@
     });
   }
 
+  function slotTitle(slot: TimeSlot): string {
+    return slot.task_name || slot.task_title || '';
+  }
+
+  function slotInstant(value: string | number | null | undefined): string | null {
+    if (value == null || value === '') return null;
+    if (typeof value === 'number') {
+      return new Date(value < 1e12 ? value * 1000 : value).toISOString();
+    }
+    return value;
+  }
+
+  function slotStart(slot: TimeSlot): string {
+    return slotInstant(slot.start_time ?? slot.start_ts) || '';
+  }
+
+  function slotEnd(slot: TimeSlot): string | null {
+    return slotInstant(slot.end_time ?? slot.end_ts);
+  }
+
   function formatDuration(minutes: number): string {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
@@ -70,7 +90,7 @@
       // Group by date
       const grouped: GroupedSlots = {};
       for (const slot of slots) {
-        const date = slot.start_time.split('T')[0];
+        const date = slotStart(slot).split('T')[0];
         if (!grouped[date]) {
           grouped[date] = { slots: [], stats: await invoke('get_day_stats', { date }) };
         }
@@ -96,11 +116,11 @@
     loadData();
   }
 
-  $effect(() => {
+  onMount(() => {
     loadData();
   });
 
-  const filteredData = $derived(() => {
+  const filteredData = $derived.by(() => {
     let result = Object.entries(groupedData).sort((a, b) => b[0].localeCompare(a[0]));
     
     if (searchQuery) {
@@ -109,7 +129,7 @@
         {
           ...data,
           slots: data.slots.filter(slot =>
-            slot.task_title.toLowerCase().includes(searchQuery.toLowerCase())
+            slotTitle(slot).toLowerCase().includes(searchQuery.toLowerCase())
           ),
         },
       ] as [string, typeof data]).filter(([, data]) => data.slots.length > 0);
@@ -128,7 +148,7 @@
     return result;
   });
 
-  const totalStats = $derived(() => {
+  const totalStats = $derived.by(() => {
     let totalMinutes = 0;
     let totalCount = 0;
     for (const [, data] of Object.entries(groupedData)) {
@@ -210,13 +230,13 @@
         <div class="flex items-center justify-center h-64">
           <div class="text-muted-foreground">{$t('common.loading')}</div>
         </div>
-      {:else if filteredData().length === 0}
+      {:else if filteredData.length === 0}
         <div class="flex items-center justify-center h-64">
           <div class="text-muted-foreground">{$t('records.no_records')}</div>
         </div>
       {:else}
         <div class="divide-y divide-border">
-          {#each filteredData() as [date, data]}
+          {#each filteredData as [date, data] (date)}
             <!-- Day group header -->
             <div class="bg-muted/30 px-6 py-2 text-sm font-medium sticky top-0">
               <div class="flex items-center justify-between">
@@ -229,17 +249,19 @@
             </div>
 
             <!-- Slot items -->
-            {#each data.slots as slot}
+            {#each data.slots as slot (slot.id)}
+              {@const end = slotEnd(slot)}
+              {@const Icon = slotTypeIcons[slot.slot_type]}
               <button
                 onclick={() => handleEditSlot(slot)}
-                class="flex w-full items-center gap-3 px-6 py-3 text-left hover:bg-accent/50 transition-colors {slot.parent_id ? 'pl-18' : ''}"
+                class="flex w-full items-center gap-3 px-6 py-3 text-left hover:bg-accent/50 transition-colors {slot.parent_id ? 'pl-12' : ''}"
               >
                 <div class="flex size-10 flex-shrink-0 items-center justify-center rounded-md bg-muted">
-                  <svelte:component this={slotTypeIcons[slot.slot_type]} size={20} class="text-muted-foreground" />
+                  <Icon size={20} class="text-muted-foreground" />
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2">
-                    <div class="font-medium truncate">{slot.task_title}</div>
+                    <div class="font-medium truncate">{slotTitle(slot)}</div>
                     {#if slot.parent_id}
                       <span class="flex-shrink-0 rounded bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
                         {$t('timeline.interrupt_badge')}
@@ -250,7 +272,7 @@
                     {/if}
                   </div>
                   <div class="mt-1 text-sm text-muted-foreground">
-                    {formatTime(slot.start_time)}-{slot.end_time ? formatTime(slot.end_time) : $t('timer.ongoing')} · {slot.duration_minutes || 0} {$t('time.minute_short')}
+                    {formatTime(slotStart(slot))}-{end ? formatTime(end) : $t('timer.ongoing')} · {slot.duration_minutes || 0} {$t('time.minute_short')}
                   </div>
                 </div>
               </button>
@@ -266,15 +288,15 @@
     <div class="p-6">
       <h3 class="mb-4 text-sm font-semibold">{$t('records.summary_by_task')}</h3>
       <div class="space-y-3">
-        {#each taskSummary.slice(0, 10) as item}
+        {#each taskSummary.slice(0, 10) as item (`${item.task}-${item.minutes}`)}
           <div class="flex items-center justify-between">
             <div class="min-w-0 flex-1">
               <div class="truncate font-medium">{item.task}</div>
               <div class="h-2 mt-1.5 overflow-hidden rounded-full bg-muted">
                 <div
                   class="h-full bg-primary"
-                  style="width: {Math.min((item.minutes / totalStats().totalMinutes) * 100, 100)}%"
-                />
+                  style="width: {Math.min((item.minutes / totalStats.totalMinutes) * 100, 100)}%"
+                ></div>
               </div>
             </div>
             <div class="ml-4 flex-shrink-0 text-sm font-semibold tabular-nums">
@@ -287,9 +309,9 @@
       <div class="mt-6 pt-6 border-t border-border">
         <div class="flex items-center justify-between text-sm">
           <span class="text-muted-foreground">
-            {$t('records.total_items', { count: totalStats().totalCount })}
+            {$t('records.total_items', { count: totalStats.totalCount })}
           </span>
-          <span class="font-medium">{formatDuration(totalStats().totalMinutes)}</span>
+          <span class="font-medium">{formatDuration(totalStats.totalMinutes)}</span>
         </div>
       </div>
     </div>

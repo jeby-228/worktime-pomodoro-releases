@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import { Play, Pause, Square, Zap } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
@@ -25,16 +25,18 @@
   });
   
   let pomodoroLength = $state(25 * 60);
+  let taskName = $state('');
+  let startError = $state('');
   let updateInterval: number | undefined;
   
-  let displayTime = $derived(() => {
+  let displayTime = $derived.by(() => {
     const seconds = state.status === 'idle' ? 0 : (state.elapsed_seconds || 0);
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   });
   
-  let progress = $derived(() => {
+  let progress = $derived.by(() => {
     if (state.status === 'idle') return 0;
     const elapsed = state.elapsed_seconds || 0;
     return Math.min(100, (elapsed / pomodoroLength) * 100);
@@ -43,37 +45,43 @@
   onMount(() => {
     loadState();
     loadSettings();
+    window.addEventListener('task-started', loadState);
     
     updateInterval = setInterval(() => {
       if (state.status === 'working' || state.status === 'interrupt') {
         loadState();
       }
     }, 1000) as unknown as number;
-  });
-  
-  onDestroy(() => {
-    if (updateInterval) clearInterval(updateInterval);
+
+    return () => {
+      if (updateInterval) clearInterval(updateInterval);
+      window.removeEventListener('task-started', loadState);
+    };
   });
   
   async function loadState() {
     try {
-      const data = await invoke<StateData>('get_app_state');
-      state = data;
-      
-      const elapsed = await invoke<number | null>('get_elapsed_seconds');
-      const remaining = await invoke<number | null>('get_remaining_seconds');
-      
-      if (elapsed !== null && !isNaN(elapsed)) {
-        state.elapsed_seconds = elapsed;
-      } else {
-        state.elapsed_seconds = 0;
-      }
-      
-      if (remaining !== null && !isNaN(remaining)) {
-        state.remaining_seconds = remaining;
-      } else {
-        state.remaining_seconds = 0;
-      }
+      const [data, elapsed, remaining, slot] = await Promise.all([
+        invoke<StateData>('get_app_state'),
+        invoke<number | null>('get_elapsed_seconds'),
+        invoke<number | null>('get_remaining_seconds'),
+        invoke<{ task_name?: string } | null>('get_current_slot'),
+      ]);
+
+      const nextElapsed =
+        data.status === 'idle'
+          ? 0
+          : typeof elapsed === 'number' && !Number.isNaN(elapsed)
+            ? elapsed
+            : state.elapsed_seconds;
+
+      state = {
+        status: data.status,
+        current_task: data.status === 'idle' ? null : slot?.task_name ?? null,
+        elapsed_seconds: nextElapsed,
+        remaining_seconds:
+          typeof remaining === 'number' && !Number.isNaN(remaining) ? remaining : 0,
+      };
     } catch (err) {
       console.error('Failed to load state:', err);
       // Reset to safe idle state on error
@@ -98,18 +106,25 @@
   }
   
   async function startTask() {
-    // TODO: show quick input dialog
-    // For now, start with a default task
+    const name = taskName.trim();
+    if (!name) {
+      startError = $t('errors.task_title_required');
+      return;
+    }
+
+    startError = '';
     try {
       await invoke('start_task', {
         request: {
-          task_name: '新任務',
+          task_name: name,
           slot_type: 'work'
         }
       });
+      taskName = '';
       await loadState();
+      window.dispatchEvent(new CustomEvent('task-started'));
     } catch (err) {
-      console.error('Failed to start task:', err);
+      startError = String(err);
     }
   }
   
@@ -176,16 +191,37 @@
     {/if}
   </div>
   
+  {#if state.status === 'idle'}
+    <div class="mb-6">
+      <label for="current-task-name" class="mb-1.5 block text-sm font-medium">
+        {$t('timer.task_name')}
+      </label>
+      <input
+        id="current-task-name"
+        type="text"
+        bind:value={taskName}
+        placeholder={$t('placeholders.task_title')}
+        onkeydown={(event) => {
+          if (event.key === 'Enter' && !event.isComposing) startTask();
+        }}
+        class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+      {#if startError}
+        <p class="mt-1.5 text-sm text-destructive">{startError}</p>
+      {/if}
+    </div>
+  {/if}
+
   <!-- Big Timer Display -->
   <div class="mb-6 text-center">
     <div class="text-7xl font-bold tracking-tight tabular-nums">
-      {displayTime()}
+      {displayTime}
     </div>
     {#if state.status !== 'idle'}
       <div class="mt-2 h-2 overflow-hidden rounded-full bg-muted">
         <div 
           class="h-full bg-accent transition-all duration-300"
-          style="width: {progress()}%"
+          style="width: {progress}%"
         ></div>
       </div>
     {/if}
