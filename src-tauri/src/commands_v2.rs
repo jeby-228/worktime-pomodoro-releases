@@ -272,7 +272,20 @@ pub fn fill_gap(request: FillGapRequest, store: State<AppStore>) -> Result<i64, 
     slot.end_ts = Some(end_ts);
     slot.note = request.note;
 
-    store.create_slot(&slot).map_err(|e| e.to_string())
+    let id = store.create_slot(&slot).map_err(|e| e.to_string())?;
+
+    if let Some(person) = request
+        .person
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+    {
+        store
+            .add_or_update_recent_person(person)
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(id)
 }
 
 #[derive(Debug, Deserialize)]
@@ -285,24 +298,37 @@ pub struct IdleReturnRequest {
 pub fn handle_idle_return(
     request: IdleReturnRequest,
     state_mgr: State<AppStateMgr>,
+    store: State<AppStore>,
 ) -> Result<(), String> {
+    let now = chrono::Local::now();
+    let idle_start = now - chrono::Duration::minutes(request.idle_minutes.max(0));
+
     match request.action.as_str() {
-        "continue" => {
-            // Resume task, treat idle time as part of current task
-            state_mgr.resume_task().map_err(|e| e.to_string())?;
-        }
-        "lunch" => {
-            // End current task and create a lunch slot for the idle period
-            // This would require more complex logic, simplified here
-            state_mgr.end_task(None).map_err(|e| e.to_string())?;
-        }
-        "meeting" => {
-            // End current task and create a meeting slot for the idle period
-            state_mgr.end_task(None).map_err(|e| e.to_string())?;
+        "continue" => match state_mgr.resume_task() {
+            Ok(_) => {}
+            Err(_) if state_mgr.get_state().current_slot_id.is_some() => {}
+            Err(e) => return Err(e.to_string()),
+        },
+        "lunch" | "meeting" => {
+            state_mgr
+                .end_task_at(idle_start)
+                .map_err(|e| e.to_string())?;
+            let (name, slot_type) = if request.action == "lunch" {
+                ("午休", SlotType::Lunch)
+            } else {
+                ("會議", SlotType::Meeting)
+            };
+            let mut slot = TimeSlot::new(name.to_string(), slot_type.clone(), idle_start);
+            slot.end_ts = Some(now);
+            store.create_slot(&slot).map_err(|e| e.to_string())?;
+            store
+                .add_or_update_recent_task(name, slot_type)
+                .map_err(|e| e.to_string())?;
         }
         "discard" => {
-            // End current task, discard the idle time
-            state_mgr.end_task(None).map_err(|e| e.to_string())?;
+            state_mgr
+                .end_task_at(idle_start)
+                .map_err(|e| e.to_string())?;
         }
         _ => return Err("Invalid action".to_string()),
     }
@@ -385,7 +411,6 @@ pub fn prepare_export_data(
     Ok(rows)
 }
 
-use std::fs::File;
 use std::path::PathBuf;
 use rust_xlsxwriter::*;
 
