@@ -7,16 +7,16 @@ import InterruptDialog from '$components/InterruptDialog.svelte';
 import '../styles/global.css';
 ---
 
-<DesktopLayout currentRoute="timer">
+<DesktopLayout currentRoute="timer" client:load>
   <div class="flex h-screen gap-6 p-6">
     <!-- Left: Timer Card -->
     <div class="w-96">
-      <TimerCard />
+      <TimerCard client:load />
     </div>
     
     <!-- Right: Today Timeline -->
     <div class="flex-1">
-      <TodayTimeline />
+      <TodayTimeline client:load />
     </div>
   </div>
   

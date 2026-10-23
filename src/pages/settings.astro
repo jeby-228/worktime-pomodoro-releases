@@ -4,6 +4,6 @@ import SettingsPage from '$components/SettingsPage.svelte';
 import '../styles/global.css';
 ---
 
-<DesktopLayout currentRoute="settings">
-  <SettingsPage />
+<DesktopLayout currentRoute="settings" client:load>
+  <SettingsPage client:load />
 </DesktopLayout>
