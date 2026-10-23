@@ -1,6 +1,6 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 
 // When commands_v2 is a submodule of main.rs (the binary crate),
 // we can't import worktime_pomodoro_lib directly here.
@@ -379,6 +379,54 @@ pub fn hide_minibar(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+fn fit_minibar(window: &tauri::WebviewWindow, height: f64) -> Result<(), String> {
+    let next = height.clamp(48.0, 220.0);
+    window
+        .set_resizable(true)
+        .map_err(|e| e.to_string())?;
+    window
+        .set_min_size(Some(tauri::LogicalSize::new(240.0, 48.0)))
+        .map_err(|e| e.to_string())?;
+    window
+        .set_max_size(Some(tauri::LogicalSize::new(240.0, 220.0)))
+        .map_err(|e| e.to_string())?;
+    window
+        .set_size(tauri::LogicalSize::new(240.0, next))
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_minibar_height(app: tauri::AppHandle, height: f64) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("minibar") {
+        fit_minibar(&window, height)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn focus_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.unminimize().map_err(|e| e.to_string())?;
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_quick_input(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.unminimize().map_err(|e| e.to_string())?;
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        window
+            .emit("tray:quick_input", ())
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn show_pet(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("pet") {
@@ -424,6 +472,9 @@ fn set_companion_window(
             }
         }
         let _ = window.set_background_color(Some(tauri::utils::config::Color(0, 0, 0, 0)));
+        if label == "minibar" {
+            let _ = fit_minibar(&window, 48.0);
+        }
         window.show().map_err(|e| e.to_string())?;
         let _ = window.set_always_on_top(true);
         tracing::info!("showed companion window {label}");
