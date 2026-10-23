@@ -1,9 +1,11 @@
 ---
+import BaseLayout from '../layouts/BaseLayout.astro';
 import DesktopLayout from '$components/DesktopLayout.svelte';
 import RecordsPage from '$components/RecordsPage.svelte';
-import '../styles/global.css';
 ---
 
+<BaseLayout title="紀錄 - 工時記錄">
 <DesktopLayout currentRoute="records" client:load>
   <RecordsPage client:load />
 </DesktopLayout>
+</BaseLayout>

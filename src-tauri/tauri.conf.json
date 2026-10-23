@@ -6,6 +6,7 @@
   "identifier": "com.worktime.pomodoro",
   "build": {
     "frontendDist": "../dist",
+    "devUrl": "http://127.0.0.1:4321",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },

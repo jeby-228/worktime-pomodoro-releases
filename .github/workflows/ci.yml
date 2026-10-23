@@ -15,48 +15,48 @@ jobs:
   rust-check:
     name: Rust Check & Test
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Just
         uses: extractions/setup-just@v2
-      
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo index
         uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo build
         uses: actions/cache@v4
         with:
           path: src-tauri/target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Install system dependencies
         run: just install-system-deps
-      
+
       - name: Check Rust formatting
         run: just check-fmt-rust
-      
+
       - name: Run Clippy
         run: just clippy
-      
+
       - name: Run tests
         run: just test-rust
-      
+
       - name: Build Rust
         run: just build-rust-release
 
@@ -64,31 +64,31 @@ jobs:
   frontend-check:
     name: Frontend Lint & Build
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Just
         uses: extractions/setup-just@v2
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
-      
+          node-version: "22"
+          cache: "npm"
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Run oxlint
         run: just lint-frontend
-      
+
       - name: Check formatting with oxlint
         run: npm run format:check
-      
+
       - name: Build frontend
         run: just build-frontend
-      
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -101,40 +101,40 @@ jobs:
     name: Integration Build
     needs: [rust-check, frontend-check]
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Just
         uses: extractions/setup-just@v2
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
-      
+          node-version: "22"
+          cache: "npm"
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Install system dependencies
         run: just install-system-deps
-      
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Download frontend artifacts
         uses: actions/download-artifact@v4
         with:
           name: frontend-dist
           path: dist/
-      
+
       - name: Build Tauri application
         run: npm run tauri:build
         env:
           # 跳過簽名（CI 環境中無私鑰）
           TAURI_SKIP_SIGNING: true
-      
+
       - name: Upload Tauri artifacts
         uses: actions/upload-artifact@v4
         with:

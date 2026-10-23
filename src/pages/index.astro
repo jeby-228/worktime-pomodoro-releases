@@ -1,12 +1,13 @@
 ---
+import BaseLayout from '../layouts/BaseLayout.astro';
 import DesktopLayout from '$components/DesktopLayout.svelte';
 import TimerCard from '$components/TimerCard.svelte';
 import TodayTimeline from '$components/TodayTimeline.svelte';
 import QuickInputPalette from '$components/QuickInputPalette.svelte';
 import InterruptDialog from '$components/InterruptDialog.svelte';
-import '../styles/global.css';
 ---
 
+<BaseLayout title="番茄工時追蹤">
 <DesktopLayout currentRoute="timer" client:load>
   <div class="flex h-screen gap-6 p-6">
     <!-- Left: Timer Card -->
@@ -24,6 +25,7 @@ import '../styles/global.css';
   <QuickInputPalette client:only="svelte" />
   <InterruptDialog client:only="svelte" />
 </DesktopLayout>
+</BaseLayout>
 
 <script>
   // Global keyboard shortcuts and tray events

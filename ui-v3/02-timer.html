@@ -1,11 +1,60 @@
-<!doctype html><meta charset=utf-8><link rel=stylesheet href=style.css><body><div class=bar><b>🍅 番茄工時</b><div class=tabs><span class=on>計時</span><span>今天</span></div></div>
-<div class=wrap><div class=card style="display:flex;align-items:center;gap:16px">
-<div style="width:96px;height:96px;border-radius:50%;background:conic-gradient(#e8590c 0 62%,#f1e4dc 62%);display:flex;align-items:center;justify-content:center"><div style="width:82px;height:82px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:22px">15:32</div></div>
-<div style="flex:1"><label>進行中 · 10:30 開始</label><b style="font-size:17px">寫工時 API</b><div class=muted style="margin-top:4px">已累計 9 分 · 備註：補單元測試</div></div></div>
-<div class=row><div class="btn">⏸ 暫停</div><div class=btn>⏹ 結束</div></div>
-<div class="btn warn">⚡ 被插隊　<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>I</kbd></div>
-<div class=card style="margin-top:14px"><label>系統匣狀態</label>
-<div style="display:flex;justify-content:space-between;font-size:13px"><span><span class=dot style="background:#e8590c"></span> 工作</span><span><span class=dot style="background:#d63031"></span> 插隊</span><span><span class=dot style="background:#999"></span> 未記錄</span><span><span class=dot style="background:#9aa5b1;opacity:.5"></span> 午休</span></div>
-<p class=muted style="margin-top:8px">圖示上顯示剩餘分鐘數，例如「16」</p></div>
-<p class=muted style="text-align:center">下一段：修 MES 報表 · 規劃 11:00</p></div>
-<div class=tray><span><span class=dot style="background:#e8590c"></span> 16</span><span>10:39</span></div>
+<!doctype html><meta charset="utf-8" /><link rel="stylesheet" href="style.css" />
+<body>
+  <div class="bar">
+    <b>🍅 番茄工時</b>
+    <div class="tabs"><span class="on">計時</span><span>今天</span></div>
+  </div>
+  <div class="wrap">
+    <div class="card" style="display: flex; align-items: center; gap: 16px">
+      <div
+        style="
+          width: 96px;
+          height: 96px;
+          border-radius: 50%;
+          background: conic-gradient(#e8590c 0 62%, #f1e4dc 62%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        "
+      >
+        <div
+          style="
+            width: 82px;
+            height: 82px;
+            border-radius: 50%;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+          "
+        >
+          15:32
+        </div>
+      </div>
+      <div style="flex: 1">
+        <label>進行中 · 10:30 開始</label><b style="font-size: 17px">寫工時 API</b>
+        <div class="muted" style="margin-top: 4px">已累計 9 分 · 備註：補單元測試</div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="btn">⏸ 暫停</div>
+      <div class="btn">⏹ 結束</div>
+    </div>
+    <div class="btn warn">⚡ 被插隊　<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>I</kbd></div>
+    <div class="card" style="margin-top: 14px">
+      <label>系統匣狀態</label>
+      <div style="display: flex; justify-content: space-between; font-size: 13px">
+        <span><span class="dot" style="background: #e8590c"></span> 工作</span
+        ><span><span class="dot" style="background: #d63031"></span> 插隊</span
+        ><span><span class="dot" style="background: #999"></span> 未記錄</span
+        ><span><span class="dot" style="background: #9aa5b1; opacity: 0.5"></span> 午休</span>
+      </div>
+      <p class="muted" style="margin-top: 8px">圖示上顯示剩餘分鐘數，例如「16」</p>
+    </div>
+    <p class="muted" style="text-align: center">下一段：修 MES 報表 · 規劃 11:00</p>
+  </div>
+  <div class="tray">
+    <span><span class="dot" style="background: #e8590c"></span> 16</span><span>10:39</span>
+  </div>
+</body>

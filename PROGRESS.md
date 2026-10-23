@@ -3,6 +3,7 @@
 ## ✅ 已完成
 
 ### Phase 1: 後端編譯與測試
+
 - [x] 修復 MigrationManager API 調用
 - [x] 修正模組導入結構 (main.rs / commands_v2.rs / lib.rs)
 - [x] 更新命令處理器列表
@@ -11,6 +12,7 @@
 - [x] 提交 Cargo.lock
 
 ### 資料庫與後端核心
+
 - [x] SQLite schema (time_slots, recent_people, recent_tasks, app_state)
 - [x] StoreV2 CRUD operations
 - [x] StateManager 狀態機 (Idle/Working/Interrupt/Paused)
@@ -20,17 +22,20 @@
 - [x] 所有後端 commands 實作完成
 
 ### i18n 系統
+
 - [x] 5 語言 (zh-TW, zh-CN, en, vi, th)
 - [x] 動態載入、熱切換
 - [x] 所有 locale keys 一致性
 
 ### 桌面佈局架構
+
 - [x] 視窗配置更新為 960x640 (最小 800x560, 可調整大小)
 - [x] Sidebar.svelte 左側可收合導航 (16px 圖標 / 224px 展開)
 - [x] DesktopLayout.svelte 主佈局容器
 - [x] 響應式設計基礎
 
 ### 計時·今天雙面板儀表板
+
 - [x] TimerCard.svelte 大數字計時器卡片
 - [x] TodayTimeline.svelte D-mono Item rows 風格
   - [x] 垂直列表，shadcn Item style
@@ -42,6 +47,7 @@
 - [x] 狀態指示、控制按鈕
 
 ### 紀錄頁面
+
 - [x] records.astro 基本架構
   - [x] 工具列：視圖切換、日期、篩選、搜尋、匯出按鈕
   - [x] Item rows 列表（與 TodayTimeline 一致）
@@ -51,6 +57,7 @@
 ## 🚧 進行中 / 待實作
 
 ### Phase 2: 主要 UI 頁面
+
 - [x] 紀錄頁面 (records.astro) - 列表視圖
   - [x] 工具列（列表/表格切換、日期範圍、類型篩選、搜尋）
   - [x] 日期分組 Item rows (與 TodayTimeline 一致風格)
@@ -71,6 +78,7 @@
   - [ ] 關於 / 更新
 
 ### Phase 3: 互動對話框與抽屜
+
 - [ ] 快速輸入 palette (E-quick-input，~560x360 cmdk style)
   - [ ] 搜尋/輸入任務名稱
   - [ ] 最近任務 chips
@@ -94,6 +102,7 @@
   - [ ] Gap 列表 + 一鍵補登
 
 ### Phase 4: 系統整合
+
 - [ ] 系統托盤
   - [ ] 圖標顯示狀態 + 分鐘數
   - [ ] 選單：顯示/隱藏、快速輸入、插隊、退出
@@ -108,12 +117,14 @@
   - [ ] 空閒偵測、EOD 檢查
 
 ### Phase 5: 迷你 Bar
+
 - [ ] 240x48 always-on-top window
 - [ ] 可拖曳、懸停淡入/淡出
 - [ ] 顯示任務名稱 + 倒數
 - [ ] 暫停/插隊按鈕
 
 ### Phase 6: 桌面寵物系統
+
 - [ ] Codex .codex-pet.zip 加載器
   - [ ] pet.json metadata parser
   - [ ] 1536x1872 spritesheet (8x9 cells of 192x208)
@@ -124,6 +135,7 @@
 - [ ] 匯入自訂寵物
 
 ### Phase 7: 測試、打包、文件
+
 - [ ] 單元測試 (Svelte components)
 - [ ] E2E 測試 (關鍵流程)
 - [ ] npm run tauri:build 生成 .deb
@@ -133,24 +145,28 @@
 ## 架構決策
 
 ### 視窗大小
+
 - 主視窗：960x640 (最小 800x560)，可調整大小、記憶位置
 - 迷你 Bar：240x48 always-on-top
 - 桌面寵物：192x208（單幀）
 - 快速輸入：~560x360 居中對話框
 
 ### 佈局模式
+
 - **計時·今天** (index.astro)：雙面板（timer card 384px + today timeline flex-1）
 - **紀錄** (records.astro)：全寬表格 + 右側摘要面板（可收合）
 - **設定** (settings.astro)：兩欄（左側 section list ~200px + 右側表單）
 - **窄屏 (<800px)**：側邊欄自動收合為圖標模式
 
 ### 顏色與主題
+
 - D-mono zinc tokens (pure monochrome)
 - 唯一例外：
   - destructive red
   - warning amber (#915108 / #FBBF24) 用於 gaps / unrecorded text
 
 ### 技術堆疊
+
 - **後端**: Tauri 2, Rust 1.99, SQLite (rusqlite + rusqlite_migration), rust_xlsxwriter
 - **前端**: Astro 4.16, Svelte 5 (Runes), Tailwind CSS 3.4, lucide-svelte, clsx, tailwind-merge
 - **i18n**: 自建 Svelte store 系統，動態 JSON
@@ -188,4 +204,4 @@
 
 ---
 
-*Last updated: 2026-10-22*
+_Last updated: 2026-10-22_

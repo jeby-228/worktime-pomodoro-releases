@@ -1,6 +1,6 @@
 export interface TimeSlot {
   id: string;
-  slot_type: 'work' | 'interrupt' | 'meeting' | 'lunch';
+  slot_type: "work" | "interrupt" | "meeting" | "lunch";
   task_title: string;
   person: string | null;
   note: string | null;
@@ -25,7 +25,7 @@ export interface DayStats {
 }
 
 export interface AppState {
-  status: 'idle' | 'working' | 'paused' | 'interrupt';
+  status: "idle" | "working" | "paused" | "interrupt";
   current_slot_id: string | null;
   task_title: string | null;
   person: string | null;

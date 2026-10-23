@@ -1,8 +1,8 @@
 {
   "name": "worktime-pomodoro",
-  "type": "module",
   "version": "0.2.0",
   "license": "MIT",
+  "type": "module",
   "scripts": {
     "dev": "astro dev --port 4321",
     "build": "astro build",
@@ -11,8 +11,8 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "lint": "oxlint .",
-    "format:check": "oxlint .",
-    "fmt": "oxlint --fix .",
+    "format:check": "oxfmt --check .",
+    "fmt": "oxfmt .",
     "test": "vitest",
     "test:locales": "vitest run src/lib/i18n/test.ts"
   },
@@ -37,6 +37,7 @@
     "@tauri-apps/plugin-global-shortcut": "^2",
     "@tauri-apps/plugin-notification": "^2",
     "@tauri-apps/plugin-shell": "^2",
+    "oxfmt": "^0.74.0",
     "oxlint": "^1.89.0",
     "typescript": "^5.7.3",
     "vitest": "^2.0.0"

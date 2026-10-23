@@ -1,39 +1,62 @@
 /* Direction D-mono — 純單色 shadcn/ui zinc（無番茄色；類型靠 icon＋標籤＋灰階填色區分）（官方 zinc 預設值，HSL triplet 格式：使用 hsl(var(--x))）
    切換：<html class="dark"> 或 <html data-theme="dark">，與 shadcn / shadcn-svelte 相容 */
-:root,[data-theme="light"]{
-  --background:0 0% 100%;--foreground:240 10% 3.9%;
-  --card:0 0% 100%;--card-foreground:240 10% 3.9%;
-  --popover:0 0% 100%;--popover-foreground:240 10% 3.9%;
-  --primary:240 5.9% 10%;--primary-foreground:0 0% 98%;
-  --secondary:240 4.8% 95.9%;--secondary-foreground:240 5.9% 10%;
-  --muted:240 4.8% 95.9%;--muted-foreground:240 3.8% 46.1%;
-  --accent:240 4.8% 95.9%;--accent-foreground:240 5.9% 10%;
-  --destructive:0 72.2% 50.6%; /* AA 調整：官方 0 84.2% 60.2% 白字僅 3.8:1 */--destructive-foreground:0 0% 98%;
-  --border:240 5.9% 90%;--input:240 5.9% 90%;--ring:240 5.9% 10%;
-  --radius:0.5rem;
+:root,
+[data-theme="light"] {
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 3.9%;
+  --primary: 240 5.9% 10%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 240 4.8% 95.9%;
+  --secondary-foreground: 240 5.9% 10%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 5.9% 10%;
+  --destructive: 0 72.2% 50.6%; /* AA 調整：官方 0 84.2% 60.2% 白字僅 3.8:1 */
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 5.9% 90%;
+  --input: 240 5.9% 90%;
+  --ring: 240 5.9% 10%;
+  --radius: 0.5rem;
   /* app 語意（全部灰階；樣式見 README） */
-  --work:var(--foreground);           /* 實心：最強 */
-  --interrupt:var(--foreground);      /* 外框＋閃電 icon＋縮排 */
-  --meeting:240 3.8% 46.1%;           /* muted 底 */
-  --lunch:240 3.8% 46.1%;             /* muted 底、淡字 */
-  --warning:32 95% 29%;               /* #915108 唯一允許的提示色：未記錄空檔 */
-  --destructive-text:0 72% 45%;
-  --font-sans:"Noto Sans TC","Inter",system-ui,sans-serif;
-  --font-mono:"JetBrains Mono","Geist Mono","Noto Sans Mono",monospace;
-  color-scheme:light;
+  --work: var(--foreground); /* 實心：最強 */
+  --interrupt: var(--foreground); /* 外框＋閃電 icon＋縮排 */
+  --meeting: 240 3.8% 46.1%; /* muted 底 */
+  --lunch: 240 3.8% 46.1%; /* muted 底、淡字 */
+  --warning: 32 95% 29%; /* #915108 唯一允許的提示色：未記錄空檔 */
+  --destructive-text: 0 72% 45%;
+  --font-sans: "Noto Sans TC", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Geist Mono", "Noto Sans Mono", monospace;
+  color-scheme: light;
 }
-.dark,[data-theme="dark"]{
-  --background:240 10% 3.9%;--foreground:0 0% 98%;
-  --card:240 10% 3.9%;--card-foreground:0 0% 98%;
-  --popover:240 10% 3.9%;--popover-foreground:0 0% 98%;
-  --primary:0 0% 98%;--primary-foreground:240 5.9% 10%;
-  --secondary:240 3.7% 15.9%;--secondary-foreground:0 0% 98%;
-  --muted:240 3.7% 15.9%;--muted-foreground:240 5% 64.9%;
-  --accent:240 3.7% 15.9%;--accent-foreground:0 0% 98%;
-  --destructive:0 62.8% 30.6%;--destructive-foreground:0 0% 98%;
-  --border:240 3.7% 15.9%;--input:240 3.7% 15.9%;--ring:240 4.9% 83.9%;
-  --meeting:240 5% 64.9%;--lunch:240 5% 64.9%;
-  --warning:43 96% 56%;               /* #FBBF24 */
-  --destructive-text:0 91% 71%;
-  color-scheme:dark;
+.dark,
+[data-theme="dark"] {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --card: 240 10% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 0 0% 98%;
+  --primary-foreground: 240 5.9% 10%;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 240 3.7% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
+  --accent: 240 3.7% 15.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --ring: 240 4.9% 83.9%;
+  --meeting: 240 5% 64.9%;
+  --lunch: 240 5% 64.9%;
+  --warning: 43 96% 56%; /* #FBBF24 */
+  --destructive-text: 0 91% 71%;
+  color-scheme: dark;
 }

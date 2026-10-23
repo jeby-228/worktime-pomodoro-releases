@@ -1,6 +1,7 @@
 # V2 重構進度報告
 
 ## 分支資訊
+
 - **分支名稱**: `v2-simple-pomodoro`
 - **基於**: `main` 分支
 - **提交狀態**: 已提交初始架構 (commit c7114f4)
@@ -10,6 +11,7 @@
 ### 1. 後端架構 (Rust)
 
 #### 資料庫層
+
 - ✅ 新的 SQLite schema (`migrations/0002_v2_slots.sql`)
   - `time_slots`: 主資料表，取代複雜的 event sourcing
   - `recent_people`: 插隊快速輸入
@@ -22,6 +24,7 @@
   - `AppSettings` 完整設定結構
 
 #### 核心邏輯
+
 - ✅ Store V2 (`src-tauri/src/store_v2.rs`)
   - 完整的 CRUD 操作
   - 統計查詢（日統計、區間統計、依任務彙總）
@@ -36,6 +39,7 @@
   - 單元測試通過
 
 #### API Commands (`src-tauri/src/commands_v2.rs`)
+
 - ✅ 狀態管理: `get_app_state`, `get_current_slot`
 - ✅ 任務控制: `start_task`, `end_task`, `pause_task`, `resume_task`
 - ✅ 插隊流程: `start_interrupt`, `end_interrupt_and_resume`
@@ -48,24 +52,28 @@
 ### 2. 前端架構 (Astro + Svelte + Tailwind)
 
 #### 技術棧
+
 - ✅ Astro 4.16 + Svelte 5 (runes mode)
 - ✅ Tailwind CSS 3.4
 - ✅ lucide-svelte icons
 - ✅ 別名路徑配置 ($lib, $components)
 
 #### 設計系統 (D-mono)
+
 - ✅ shadcn/ui zinc tokens (完全單色設計)
 - ✅ CSS 變數系統 (`src/styles/global.css`)
 - ✅ Light / Dark 主題支援
 - ✅ Noto Sans TC + JetBrains Mono 字體
 
 #### UI 組件
+
 - ✅ `Button.svelte`: Svelte 5 兼容
 - ✅ `Item.svelte`: 列表行組件（支援 outline/muted/dashed 變體）
 - ✅ `Layout.svelte`: 基礎布局
 - ✅ `BaseLayout.astro`: HTML 框架
 
 #### 頁面
+
 - ✅ `timer.astro` / `Timer.svelte`: 計時主頁
   - 大計時顯示
   - 進度環（佔位）
@@ -74,10 +82,12 @@
   - 即時狀態更新
 
 ### 3. 建置狀態
+
 - ✅ 前端建置成功: `npm run build` 完整通過
 - ⏸️ 後端編譯: 遇到 Rust 版本依賴問題
 
 ### 4. 設計資源
+
 - ✅ 完整的 v2 設計規格 (`design-system/`)
   - D-mono tokens (選定方向)
   - A/B/C/D 備選方案
@@ -87,11 +97,13 @@
 ## 遇到的問題 ⚠️
 
 ### 1. Rust 依賴版本衝突
+
 - **當前 Rust**: 1.83.0
 - **需要版本**: 部分依賴需要 1.85-1.90
 - **影響**: 無法編譯後端
 
 **解決方案**:
+
 ```bash
 rustup update stable
 rustup default stable
@@ -99,6 +111,7 @@ cd src-tauri && cargo build
 ```
 
 ### 2. 前端依賴簡化
+
 - 移除了 `mode-watcher`, `svelte-sonner`, `cmdk-sv` 等進階依賴
 - 原因: 版本不匹配或包不存在
 - 影響: 需要自行實作主題切換和對話框
@@ -106,6 +119,7 @@ cd src-tauri && cargo build
 ## 未完成的工作 📋
 
 ### 高優先級
+
 1. **後端編譯**
    - 更新 Rust 工具鏈
    - 驗證所有 commands 可用
@@ -123,6 +137,7 @@ cd src-tauri && cargo build
    - [ ] 回到原任務按鈕
 
 ### 中優先級
+
 4. **空閒/鎖定檢測**
    - [ ] 實作空閒檢測 (基於 v1 的 recovery.rs)
    - [ ] 鎖定/休眠喚醒提示
@@ -139,6 +154,7 @@ cd src-tauri && cargo build
    - [ ] 視窗管理 (最小化至 tray)
 
 ### 低優先級
+
 7. **迷你 Bar**
    - [ ] 240x48 always-on-top 視窗
    - [ ] 任務名 + 倒數 + 進度條
@@ -166,6 +182,7 @@ cd src-tauri && cargo build
 ## 推薦下一步驟 🚀
 
 ### 立即執行 (Agent 可完成)
+
 1. 更新 Rust 工具鏈並完成後端編譯
 2. 創建基礎的「今天」頁面 UI
 3. 創建設定頁面 UI
@@ -173,6 +190,7 @@ cd src-tauri && cargo build
 5. 基本測試
 
 ### 需要人工決策
+
 - 是否實作完整的桌面寵物系統？
 - 迷你 bar 是否為必要功能？
 - 空閒檢測的靈敏度設定？
@@ -180,6 +198,7 @@ cd src-tauri && cargo build
 ## 檔案清單 📄
 
 ### 新增的核心檔案
+
 ```
 src-tauri/
   migrations/0002_v2_slots.sql        # 新資料庫 schema
@@ -210,6 +229,7 @@ ui-v3/                                # UI 模擬參考
 ## V2 Redesign: Simplified Pomodoro Tracker
 
 ### 動機
+
 - V1 的 business logic (work order / stored procedure) 過於複雜
 - 使用者需要純粹的番茄鐘時間槽追蹤器
 - Python API 同步功能延後實作
@@ -217,6 +237,7 @@ ui-v3/                                # UI 模擬參考
 ### 重大改動
 
 #### 資料模型
+
 - **移除**: 複雜的 event sourcing (`events` 表保留但停用)
 - **新增**: `time_slots` 表作為 source of truth
 - **支援**: 未來/當前/過去時間槽，可在三種狀態下編輯
@@ -224,6 +245,7 @@ ui-v3/                                # UI 模擬參考
 - **插隊**: 關聯到父時間槽 (parent_id)
 
 #### 功能
+
 ✅ 插隊流程 (Ctrl+Alt+I 一鍵暫停並開始插隊)
 ✅ 快速輸入 (Ctrl+Alt+T cmdk 風格)
 ✅ 空閒/鎖定返回提示
@@ -233,22 +255,26 @@ ui-v3/                                # UI 模擬參考
 🔄 迷你 bar + 桌面寵物 (WIP)
 
 #### UI 設計
+
 - **D-mono**: 純單色 shadcn zinc 風格
 - **圖示**: lucide-svelte
 - **主題**: light / dark / system
 - **視窗大小**: 主視窗 420x640 (紀錄頁 800x640)
 
 ### 測試狀態
+
 - ✅ 前端建置通過
 - ⏸️ 後端需要 Rust 1.85+
 - ❌ CI 未執行（需修復後端）
 
 ### 破壞性變更
+
 - **資料庫**: 需要遷移（保留 v1 事件作為歷史）
 - **API**: 全新的 commands 集合
 - **UI**: 完全重寫
 
 ### 截圖
+
 （待補充）
 ```
 

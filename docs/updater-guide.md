@@ -55,6 +55,7 @@ npx @tauri-apps/cli signer generate -w ~/.tauri/worktime-pomodoro.key
 ⚠️ **絕對不要**將私鑰提交到版本控制！
 
 **建議做法**：
+
 - 存放在安全位置（密碼管理器、硬體金鑰）
 - CI/CD 使用環境變數 `TAURI_SIGNING_PRIVATE_KEY`
 - 本機開發時從 `~/.tauri/` 讀取
@@ -161,7 +162,7 @@ impl UpdateManager {
         match updater.check().await {
             Ok(Some(update)) => {
                 info!("Update available: v{}", update.version);
-                
+
                 Ok(UpdateInfo {
                     available: true,
                     version: Some(update.version.clone()),
@@ -202,7 +203,7 @@ impl UpdateManager {
 
         if let Some(update) = updater.check().await? {
             info!("Downloading update v{}", update.version);
-            
+
             // 下載（自動驗證簽章）
             let mut downloaded = 0u64;
             update.download_and_install(
@@ -235,23 +236,23 @@ impl UpdateManager {
         // 取得狀態機
         let state_machine = self.app.state::<crate::state::StateMachine>();
         let store = self.app.state::<crate::store::Store>();
-        
+
         // 如果正在工作中，記錄 end 事件
         let current_state = state_machine.get_state();
         if matches!(current_state, crate::state::AppState::Working { .. }) {
             let now = chrono::Local::now();
             let mono_ms = 0; // 從啟動時間計算
-            
+
             let events = state_machine.end_task(
                 now,
                 mono_ms,
                 crate::store::EventSource::Auto,
             );
-            
+
             for event in events {
                 store.insert_event(&event)?;
             }
-            
+
             info!("Paused current work before update");
         }
 
@@ -261,10 +262,10 @@ impl UpdateManager {
     /// 刷新 SQLite WAL 到主檔案
     async fn flush_database(&self) -> Result<()> {
         let store = self.app.state::<crate::store::Store>();
-        
+
         // 執行 WAL checkpoint
         store.checkpoint_wal()?;
-        
+
         info!("Database flushed before update");
         Ok(())
     }
@@ -272,10 +273,10 @@ impl UpdateManager {
     /// 重啟應用程式
     async fn restart_app(&self) -> Result<()> {
         use tauri_plugin_process::ProcessExt;
-        
+
         info!("Restarting application...");
         self.app.restart();
-        
+
         Ok(())
     }
 }
@@ -312,9 +313,9 @@ impl Store {
     /// Checkpoint WAL to main database file
     pub fn checkpoint_wal(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        
+
         conn.pragma_update(None, "wal_checkpoint", "TRUNCATE")?;
-        
+
         Ok(())
     }
 }
@@ -341,7 +342,7 @@ fn main() {
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let store = app_handle.state::<crate::store::Store>();
-                
+
                 let check_on_startup = store
                     .get_setting("update_check_on_startup")
                     .unwrap_or_else(|_| Some("true".to_string()))
@@ -376,9 +377,9 @@ fn main() {
 ### src/lib/updater.ts
 
 ```typescript
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { ask, message } from '@tauri-apps/plugin-dialog';
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { ask, message } from "@tauri-apps/plugin-dialog";
 
 export interface UpdateInfo {
   available: boolean;
@@ -396,41 +397,43 @@ export class UpdateManager {
 
   private getDefaultEndpoint(): string {
     // 從設定讀取，或使用預設值
-    return localStorage.getItem('update_endpoint') ||
-           'https://github.com/yourname/worktime-pomodoro/releases/latest/download';
+    return (
+      localStorage.getItem("update_endpoint") ||
+      "https://github.com/yourname/worktime-pomodoro/releases/latest/download"
+    );
   }
 
   async checkForUpdates(): Promise<UpdateInfo> {
-    return await invoke<UpdateInfo>('check_updates', {
-      endpoint: this.endpoint
+    return await invoke<UpdateInfo>("check_updates", {
+      endpoint: this.endpoint,
     });
   }
 
   async installUpdate(): Promise<void> {
     // 詢問使用者確認
-    const confirmed = await ask(
-      '發現新版本，是否立即安裝？\n\n應用程式將會重新啟動。',
-      { title: '更新可用', kind: 'info' }
-    );
+    const confirmed = await ask("發現新版本，是否立即安裝？\n\n應用程式將會重新啟動。", {
+      title: "更新可用",
+      kind: "info",
+    });
 
     if (confirmed) {
       try {
-        await invoke('install_update', {
-          endpoint: this.endpoint
+        await invoke("install_update", {
+          endpoint: this.endpoint,
         });
       } catch (error) {
-        await message(`更新安裝失敗: ${error}`, { title: '錯誤', kind: 'error' });
+        await message(`更新安裝失敗: ${error}`, { title: "錯誤", kind: "error" });
       }
     }
   }
 
   listenForUpdates(callback: (info: UpdateInfo) => void): () => void {
-    const unlisten = listen<UpdateInfo>('update-available', (event) => {
+    const unlisten = listen<UpdateInfo>("update-available", (event) => {
       callback(event.payload);
     });
 
     return () => {
-      unlisten.then(fn => fn());
+      unlisten.then((fn) => fn());
     };
   }
 }
@@ -449,7 +452,7 @@ export const updater = new UpdateManager();
 <div id="update-notification" class="hidden fixed top-4 right-4 bg-blue-500 text-white p-4 rounded-lg shadow-lg z-50">
   <div class="flex items-center gap-3">
     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
     </svg>
     <div>
@@ -520,7 +523,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   build:
@@ -611,9 +614,9 @@ def read_signature(sig_path: Path) -> str:
 
 def generate_latest_json(version: str, notes: str, artifacts_dir: Path):
     """產生 latest.json"""
-    
+
     platforms = {}
-    
+
     # Windows
     windows_zip = list(artifacts_dir.glob("**/windows-latest-artifacts/*.msi.zip"))
     if windows_zip:
@@ -622,7 +625,7 @@ def generate_latest_json(version: str, notes: str, artifacts_dir: Path):
             "signature": read_signature(sig_file),
             "url": f"https://github.com/yourname/worktime-pomodoro/releases/download/{version}/{windows_zip[0].name}"
         }
-    
+
     # Linux
     linux_appimage = list(artifacts_dir.glob("**/ubuntu-22.04-artifacts/*.AppImage.tar.gz"))
     if linux_appimage:
@@ -631,14 +634,14 @@ def generate_latest_json(version: str, notes: str, artifacts_dir: Path):
             "signature": read_signature(sig_file),
             "url": f"https://github.com/yourname/worktime-pomodoro/releases/download/{version}/{linux_appimage[0].name}"
         }
-    
+
     latest_json = {
         "version": version.lstrip('v'),
         "notes": notes,
         "pub_date": "2026-10-21T10:00:00Z",  # 使用實際發布時間
         "platforms": platforms
     }
-    
+
     output_path = artifacts_dir / "latest.json"
     output_path.write_text(json.dumps(latest_json, indent=2))
     print(f"Generated {output_path}")
@@ -647,7 +650,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Usage: generate_latest_json.py <version> <notes>")
         sys.exit(1)
-    
+
     generate_latest_json(
         version=sys.argv[1],
         notes=sys.argv[2],
@@ -754,25 +757,28 @@ python3 -m http.server 8000
 
 ```bash
 # 從私鑰提取公鑰
-npx @tauri-apps/cli signer sign --private-key ~/.tauri/worktime-pomodoro.key --password '' 
+npx @tauri-apps/cli signer sign --private-key ~/.tauri/worktime-pomodoro.key --password ''
 ```
 
 ### Q: Windows Defender 阻擋更新
 
-**A**: 
+**A**:
+
 1. 使用 EV 程式碼簽章憑證（需購買）
 2. 或引導使用者新增例外
 
 ### Q: 更新後資料遺失
 
-**A**: 
+**A**:
+
 1. 檢查 WAL checkpoint 是否成功
 2. 檢查備份檔 `worktime.db.backup_*`
 3. 從備份還原
 
 ### Q: 私有 GitHub repo 無法下載
 
-**A**: 
+**A**:
+
 1. 使用 GitHub Personal Access Token
 2. 或改用內部 HTTP 伺服器託管更新
 

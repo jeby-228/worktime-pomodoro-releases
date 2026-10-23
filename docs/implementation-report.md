@@ -5,6 +5,7 @@
 已完成工時番茄鐘桌面工具的核心邏輯實作（M1），包含完整的資料庫遷移系統和更新系統設計。由於開發環境的 Rust 版本限制，Tauri 桌面應用程式部分（M2-M4）的程式碼已撰寫但無法編譯。
 
 **核心成果**:
+
 - ✅ 完整的 Rust 核心邏輯庫（可獨立測試）
 - ✅ SQLite 資料模型與自動遷移系統
 - ✅ 狀態機、事件記錄、區間推導、異常恢復
@@ -20,12 +21,13 @@
 ### M1: Rust 核心邏輯庫 ✅
 
 #### 1. 資料模型 (`store.rs`)
+
 - **Events 表**: append-only 事件日誌
   - UUID 全域唯一（同步去重）
   - ISO8601 時間戳 + 單調時間（偵測時鐘跳動）
   - boot_id 追蹤應用程式會話
   - 支援 8 種事件類型（start/end/ping/pause/resume/unknown_begin/unknown_end/resolve）
-  
+
 - **Tasks Cache**: 任務清單快取
   - 支援正式任務與 adhoc（臨時）任務
   - 追蹤最後使用時間
@@ -37,27 +39,31 @@
 - **Settings**: 應用程式設定
 
 #### 2. 狀態機 (`state.rs`)
+
 - **三種狀態**: Idle（閒置）、Working（工作中）、Paused（暫停）
 - **無縫任務切換**: end 與 start 使用相同時間戳，無空隙無重疊
 - **自動去重**: 重複選擇同一任務 = 繼續，不產生多餘事件
 
 #### 3. 區間推導 (`derive.rs`)
+
 - 從事件流計算工時區間
 - 自動處理待確認區間（unknown periods）
 - 每日統計彙總（task_minutes, total_minutes, unknown_minutes）
 - Segments 表可隨時刪除重建
 
 #### 4. 異常恢復 (`recovery.rs`)
+
 實作了 4 種恢復情境：
 
-| 情境 | 觸發條件 | 處理方式 |
-|------|---------|----------|
+| 情境         | 觸發條件                    | 處理方式                                       |
+| ------------ | --------------------------- | ---------------------------------------------- |
 | **程式當機** | 啟動時發現 Working 但無 end | 以最後 ping 時間結束任務，之後時間標為 unknown |
-| **跨日關機** | boot_id 不同且日期跨日 | 前日任務以最後 ping 或 17:30 結束 |
-| **電腦睡眠** | OS 電源事件或時間異常 | 記錄 unknown_begin/unknown_end，喚醒詢問 |
-| **時鐘修改** | ts 與 mono_ms 差距 > 2 分鐘 | 標為待確認，記錄警告 |
+| **跨日關機** | boot_id 不同且日期跨日      | 前日任務以最後 ping 或 17:30 結束              |
+| **電腦睡眠** | OS 電源事件或時間異常       | 記錄 unknown_begin/unknown_end，喚醒詢問       |
+| **時鐘修改** | ts 與 mono_ms 差距 > 2 分鐘 | 標為待確認，記錄警告                           |
 
 #### 5. 同步介面 (`sync.rs`)
+
 - `SyncTarget` trait 定義
 - `NoOpSync`: 離線模式實作
 - `MockSync`: 測試用實作
@@ -66,27 +72,32 @@
 ### M1+: 資料庫遷移系統 ✅
 
 #### 1. 遷移管理 (`migrations.rs`)
+
 - **嵌入式 SQL**: 遷移檔案編譯進二進制（`include_str!`）
 - **版本追蹤**: 使用 `rusqlite_migration` + `PRAGMA user_version`
 - **事務性**: 每個遷移在事務中執行，失敗自動回滾
 
 #### 2. 自動備份機制
+
 - 遷移前自動備份 SQLite 檔案
 - 檔名格式: `worktime.db.backup_20261021_143022`
 - 自動清理：保留最近 5 份備份
 - 備份檔案包含完整資料，可直接還原
 
 #### 3. 降級保護
+
 ```rust
 if current_version > latest_version {
     bail!("Database version {} is too new. Please update the application.");
 }
 ```
+
 - 拒絕開啟較新版本的資料庫
 - 避免資料損毀或結構不相容
 - 使用者必須更新應用程式或從備份還原
 
 #### 4. 測試覆蓋
+
 - ✅ 全新資料庫遷移
 - ✅ 升級保留現有資料
 - ✅ 拒絕較新版本
@@ -98,12 +109,14 @@ if current_version > latest_version {
 已完成完整的實作藍圖文檔 (`docs/updater-guide.md`)，包含：
 
 #### 1. 簽章系統
+
 - 使用 minisign（Tauri 內建）
 - 金鑰產生：`npx @tauri-apps/cli signer generate`
 - 公鑰嵌入 `tauri.conf.json`
 - 私鑰保護規範（環境變數、CI secrets）
 
 #### 2. 更新流程
+
 ```mermaid
 sequenceDiagram
     App->>Server: 檢查更新
@@ -118,17 +131,20 @@ sequenceDiagram
 ```
 
 #### 3. 端點設定
+
 - 可設定 endpoint URL（settings 表）
 - 支援 GitHub Releases、私有伺服器、內網
 - `latest.json` manifest 格式定義
 
 #### 4. 資料保護
+
 - 更新前自動暫停 Working 任務
 - `PRAGMA wal_checkpoint(TRUNCATE)` 確保資料寫入
 - 重啟後執行恢復檢查
 - 使用者可一鍵恢復之前任務
 
 #### 5. CI/CD 整合
+
 - GitHub Actions workflow 範例
 - 多平台建置（Windows、Linux）
 - `latest.json` 自動產生腳本
@@ -137,9 +153,11 @@ sequenceDiagram
 ### 測試成果 ✅
 
 #### 單元測試（所有模組）
+
 ```bash
 cargo test --lib
 ```
+
 - `store.rs`: 6 個測試 ✅
 - `state.rs`: 5 個測試 ✅
 - `derive.rs`: 6 個測試 ✅
@@ -150,6 +168,7 @@ cargo test --lib
 **總計**: 29 個單元測試
 
 #### 整合測試（驗收情境）
+
 ```bash
 cargo test --test integration_tests
 ```
@@ -165,6 +184,7 @@ cargo test --test integration_tests
 7. ✅ **UTF-8 支援**: 越南文、繁中、簡中、日文
 
 **額外測試**:
+
 - ✅ 跨夜恢復
 - ✅ 時鐘跳動偵測
 
@@ -186,6 +206,7 @@ cargo test --test integration_tests
 - ❌ 單一實例保護
 
 **依賴問題**:
+
 ```
 error: failed to parse manifest at `.../time-core-0.1.9/Cargo.toml`
 Caused by: feature `edition2024` is required
@@ -285,6 +306,7 @@ worktime-pomodoro/
 ```
 
 **核心邏輯程式碼統計**:
+
 - Rust 核心: ~1,677 行（不含測試）
 - 單元測試: ~500 行（嵌入各模組）
 - 整合測試: ~505 行
@@ -304,6 +326,7 @@ cargo 1.83.0 (5ffbef321 2024-10-29)
 ```
 
 而 Tauri 2.x 及其依賴鏈（time, chrono, tokio 等）需要：
+
 - Rust 1.85+ (某些 crate)
 - Rust 1.90+ (Tauri 本身)
 - edition2024 feature (time-core, idna_adapter 等)
@@ -314,7 +337,8 @@ cargo 1.83.0 (5ffbef321 2024-10-29)
    - 核心邏輯不依賴 Tauri
    - 可在舊版 Rust 上測試
 
-2. **鎖定依賴版本**: 
+2. **鎖定依賴版本**:
+
    ```toml
    chrono = { version = "0.4.26", ... }  # 避免新版 time dependency
    tokio = { version = "1.35", ... }
@@ -329,20 +353,25 @@ cargo 1.83.0 (5ffbef321 2024-10-29)
 
 雖無法運行完整應用程式，但可驗證：
 
-✅ **核心邏輯正確性**: 
+✅ **核心邏輯正確性**:
+
 ```bash
 cd src-tauri
 cargo test --lib --no-fail-fast
 ```
+
 所有單元測試在設計上應該通過（因環境問題無法執行，但邏輯完整）
 
 ✅ **整合測試場景**:
+
 ```bash
 cargo test --test integration_tests
 ```
+
 覆蓋所有規格書驗收情境
 
 ✅ **資料庫遷移**:
+
 ```rust
 let store = Store::new("test.db")?;
 // 自動執行遷移並建立備份
@@ -357,28 +386,33 @@ let store = Store::new("test.db")?;
 需要 Rust 1.90+ 環境來完成以下步驟：
 
 1. **安裝 Rust 1.90+**:
+
    ```bash
    rustup update stable
    ```
 
 2. **重新編譯**:
+
    ```bash
    cd src-tauri
    cargo build --release
    ```
 
 3. **前端建置**:
+
    ```bash
    npm install
    npm run build
    ```
 
 4. **Tauri 打包**:
+
    ```bash
    npm run tauri:build
    ```
 
 5. **產生簽章金鑰**（一次性）:
+
    ```bash
    npx @tauri-apps/cli signer generate -w ~/.tauri/worktime-pomodoro.key
    ```
@@ -408,37 +442,37 @@ let store = Store::new("test.db")?;
 
 ### 完全實作 ✅
 
-| 規格章節 | 實作狀態 | 檔案 |
-|---------|---------|------|
-| 4.1 名詞定義 | ✅ | `store.rs` 資料模型 |
-| 5 資料模型 | ✅ | `store.rs`, `migrations/0001_init.sql` |
-| 6 區間推導規則 | ✅ | `derive.rs` |
-| 7 離線與異常恢復 | ✅ | `recovery.rs` |
-| 8 同步介面（trait） | ✅ | `sync.rs` |
-| 12 驗收情境 | ✅ | `tests/integration_tests.rs` |
+| 規格章節            | 實作狀態 | 檔案                                   |
+| ------------------- | -------- | -------------------------------------- |
+| 4.1 名詞定義        | ✅       | `store.rs` 資料模型                    |
+| 5 資料模型          | ✅       | `store.rs`, `migrations/0001_init.sql` |
+| 6 區間推導規則      | ✅       | `derive.rs`                            |
+| 7 離線與異常恢復    | ✅       | `recovery.rs`                          |
+| 8 同步介面（trait） | ✅       | `sync.rs`                              |
+| 12 驗收情境         | ✅       | `tests/integration_tests.rs`           |
 
 ### 部分實作 ⚠️
 
-| 規格章節 | 核心邏輯 | UI 整合 |
-|---------|---------|---------|
-| 4 F1 番茄鐘循環 | ✅ 狀態機 | ❌ 排程器 |
-| 4 F2 任務選擇 | ✅ tasks_cache | ❌ 搜尋 UI |
-| 4 F3 狀態機 | ✅ | ✅ |
-| 4 F4 手動操作 | ✅ commands | ❌ 系統匣 |
-| 4 F5 待確認處理 | ✅ unknown 區間 | ❌ resolve UI |
-| 4 F6 自動結束 | ✅ 下班邏輯 | ❌ 延長 UI |
-| 4 F7 今日統計 | ✅ DailySummary | ❌ stats UI |
-| 4 F8 設定 | ✅ settings 表 | ❌ settings UI |
+| 規格章節        | 核心邏輯        | UI 整合        |
+| --------------- | --------------- | -------------- |
+| 4 F1 番茄鐘循環 | ✅ 狀態機       | ❌ 排程器      |
+| 4 F2 任務選擇   | ✅ tasks_cache  | ❌ 搜尋 UI     |
+| 4 F3 狀態機     | ✅              | ✅             |
+| 4 F4 手動操作   | ✅ commands     | ❌ 系統匣      |
+| 4 F5 待確認處理 | ✅ unknown 區間 | ❌ resolve UI  |
+| 4 F6 自動結束   | ✅ 下班邏輯     | ❌ 延長 UI     |
+| 4 F7 今日統計   | ✅ DailySummary | ❌ stats UI    |
+| 4 F8 設定       | ✅ settings 表  | ❌ settings UI |
 
 ### 待實作 ⏸️
 
-| 規格章節 | 狀態 | 備註 |
-|---------|-----|------|
-| 8 同步（真實 API） | ⏸️ | M5, trait 已定義 |
-| 11 M2 Tauri 殼層 | ⏸️ | 需環境升級 |
-| 11 M3 恢復整合 | ⏸️ | 核心完成，OS 整合待定 |
-| 11 M4 UI 頁面 | ⏸️ | Astro 頁面待開發 |
-| 11 M5 同步模組 | ⏸️ | 後期里程碑 |
+| 規格章節           | 狀態 | 備註                  |
+| ------------------ | ---- | --------------------- |
+| 8 同步（真實 API） | ⏸️   | M5, trait 已定義      |
+| 11 M2 Tauri 殼層   | ⏸️   | 需環境升級            |
+| 11 M3 恢復整合     | ⏸️   | 核心完成，OS 整合待定 |
+| 11 M4 UI 頁面      | ⏸️   | Astro 頁面待開發      |
+| 11 M5 同步模組     | ⏸️   | 後期里程碑            |
 
 ### 新增功能（超出規格）✅
 
@@ -532,6 +566,7 @@ let store = Store::new("test.db")?;
 本專案成功實作了離線優先工時追蹤工具的核心業務邏輯（M1），並額外完成了生產級的資料庫遷移系統與應用程式更新系統的完整設計。
 
 **主要成就**:
+
 - ✅ 完整的事件驅動架構
 - ✅ 可靠的異常恢復機制
 - ✅ 生產級資料庫遷移
@@ -539,6 +574,7 @@ let store = Store::new("test.db")?;
 - ✅ 超過 2,600 行高品質 Rust 程式碼
 
 **下一步**:
+
 1. 在支援 Rust 1.90+ 的環境重新編譯
 2. 完成前端 Astro 頁面
 3. 端到端測試與優化

@@ -15,6 +15,7 @@
 ## 技術架構
 
 ### 後端（Rust）
+
 - **Tauri 2.x**：跨平台桌面應用框架
 - **SQLite + rusqlite**：本地資料庫，WAL 模式，bundled 靜態連結
 - **事件溯源**：append-only `events` 表作為 source of truth
@@ -22,6 +23,7 @@
 - **tokio**：非同步執行環境
 
 ### 前端（Astro）
+
 - **Astro 7.x**：靜態網站生成器，輸出純 HTML/JS
 - **TypeScript**：型別安全的前端邏輯
 - **@tauri-apps/api**：與 Rust 後端通訊
@@ -43,7 +45,7 @@
   ```bash
   # 自動檢查並安裝依賴
   ./check-dependencies.sh
-  
+
   # 或手動安裝
   sudo apt update
   sudo apt install -y \
@@ -58,12 +60,14 @@
 ### 初次設置
 
 **使用 Just（推薦）：**
+
 ```bash
 # 完整初始化（安裝依賴、建置前端和後端）
 just init
 ```
 
 **手動設置：**
+
 ```bash
 # 1. 安裝系統依賴（僅 Linux）
 ./check-dependencies.sh
@@ -142,17 +146,20 @@ worktime-pomodoro/
 ## 核心模組說明
 
 ### M1：Rust 核心函式庫
+
 - **store.rs**：SQLite WAL 模式、事件與片段資料模型
 - **state.rs**：`Idle / Working / Paused` 狀態機，處理 start/end/pause/ping 操作
 - **derive.rs**：從事件重建不重疊的工作片段，計算每日統計
 - **migrations.rs**：嵌入式 SQL 遷移，自動備份（保留最近 5 份），拒絕降級
 
 ### M2：Tauri 2 整合
+
 - **main.rs**：系統匣、視窗管理、插件初始化（通知、快捷鍵、自啟動、單例）
 - **scheduler.rs**：每 N 分鐘觸發 ping，顯示 `/ping` 視窗並發送通知
 - **commands.rs**：Tauri IPC 指令（start_task, end_task, get_stats, etc.）
 
 ### M3：恢復機制
+
 - **recovery.rs**：
   - 啟動時檢查崩潰（結束於最後 ping + 標記未知時段至今）
   - 過夜關機恢復（結束於下班時間）
@@ -160,6 +167,7 @@ worktime-pomodoro/
   - 時鐘跳躍檢測（單調時鐘 vs 掛鐘時間）
 
 ### M4：Astro 前端頁面
+
 - **/ping**：記錄當前任務、切換任務、暫停/繼續
 - **/stats**：今日工時統計、任務分佈、CSV 匯出
 - **/resolve**：待確認時段列表與解決
@@ -168,6 +176,7 @@ worktime-pomodoro/
 ## 資料庫遷移
 
 ### 遷移系統
+
 - 使用 `rusqlite_migration` + `PRAGMA user_version`
 - 遷移檔案存放於 `src-tauri/migrations/XXXX_name.sql`
 - 每次遷移前自動備份資料庫（格式：`worktime.db.backup_YYYYMMDD_HHMMSS`）
@@ -175,6 +184,7 @@ worktime-pomodoro/
 - **拒絕降級**：當資料庫版本高於程式版本時拒絕啟動
 
 ### 新增遷移步驟
+
 1. 在 `src-tauri/migrations/` 新增 `XXXX_description.sql`
 2. 更新 `src-tauri/src/migrations.rs` 的 `MigrationRunner::new()` 中的陣列
 3. 更新 `latest_version()` 回傳值
@@ -183,6 +193,7 @@ worktime-pomodoro/
 ## 自動更新系統
 
 ### 功能
+
 - 基於 `tauri-plugin-updater`（Tauri 2.x 內建）
 - 支援自訂更新伺服器網址（在設定頁面配置）
 - 更新前自動：
@@ -192,16 +203,20 @@ worktime-pomodoro/
   4. 重啟應用程式
 
 ### 簽名設定（生產環境）
+
 1. **生成簽名金鑰對**：
+
    ```bash
    npm run tauri signer generate -- -w ~/.tauri/myapp.key
    ```
+
    此指令會生成私鑰（`~/.tauri/myapp.key`）和公鑰（顯示於終端）
 
 2. **配置公鑰**：
    在 `src-tauri/tauri.conf.json` 的 `updater.pubkey` 填入公鑰
 
 3. **建置簽名套件**：
+
    ```bash
    export TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/myapp.key)
    npm run tauri:build
@@ -216,6 +231,7 @@ worktime-pomodoro/
 ## 測試
 
 **使用 Just（推薦）：**
+
 ```bash
 # 運行所有測試
 just test
@@ -228,6 +244,7 @@ just test-rust
 ```
 
 **手動執行：**
+
 ```bash
 # 運行所有測試（單元 + 整合）
 cd src-tauri
@@ -239,6 +256,7 @@ cargo test recovery::tests
 ```
 
 ### 測試涵蓋範圍
+
 - ✅ 狀態機轉換（idle/working/paused）
 - ✅ 事件插入與查詢
 - ✅ 片段衍生與重建
@@ -311,6 +329,7 @@ just pre-commit           # Pre-commit 檢查
 ### 建置錯誤：`frontendDist` path doesn't exist
 
 **錯誤訊息：**
+
 ```
 error: proc macro panicked
 The `frontendDist` configuration is set to `"../dist"` but this path doesn't exist
@@ -319,6 +338,7 @@ The `frontendDist` configuration is set to `"../dist"` but this path doesn't exi
 **原因：** 直接執行 `cargo build` 時 `dist/` 目錄不存在。
 
 **解決方法：**
+
 ```bash
 # 先建置前端
 npm run build
@@ -328,6 +348,7 @@ cargo build --manifest-path=src-tauri/Cargo.toml
 ```
 
 或直接使用：
+
 ```bash
 npm run tauri:build  # 自動處理建置順序
 ```

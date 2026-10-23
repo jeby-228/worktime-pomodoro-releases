@@ -1,6 +1,7 @@
 # V2 重構最終報告
 
 ## 分支與 PR 資訊
+
 - **分支**: `cursor/v2-simple-pomodoro-6ff3`
 - **PR**: [#1 - V2 Redesign: Simplified Pomodoro Tracker](https://cursor.com/codebase/jeby/worktime-pomodoro/pull/1)
 - **狀態**: Draft PR，工作持續進行中
@@ -11,6 +12,7 @@
 ### 1. 後端架構 (Rust) - 100% 程式碼完成
 
 #### 資料模型
+
 - ✅ 新 SQL schema (`migrations/0002_v2_slots.sql`)
   - `time_slots`: 主資料表，4 種類型 (work/interrupt/meeting/lunch)
   - `recent_people`: 插隊聯絡人記錄
@@ -23,6 +25,7 @@
   - `AppSettings` 完整設定結構
 
 #### 核心邏輯
+
 - ✅ StoreV2 (`store_v2.rs`) - 全功能資料存取層
   - CRUD 操作 + 統計查詢
   - Gap 檢測演算法
@@ -36,6 +39,7 @@
   - 單元測試完整
 
 #### API Commands
+
 - ✅ 完整的 Tauri commands (`commands_v2.rs`)
   - 狀態查詢: get_app_state, get_current_slot, get_*_seconds
   - 任務控制: start_task, end_task, pause_task, resume_task
@@ -47,6 +51,7 @@
   - 匯出: export_to_xlsx, export_to_csv (rust_xlsxwriter)
 
 #### 編譯狀態
+
 - ⚠️ **阻塞中**: 後端編譯進行中（Rust nightly 1.101.0）
   - 系統依賴已安裝 (libgtk-3-dev, libwebkit2gtk-4.1-dev 等)
   - 預期完成後可直接執行
@@ -54,17 +59,20 @@
 ### 2. 前端架構與 UI - 50% 完成
 
 #### 技術棧
+
 - ✅ Astro 4.16 + Svelte 5 (runes mode)
 - ✅ Tailwind CSS 3.4
 - ✅ lucide-svelte icons
 - ✅ 前端建置成功 (`npm run build` 通過)
 
 #### 設計系統 (D-mono)
+
 - ✅ shadcn/ui zinc tokens 完整實作
 - ✅ CSS 變數 + light/dark 主題
 - ✅ 字體: Noto Sans TC + Noto Sans Thai + JetBrains Mono
 
 #### i18n 系統 - 100% 完成 ⭐
+
 - ✅ **5 種語言完整翻譯**:
   - zh-TW (繁體中文, 預設)
   - zh-CN (簡體中文)
@@ -86,10 +94,12 @@
   - 驗證與錯誤訊息
 
 #### UI 組件
+
 - ✅ Button, Item, Layout (Svelte 5 兼容)
 - ✅ BaseLayout.astro (HTML 框架 + i18n-ready)
 
 #### 已完成頁面
+
 - ✅ `timer.astro` / `Timer.svelte`: 計時主頁
   - 大計時顯示
   - 進度環視覺化
@@ -98,6 +108,7 @@
   - 快捷鍵提示
 
 ### 3. 設計資源 - 100% 完成
+
 - ✅ 完整 v2 設計規格 (`design-system/`)
 - ✅ D-mono tokens (單色設計系統)
 - ✅ 番茄君桌面寵物 SVG (5 個狀態: working, interrupt, lunch, unrecorded, done)
@@ -108,6 +119,7 @@
 ### 高優先級 (核心功能)
 
 #### 後端
+
 1. ⏳ **等待編譯完成** - 正在背景執行
 2. ❌ 空閒/鎖定檢測實作
    - 需要整合到 main.rs
@@ -125,6 +137,7 @@
    - Ctrl+Alt+I (插隊)
 
 #### 前端頁面 (缺少 4 個主要頁面)
+
 1. ❌ **快速輸入對話框** (`QuickInput.svelte`)
    - cmdk 風格 (~560x360)
    - 模糊搜尋 + 最近任務
@@ -202,6 +215,7 @@
     - 測試 commands 呼叫
 
 13. ❌ i18n 測試執行
+
     ```bash
     npm install # 安裝 vitest
     npm run test:locales
@@ -210,6 +224,7 @@
 14. ❌ CI 測試 (GitHub Actions)
 
 15. ❌ **打包 .deb**
+
     ```bash
     npm run tauri:build
     ```
@@ -236,37 +251,39 @@
 
 ## 📊 完成度估算
 
-| 模組 | 完成度 | 狀態 |
-|------|--------|------|
-| 資料庫 Schema | 100% | ✅ 完成 |
-| Rust 資料模型 | 100% | ✅ 完成 |
-| Store + 測試 | 100% | ✅ 完成 |
-| 狀態機 + 測試 | 100% | ✅ 完成 |
-| Tauri Commands | 100% | ✅ 完成 |
-| 後端編譯 | 95% | ⏳ 進行中 |
-| i18n 系統 | 100% | ✅ 完成 |
-| 設計系統 | 100% | ✅ 完成 |
-| Timer 頁面 | 100% | ✅ 完成 |
-| 其他 UI 頁面 | 0% | ❌ 未開始 |
-| Dialogs | 0% | ❌ 未開始 |
-| Tray + 快捷鍵 | 0% | ❌ 未開始 |
-| 迷你 Bar | 0% | ❌ 未開始 |
-| 桌面寵物 | 5% | SVG 已有 |
-| 測試 | 30% | 僅 Rust 單元測試 |
-| 打包 | 0% | ❌ 未開始 |
-| 截圖 | 0% | ❌ 未開始 |
-| 文件 | 40% | V2_PROGRESS 已有 |
+| 模組           | 完成度 | 狀態             |
+| -------------- | ------ | ---------------- |
+| 資料庫 Schema  | 100%   | ✅ 完成          |
+| Rust 資料模型  | 100%   | ✅ 完成          |
+| Store + 測試   | 100%   | ✅ 完成          |
+| 狀態機 + 測試  | 100%   | ✅ 完成          |
+| Tauri Commands | 100%   | ✅ 完成          |
+| 後端編譯       | 95%    | ⏳ 進行中        |
+| i18n 系統      | 100%   | ✅ 完成          |
+| 設計系統       | 100%   | ✅ 完成          |
+| Timer 頁面     | 100%   | ✅ 完成          |
+| 其他 UI 頁面   | 0%     | ❌ 未開始        |
+| Dialogs        | 0%     | ❌ 未開始        |
+| Tray + 快捷鍵  | 0%     | ❌ 未開始        |
+| 迷你 Bar       | 0%     | ❌ 未開始        |
+| 桌面寵物       | 5%     | SVG 已有         |
+| 測試           | 30%    | 僅 Rust 單元測試 |
+| 打包           | 0%     | ❌ 未開始        |
+| 截圖           | 0%     | ❌ 未開始        |
+| 文件           | 40%    | V2_PROGRESS 已有 |
 
 **總體估算**: ~55% 完成
 
 ## 🔍 技術細節
 
 ### Rust 工具鏈
+
 - **Current**: nightly 1.101.0-nightly (2026-10-21)
 - **Reason**: edition2024 支援
 - **Cargo**: 1.101.0-nightly
 
 ### 依賴版本
+
 - Tauri: 2.x
 - Astro: 4.16.0
 - Svelte: 5.20.0 (runes mode)
@@ -275,6 +292,7 @@
 - csv: 1.3
 
 ### 平台支援
+
 - **Target**: Linux (Mint, X11, Cinnamon)
 - **Secondary**: Windows (未測試)
 - **Limitations documented**: README 將註明平台限制
@@ -282,6 +300,7 @@
 ## ⏭️ 推薦執行順序
 
 ### 立即可執行（本階段 Agent）
+
 1. ✅ ~~等待 Rust 編譯完成~~ (背景進行中)
 2. 實作 4 個主要 UI 頁面（快速輸入、今天、紀錄、設定）
 3. 實作必要 dialogs（插隊、空閒檢測、EOD）
@@ -289,6 +308,7 @@
 5. 實作主題切換與 toast
 
 ### 次階段（需較多時間）
+
 6. 迷你 Bar 實作
 7. 桌面寵物系統（spritesheet 製作 + Codex 格式）
 8. 整合測試
@@ -296,6 +316,7 @@
 10. 截圖與文件
 
 ### 預計剩餘工作量
+
 - **前端 UI**: 4-6 小時（4 頁面 + dialogs + 整合）
 - **進階功能**: 3-4 小時（迷你 bar + 寵物）
 - **測試 + 打包**: 1-2 小時
@@ -306,6 +327,7 @@
 ## 📂 關鍵檔案與路徑
 
 ### 後端
+
 ```
 src-tauri/
 ├── migrations/0002_v2_slots.sql       # V2 schema
@@ -320,6 +342,7 @@ src-tauri/
 ```
 
 ### 前端
+
 ```
 src/
 ├── lib/
@@ -351,6 +374,7 @@ src/
 ```
 
 ### 設計資源
+
 ```
 design-system/
 ├── README.md                          # D-mono 說明
@@ -376,15 +400,18 @@ ui-v3/*.html                           # UI 模擬參考
 v2 重構的**核心架構與國際化**已完成：
 
 ✅ **已完成**:
+
 - 資料庫 schema 與 Rust 後端邏輯（100%）
 - i18n 系統完整支援 5 種語言（100%）
 - 設計系統與 UI tokens（100%）
 - 計時主頁 UI（100%）
 
 ⏳ **進行中**:
+
 - Rust 後端編譯（背景執行）
 
 ❌ **待完成**:
+
 - 4 個主要 UI 頁面（今天/紀錄/設定/快速輸入）
 - 對話框系統（插隊/空閒檢測/EOD）
 - Tray icon 與全域快捷鍵整合

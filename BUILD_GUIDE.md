@@ -75,6 +75,7 @@ cargo build
 ### ❌ 常見錯誤
 
 **錯誤訊息：**
+
 ```
 error: proc macro panicked
    --> src/main.rs:167:16
@@ -89,6 +90,7 @@ error: proc macro panicked
 直接執行 `cargo build` 或 `npm run tauri:build` 時，`dist/` 目錄不存在。
 
 **解決方法：**
+
 ```bash
 # 先建置前端
 npm run build
@@ -104,12 +106,14 @@ cargo build --manifest-path=src-tauri/Cargo.toml
 ### 初次設置
 
 **使用 Just（最簡單）：**
+
 ```bash
 # 一鍵完成所有設置（安裝依賴 + 建置）
 just init
 ```
 
 **手動設置：**
+
 ```bash
 # 1. 安裝系統依賴（僅 Linux）
 ./check-dependencies.sh
@@ -135,18 +139,21 @@ just build-rust
 ### 開發流程
 
 **使用 Just：**
+
 ```bash
 # 啟動開發伺服器（熱重載）
 just dev
 ```
 
 **使用 npm：**
+
 ```bash
 # 啟動開發伺服器（熱重載）
 npm run tauri:dev
 ```
 
 Tauri 會自動：
+
 1. 執行 `npm run dev` 啟動 Astro 開發伺服器
 2. 啟動 Rust 後端並連接到前端
 3. 監聽檔案變更並自動重載
@@ -154,18 +161,21 @@ Tauri 會自動：
 ### 生產建置
 
 **使用 Just：**
+
 ```bash
 # 一鍵建置（推薦）
 just build-release
 ```
 
 **使用 npm：**
+
 ```bash
 # 一鍵建置（推薦）
 npm run tauri:build
 ```
 
 Tauri 會自動：
+
 1. 執行 `npm run build` 建置前端靜態檔案到 `dist/`
 2. 編譯 Rust 後端（release 模式）
 3. 打包為平台專屬安裝檔（.deb / .AppImage / .exe 等）
@@ -194,6 +204,7 @@ cargo build --release
 ## 🎨 程式碼格式化與檢查
 
 **使用 Just（推薦）：**
+
 ```bash
 # 格式化所有程式碼（Rust + 前端）
 just fmt
@@ -219,6 +230,7 @@ just fmt-frontend
 ```
 
 **手動執行：**
+
 ```bash
 # 檢查 JavaScript/TypeScript 程式碼（不修改）
 npm run lint

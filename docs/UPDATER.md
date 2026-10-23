@@ -16,7 +16,8 @@ cat ~/.tauri/worktime-pomodoro.key.pub
 
 將公鑰添加到 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey` 欄位。
 
-**⚠️ 重要：** 
+**⚠️ 重要：**
+
 - **公鑰（.pub）**：提交到 git，放在 `tauri.conf.json` 中
 - **私鑰（.key）**：**絕對不要提交**，只通過環境變數傳遞
 
@@ -34,6 +35,7 @@ npm run tauri:build
 ## CI/CD 構建
 
 在 GitHub Actions secrets 中添加：
+
 - `TAURI_SIGNING_PRIVATE_KEY`：私鑰內容
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`：密碼（可選）
 
@@ -54,6 +56,7 @@ npm run tauri:build
 ```
 
 這會在 `src-tauri/target/release/bundle/` 生成：
+
 - Windows: `.msi`, `.msi.zip`, `.msi.zip.sig`
 - Linux: `.deb`, `.AppImage`, `.AppImage.tar.gz`, `.AppImage.tar.gz.sig`
 
@@ -95,6 +98,7 @@ node scripts/generate-update-manifest.mjs
 ## 更新端點
 
 應用配置的更新端點：
+
 ```
 https://github.com/jeby-228/worktime-pomodoro-releases/releases/latest/download/latest.json
 ```
