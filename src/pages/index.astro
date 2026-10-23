@@ -1,159 +1,62 @@
 ---
-const pageTitle = "what are you doing";
+import DesktopLayout from '$components/DesktopLayout.svelte';
+import TimerCard from '$components/TimerCard.svelte';
+import TodayTimeline from '$components/TodayTimeline.svelte';
+import QuickInputPalette from '$components/QuickInputPalette.svelte';
+import InterruptDialog from '$components/InterruptDialog.svelte';
+import '../styles/global.css';
 ---
 
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{pageTitle}</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        
-        .container {
-            background: white;
-            border-radius: 24px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            padding: 48px;
-            max-width: 600px;
-            width: 100%;
-            text-align: center;
-        }
-        
-        .logo {
-            font-size: 80px;
-            margin-bottom: 24px;
-        }
-        
-        h1 {
-            font-size: 32px;
-            color: #2d3748;
-            margin-bottom: 16px;
-        }
-        
-        .subtitle {
-            color: #718096;
-            font-size: 16px;
-            margin-bottom: 40px;
-        }
-        
-        .status {
-            background: #f7fafc;
-            border-radius: 16px;
-            padding: 24px;
-            margin-bottom: 32px;
-        }
-        
-        .status-label {
-            font-size: 14px;
-            color: #a0aec0;
-            margin-bottom: 8px;
-        }
-        
-        .status-text {
-            font-size: 20px;
-            color: #2d3748;
-            font-weight: 600;
-        }
-        
-        .quick-links {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-        
-        .link-card {
-            background: #f7fafc;
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 20px;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-decoration: none;
-            color: inherit;
-        }
-        
-        .link-card:hover {
-            border-color: #667eea;
-            background: white;
-            transform: translateY(-2px);
-            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.2);
-        }
-        
-        .link-icon {
-            font-size: 32px;
-            margin-bottom: 8px;
-        }
-        
-        .link-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #2d3748;
-        }
-        
-        .notice {
-            background: #fffaf0;
-            border: 1px solid #fbd38d;
-            border-radius: 12px;
-            padding: 16px;
-            color: #744210;
-            font-size: 14px;
-            margin-top: 24px;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="logo">🍅</div>
-        <h1>what are you doing</h1>
-        <div class="subtitle">離線優先的工時記錄工具</div>
-        
-        <div class="status">
-            <div class="status-label">應用程式狀態</div>
-            <div class="status-text">✅ 正常運行中</div>
-        </div>
-        
-        <div class="quick-links">
-            <a href="/ping" class="link-card">
-                <div class="link-icon">🍅</div>
-                <div class="link-title">記錄工作</div>
-            </a>
-            
-            <a href="/stats" class="link-card">
-                <div class="link-icon">📊</div>
-                <div class="link-title">今日統計</div>
-            </a>
-            
-            <a href="/resolve" class="link-card">
-                <div class="link-icon">⚠️</div>
-                <div class="link-title">待確認時段</div>
-            </a>
-            
-            <a href="/settings" class="link-card">
-                <div class="link-icon">⚙️</div>
-                <div class="link-title">設定</div>
-            </a>
-        </div>
-        
-        <div class="notice">
-            ℹ️ 此應用程式通常在系統匣中執行。本頁面僅用於展示和測試。
-        </div>
+<DesktopLayout currentRoute="timer">
+  <div class="flex h-screen gap-6 p-6">
+    <!-- Left: Timer Card -->
+    <div class="w-96">
+      <TimerCard />
     </div>
-</body>
-</html>
+    
+    <!-- Right: Today Timeline -->
+    <div class="flex-1">
+      <TodayTimeline />
+    </div>
+  </div>
+  
+  <!-- Global Dialogs -->
+  <QuickInputPalette client:only="svelte" />
+  <InterruptDialog client:only="svelte" />
+</DesktopLayout>
+
+<script>
+  // Global keyboard shortcuts and tray events
+  if (typeof window !== 'undefined') {
+    import('@tauri-apps/plugin-global-shortcut').then(({ register }) => {
+      // Register Ctrl+Alt+T for quick input
+      register('Ctrl+Alt+T', () => {
+        window.dispatchEvent(new CustomEvent('show-quick-input'));
+      }).catch(err => console.error('Failed to register Ctrl+Alt+T:', err));
+      
+      // Register Ctrl+Alt+I for interrupt
+      register('Ctrl+Alt+I', () => {
+        window.dispatchEvent(new CustomEvent('show-interrupt'));
+      }).catch(err => console.error('Failed to register Ctrl+Alt+I:', err));
+    });
+
+    // Listen to tray events
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen('tray:quick_input', () => {
+        window.dispatchEvent(new CustomEvent('show-quick-input'));
+      });
+
+      listen('tray:interrupt', () => {
+        window.dispatchEvent(new CustomEvent('show-interrupt'));
+      });
+
+      listen('tray:pause_resume', () => {
+        window.dispatchEvent(new CustomEvent('toggle-pause-resume'));
+      });
+
+      listen('tray:end_task', () => {
+        window.dispatchEvent(new CustomEvent('end-task'));
+      });
+    });
+  }
+</script>

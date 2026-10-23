@@ -1,0 +1,9 @@
+---
+import DesktopLayout from '$components/DesktopLayout.svelte';
+import RecordsPage from '$components/RecordsPage.svelte';
+import '../styles/global.css';
+---
+
+<DesktopLayout currentRoute="records" client:load>
+  <RecordsPage client:load />
+</DesktopLayout>

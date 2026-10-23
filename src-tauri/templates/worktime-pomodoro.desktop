@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Worktime Pomodoro
+Comment=離線優先的桌面工時記錄工具
+Exec={{binary-name}}
+Icon={{icon-name}}
+Terminal=false
+Type=Application
+Categories=Utility;Office;
+StartupWMClass=worktime-pomodoro

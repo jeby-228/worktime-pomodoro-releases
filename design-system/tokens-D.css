@@ -1,0 +1,44 @@
+/* Direction D — shadcn/ui zinc（官方 zinc 預設值，HSL triplet 格式：使用 hsl(var(--x))）
+   切換：<html class="dark"> 或 <html data-theme="dark">，與 shadcn / shadcn-svelte 相容 */
+:root,[data-theme="light"]{
+  --background:0 0% 100%;--foreground:240 10% 3.9%;
+  --card:0 0% 100%;--card-foreground:240 10% 3.9%;
+  --popover:0 0% 100%;--popover-foreground:240 10% 3.9%;
+  --primary:240 5.9% 10%;--primary-foreground:0 0% 98%;
+  --secondary:240 4.8% 95.9%;--secondary-foreground:240 5.9% 10%;
+  --muted:240 4.8% 95.9%;--muted-foreground:240 3.8% 46.1%;
+  --accent:240 4.8% 95.9%;--accent-foreground:240 5.9% 10%;
+  --destructive:0 72.2% 50.6%; /* AA 調整：官方 0 84.2% 60.2% 白字僅 3.8:1 */--destructive-foreground:0 0% 98%;
+  --border:240 5.9% 90%;--input:240 5.9% 90%;--ring:240 5.9% 10%;
+  --radius:0.5rem;
+  /* app 語意（work 只用於點綴：進度環、色條、tray、狀態點） */
+  --work:21 90% 40%;        /* #C2410C */
+  --interrupt:333 77% 42%;  /* #BE185D */
+  --meeting:262 69% 50%;    /* #6D28D9 */
+  --lunch:175 77% 26%;      /* #0F766E */
+  --gap:41 92% 30%;         /* #9A5B06 (warning) */
+  --success:142 72% 29%;    /* #15803D */
+  --destructive-text:0 72% 45%; /* #C62828 文字用，AA 版 */
+  --font-sans:"Noto Sans TC","Inter",system-ui,sans-serif;
+  --font-mono:"JetBrains Mono","Geist Mono","Noto Sans Mono",monospace;
+  color-scheme:light;
+}
+.dark,[data-theme="dark"]{
+  --background:240 10% 3.9%;--foreground:0 0% 98%;
+  --card:240 10% 3.9%;--card-foreground:0 0% 98%;
+  --popover:240 10% 3.9%;--popover-foreground:0 0% 98%;
+  --primary:0 0% 98%;--primary-foreground:240 5.9% 10%;
+  --secondary:240 3.7% 15.9%;--secondary-foreground:0 0% 98%;
+  --muted:240 3.7% 15.9%;--muted-foreground:240 5% 64.9%;
+  --accent:240 3.7% 15.9%;--accent-foreground:0 0% 98%;
+  --destructive:0 62.8% 30.6%;--destructive-foreground:0 0% 98%;
+  --border:240 3.7% 15.9%;--input:240 3.7% 15.9%;--ring:240 4.9% 83.9%;
+  --work:27 96% 61%;        /* #FB923C */
+  --interrupt:330 81% 70%;  /* #F472B6 */
+  --meeting:255 92% 76%;    /* #A78BFA */
+  --lunch:171 77% 53%;      /* #2DD4BF */
+  --gap:50 98% 53%;         /* #FACC15 */
+  --success:142 69% 58%;    /* #4ADE80 */
+  --destructive-text:0 91% 71%; /* #F87171 */
+  color-scheme:dark;
+}

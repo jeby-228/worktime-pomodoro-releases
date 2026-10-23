@@ -1,0 +1,288 @@
+{
+  "app": {
+    "name": "Time Tracker",
+    "title": "Pomodoro Time Tracker"
+  },
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "confirm": "Confirm",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Info"
+  },
+  "time": {
+    "minutes": "minutes",
+    "hours": "hours",
+    "seconds": "seconds",
+    "minute_short": "min",
+    "hour_short": "hr",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "this_week": "This Week",
+    "last_week": "Last Week",
+    "this_month": "This Month",
+    "custom_range": "Custom Range",
+    "hours_minutes": "{hours} 小時 {minutes} 分"
+  },
+  "nav": {
+    "timer": "Timer",
+    "today": "Today",
+    "records": "Records",
+    "settings": "Settings",
+    "collapse": "Collapse",
+    "expand": "Expand"
+  },
+  "timer": {
+    "idle": "Currently Idle",
+    "working": "Working",
+    "paused": "Paused",
+    "interrupt": "Interrupted",
+    "start_task": "Start Work",
+    "end_task": "End",
+    "pause": "Pause",
+    "resume": "Resume",
+    "interrupt_btn": "Interrupt",
+    "back_to_work": "Back to Work",
+    "elapsed": "Elapsed",
+    "remaining": "Remaining",
+    "task_name": "Task Name",
+    "note": "Note (optional)",
+    "quick_input_hint": "Ctrl+Alt+T for quick input",
+    "interrupt_hint": "Ctrl+Alt+I to interrupt"
+  },
+  "slot_type": {
+    "work": "Work",
+    "interrupt": "Interrupt",
+    "meeting": "Meeting",
+    "lunch": "Lunch"
+  },
+  "quick_input": {
+    "title": "Quick Input",
+    "placeholder": "Search or enter task name...",
+    "recent_tasks": "Recent Tasks",
+    "quick_blocks": "Quick Blocks",
+    "no_results": "No Results"
+  },
+  "interrupt": {
+    "title": "Interrupt",
+    "who": "Who?",
+    "who_placeholder": "Select or enter...",
+    "reason": "Reason?",
+    "reason_placeholder": "Optional",
+    "recent_people": "Recent Contacts",
+    "current_task_paused": "Current task paused"
+  },
+  "today": {
+    "title": "Today",
+    "total": "Total",
+    "work_time": "Work Time",
+    "interrupt_time": "Interrupt Time",
+    "meeting_time": "Meeting Time",
+    "lunch_time": "Lunch Time",
+    "timeline": "Timeline",
+    "gaps": "Unrecorded Periods",
+    "no_slots": "No records today",
+    "ongoing": "Ongoing",
+    "fill_gap": "Fill",
+    "ignore_gap": "Ignore"
+  },
+  "records": {
+    "title": "Records",
+    "date_range": "Date Range",
+    "start_date": "Start Date",
+    "end_date": "End Date",
+    "filter": "Filter",
+    "task_filter": "Task Filter",
+    "type_filter": "Type Filter",
+    "all_types": "All Types",
+    "view_mode": "View Mode",
+    "detail_view": "Details",
+    "summary_view": "Summary by Task",
+    "export": "Export",
+    "export_dialog_title": "Export Time Records",
+    "include_interrupts": "Include Interrupts",
+    "file_format": "File Format",
+    "columns": "Column Selection",
+    "preview": "Preview",
+    "export_btn": "Export",
+    "list_view": "列表",
+    "table_view": "表格",
+    "search_placeholder": "搜尋任務...",
+    "no_records": "無記錄",
+    "items": "筆",
+    "total_items": "共 {count} 筆",
+    "summary_by_task": "依任務彙總"
+  },
+  "export": {
+    "filename": "time_records_{date}",
+    "date": "Date",
+    "task": "Task",
+    "type": "Type",
+    "start_time": "Start Time",
+    "end_time": "End Time",
+    "duration": "Duration",
+    "note": "Note"
+  },
+  "settings": {
+    "title": "Settings",
+    "general": "General",
+    "appearance": "Appearance",
+    "pomodoro": "Pomodoro",
+    "schedule": "Schedule",
+    "mini_mode": "Mini Mode",
+    "language": "Language",
+    "language_follow_system": "Follow System",
+    "theme": "Theme",
+    "theme_light": "Light",
+    "theme_dark": "Dark",
+    "theme_system": "Follow System",
+    "pomodoro_duration": "Pomodoro Duration",
+    "idle_threshold": "Idle Detection Threshold",
+    "lunch_time": "Lunch Time",
+    "lunch_start": "Lunch Start",
+    "lunch_end": "Lunch End",
+    "work_end_time": "Work End Time",
+    "eod_check_enabled": "Enable End-of-Day Check",
+    "eod_check_time": "Check Time",
+    "mini_mode_none": "None",
+    "mini_mode_bar": "Mini Bar",
+    "mini_mode_pet": "Desktop Pet",
+    "mini_mode_both": "Bar + Pet",
+    "pet_selection": "Pet Selection",
+    "pet_current": "Current Pet",
+    "pet_import": "Import Pet",
+    "pet_import_hint": "Supports .codex-pet.zip format",
+    "shortcuts": "快捷鍵",
+    "about": "關於",
+    "technology": "技術堆疊",
+    "check_updates": "檢查更新",
+    "check_updates_desc": "檢查是否有新版本可用",
+    "check_now": "立即檢查",
+    "checking": "檢查中...",
+    "update_available": "發現新版本 {version}",
+    "update_confirm": "下載並安裝版本 {version}？",
+    "restart_confirm": "安裝完成，現在重啟應用？",
+    "no_updates": "目前已是最新版本",
+    "update_check_failed": "檢查更新失敗"
+  },
+  "idle_return": {
+    "title": "Idle Detected",
+    "message": "Away for {minutes} minutes, count as:",
+    "continue_task": "Continue Task",
+    "lunch": "Lunch",
+    "meeting": "Meeting",
+    "ignore": "Ignore",
+    "continue_desc": "將閒置時間計入當前任務",
+    "lunch_desc": "將閒置時間記為午休",
+    "meeting_desc": "將閒置時間記為會議",
+    "discard": "不算",
+    "discard_desc": "不記錄這段閒置時間"
+  },
+  "eod_review": {
+    "title": "End-of-Day Review",
+    "message": "{count} unrecorded periods today",
+    "gaps_list": "Unrecorded Periods",
+    "fill_all": "Fill All",
+    "skip": "Skip"
+  },
+  "tray": {
+    "show": "Show Window",
+    "hide": "Hide",
+    "quick_input": "Quick Input",
+    "start_work": "Start Work",
+    "end_task": "End Task",
+    "pause": "Pause",
+    "resume": "Resume",
+    "interrupt": "Interrupt",
+    "quit": "Quit"
+  },
+  "notification": {
+    "task_started": "Started: {task}",
+    "task_ended": "Ended: {task}",
+    "task_paused": "Paused",
+    "task_resumed": "Resumed",
+    "interrupt_started": "Interrupt: {who}",
+    "interrupt_ended": "Returned to work",
+    "pomodoro_complete": "Pomodoro complete!",
+    "idle_detected": "Idle detected: {minutes} minutes",
+    "eod_check": "End-of-day check: {count} unrecorded periods"
+  },
+  "mini_bar": {
+    "no_task": "No Task"
+  },
+  "pet": {
+    "default_name": "Tomato",
+    "state_working": "Working",
+    "state_interrupt": "Interrupted",
+    "state_idle": "Idle",
+    "state_lunch": "Lunch",
+    "state_unrecorded": "Unrecorded",
+    "state_done": "Done"
+  },
+  "validation": {
+    "required": "This field is required",
+    "invalid_time": "Invalid time format",
+    "invalid_date": "Invalid date format",
+    "overlap_detected": "Time overlap detected",
+    "future_time": "Cannot select future time"
+  },
+  "error_messages": {
+    "failed_to_start": "Failed to start: {error}",
+    "failed_to_end": "Failed to end: {error}",
+    "failed_to_load": "Failed to load: {error}",
+    "failed_to_save": "Failed to save: {error}",
+    "failed_to_export": "Failed to export: {error}",
+    "no_active_task": "No active task",
+    "already_has_task": "Already has active task"
+  },
+  "actions": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving...",
+    "delete": "Delete",
+    "fill": "Fill",
+    "fill_gap": "Fill Gap",
+    "skip_all": "Skip All"
+  },
+  "slot_types": {
+    "work": "Work",
+    "interrupt": "Interrupt",
+    "meeting": "Meeting",
+    "lunch": "Lunch"
+  },
+  "slot_edit": {
+    "title": "Edit Slot",
+    "type": "Type",
+    "task_title": "Task Title",
+    "person": "Person",
+    "start_time": "Start Time",
+    "end_time": "End Time",
+    "note": "Note"
+  },
+  "placeholders": {
+    "task_title": "Enter task title...",
+    "person": "Enter person (optional)...",
+    "note": "Enter note (optional)..."
+  },
+  "errors": {
+    "task_title_required": "Please enter task title",
+    "start_time_required": "Please select start time"
+  },
+  "confirm": {
+    "delete_slot": "Confirm deletion of this slot?"
+  },
+  "timeline": {
+    "gap_unrecorded": "Unrecorded {minutes} min",
+    "interrupt_badge": "Interrupt"
+  }
+}

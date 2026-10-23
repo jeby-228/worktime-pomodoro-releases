@@ -1,0 +1,28 @@
+{
+  "name": "番茄君",
+  "version": "1.0.0",
+  "spritesheet": {
+    "width": 1536,
+    "height": 1872,
+    "frameWidth": 192,
+    "frameHeight": 208,
+    "columns": 8,
+    "rows": 9
+  },
+  "states": {
+    "idle": { "row": 0, "frames": 8, "fps": 8 },
+    "wave": { "row": 1, "frames": 8, "fps": 8 },
+    "jump": { "row": 2, "frames": 8, "fps": 10 },
+    "failed": { "row": 3, "frames": 8, "fps": 6 },
+    "waiting": { "row": 4, "frames": 8, "fps": 4 },
+    "review": { "row": 5, "frames": 8, "fps": 6 }
+  },
+  "mapping": {
+    "working": "idle",
+    "interrupt": "failed",
+    "unrecorded": "wave",
+    "done": "jump",
+    "lunch": "waiting",
+    "paused": "review"
+  }
+}

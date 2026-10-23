@@ -1,0 +1,288 @@
+{
+  "app": {
+    "name": "工时记录",
+    "title": "番茄工时追踪"
+  },
+  "common": {
+    "ok": "确定",
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "close": "关闭",
+    "back": "返回",
+    "next": "下一步",
+    "confirm": "确认",
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功",
+    "warning": "警告",
+    "info": "信息"
+  },
+  "time": {
+    "minutes": "分钟",
+    "hours": "小时",
+    "seconds": "秒",
+    "minute_short": "分",
+    "hour_short": "时",
+    "today": "今天",
+    "yesterday": "昨天",
+    "this_week": "本周",
+    "last_week": "上周",
+    "this_month": "本月",
+    "custom_range": "自定义范围",
+    "hours_minutes": "{hours} 小時 {minutes} 分"
+  },
+  "nav": {
+    "timer": "计时",
+    "today": "今天",
+    "records": "记录",
+    "settings": "设置",
+    "collapse": "收合",
+    "expand": "展开"
+  },
+  "timer": {
+    "idle": "当前闲置",
+    "working": "工作中",
+    "paused": "已暂停",
+    "interrupt": "插队中",
+    "start_task": "开始工作",
+    "end_task": "结束",
+    "pause": "暂停",
+    "resume": "继续",
+    "interrupt_btn": "插队",
+    "back_to_work": "回到原本工作",
+    "elapsed": "已用时",
+    "remaining": "剩余",
+    "task_name": "任务名称",
+    "note": "备注（选填）",
+    "quick_input_hint": "Ctrl+Alt+T 快速输入",
+    "interrupt_hint": "Ctrl+Alt+I 插队"
+  },
+  "slot_type": {
+    "work": "工作",
+    "interrupt": "插队",
+    "meeting": "会议",
+    "lunch": "午休"
+  },
+  "quick_input": {
+    "title": "快速输入",
+    "placeholder": "搜索或输入任务名称...",
+    "recent_tasks": "最近任务",
+    "quick_blocks": "快速区块",
+    "no_results": "无结果"
+  },
+  "interrupt": {
+    "title": "插队",
+    "who": "是谁？",
+    "who_placeholder": "选择或输入...",
+    "reason": "原因？",
+    "reason_placeholder": "选填",
+    "recent_people": "最近联系人",
+    "current_task_paused": "当前任务已暂停"
+  },
+  "today": {
+    "title": "今天",
+    "total": "总计",
+    "work_time": "工作时间",
+    "interrupt_time": "插队时间",
+    "meeting_time": "会议时间",
+    "lunch_time": "午休时间",
+    "timeline": "时间轴",
+    "gaps": "未记录时段",
+    "no_slots": "今天还没有记录",
+    "ongoing": "进行中",
+    "fill_gap": "补登",
+    "ignore_gap": "忽略"
+  },
+  "records": {
+    "title": "记录",
+    "date_range": "日期范围",
+    "start_date": "开始日期",
+    "end_date": "结束日期",
+    "filter": "筛选",
+    "task_filter": "任务筛选",
+    "type_filter": "类型筛选",
+    "all_types": "所有类型",
+    "view_mode": "查看模式",
+    "detail_view": "明细",
+    "summary_view": "依任务汇总",
+    "export": "导出",
+    "export_dialog_title": "导出工时记录",
+    "include_interrupts": "包含插队记录",
+    "file_format": "文件格式",
+    "columns": "栏位选择",
+    "preview": "预览",
+    "export_btn": "导出",
+    "list_view": "列表",
+    "table_view": "表格",
+    "search_placeholder": "搜尋任務...",
+    "no_records": "無記錄",
+    "items": "筆",
+    "total_items": "共 {count} 筆",
+    "summary_by_task": "依任務彙總"
+  },
+  "export": {
+    "filename": "工时记录_{date}",
+    "date": "日期",
+    "task": "任务",
+    "type": "类型",
+    "start_time": "开始时间",
+    "end_time": "结束时间",
+    "duration": "时长",
+    "note": "备注"
+  },
+  "settings": {
+    "title": "设置",
+    "general": "一般",
+    "appearance": "外观",
+    "pomodoro": "番茄钟",
+    "schedule": "时程",
+    "mini_mode": "迷你模式",
+    "language": "语言",
+    "language_follow_system": "跟随系统",
+    "theme": "主题",
+    "theme_light": "浅色",
+    "theme_dark": "深色",
+    "theme_system": "跟随系统",
+    "pomodoro_duration": "番茄钟时长",
+    "idle_threshold": "闲置侦测阈值",
+    "lunch_time": "午休时间",
+    "lunch_start": "午休开始",
+    "lunch_end": "午休结束",
+    "work_end_time": "下班时间",
+    "eod_check_enabled": "启用下班前检查",
+    "eod_check_time": "检查时间",
+    "mini_mode_none": "无",
+    "mini_mode_bar": "迷你 Bar",
+    "mini_mode_pet": "桌面宠物",
+    "mini_mode_both": "Bar + 宠物",
+    "pet_selection": "宠物选择",
+    "pet_current": "当前宠物",
+    "pet_import": "导入宠物",
+    "pet_import_hint": "支持 .codex-pet.zip 格式",
+    "shortcuts": "快捷鍵",
+    "about": "關於",
+    "technology": "技術堆疊",
+    "check_updates": "檢查更新",
+    "check_updates_desc": "檢查是否有新版本可用",
+    "check_now": "立即檢查",
+    "checking": "檢查中...",
+    "update_available": "發現新版本 {version}",
+    "update_confirm": "下載並安裝版本 {version}？",
+    "restart_confirm": "安裝完成，現在重啟應用？",
+    "no_updates": "目前已是最新版本",
+    "update_check_failed": "檢查更新失敗"
+  },
+  "idle_return": {
+    "title": "离开检测",
+    "message": "离开 {minutes} 分钟，要算成：",
+    "continue_task": "继续原任务",
+    "lunch": "午休",
+    "meeting": "会议",
+    "ignore": "不算",
+    "continue_desc": "將閒置時間計入當前任務",
+    "lunch_desc": "將閒置時間記為午休",
+    "meeting_desc": "將閒置時間記為會議",
+    "discard": "不算",
+    "discard_desc": "不記錄這段閒置時間"
+  },
+  "eod_review": {
+    "title": "下班前检查",
+    "message": "今天有 {count} 个未记录时段",
+    "gaps_list": "未记录时段",
+    "fill_all": "全部补登",
+    "skip": "跳过"
+  },
+  "tray": {
+    "show": "显示主窗口",
+    "hide": "隐藏",
+    "quick_input": "快速输入",
+    "start_work": "开始工作",
+    "end_task": "结束任务",
+    "pause": "暂停",
+    "resume": "继续",
+    "interrupt": "插队",
+    "quit": "退出"
+  },
+  "notification": {
+    "task_started": "已开始：{task}",
+    "task_ended": "已结束：{task}",
+    "task_paused": "已暂停",
+    "task_resumed": "已继续",
+    "interrupt_started": "插队：{who}",
+    "interrupt_ended": "已返回工作",
+    "pomodoro_complete": "番茄钟完成！",
+    "idle_detected": "侦测到闲置 {minutes} 分钟",
+    "eod_check": "下班前检查：有 {count} 个未记录时段"
+  },
+  "mini_bar": {
+    "no_task": "无任务"
+  },
+  "pet": {
+    "default_name": "番茄君",
+    "state_working": "工作中",
+    "state_interrupt": "插队中",
+    "state_idle": "闲置",
+    "state_lunch": "午休",
+    "state_unrecorded": "未记录",
+    "state_done": "完成"
+  },
+  "validation": {
+    "required": "此栏位为必填",
+    "invalid_time": "无效的时间格式",
+    "invalid_date": "无效的日期格式",
+    "overlap_detected": "时段重叠",
+    "future_time": "不能选择未来时间"
+  },
+  "error_messages": {
+    "failed_to_start": "启动失败：{error}",
+    "failed_to_end": "结束失败：{error}",
+    "failed_to_load": "加载失败：{error}",
+    "failed_to_save": "保存失败：{error}",
+    "failed_to_export": "导出失败：{error}",
+    "no_active_task": "没有进行中的任务",
+    "already_has_task": "已有进行中的任务"
+  },
+  "actions": {
+    "close": "关闭",
+    "cancel": "取消",
+    "save": "保存",
+    "saving": "保存中...",
+    "delete": "删除",
+    "fill": "补登",
+    "fill_gap": "补记",
+    "skip_all": "跳过全部"
+  },
+  "slot_types": {
+    "work": "工作",
+    "interrupt": "插队",
+    "meeting": "会议",
+    "lunch": "午休"
+  },
+  "slot_edit": {
+    "title": "编辑时段",
+    "type": "类型",
+    "task_title": "任务名称",
+    "person": "联系人",
+    "start_time": "开始时间",
+    "end_time": "结束时间",
+    "note": "备注"
+  },
+  "placeholders": {
+    "task_title": "输入任务名称...",
+    "person": "输入联系人（选填）...",
+    "note": "输入备注（选填）..."
+  },
+  "errors": {
+    "task_title_required": "请输入任务名称",
+    "start_time_required": "请选择开始时间"
+  },
+  "confirm": {
+    "delete_slot": "确定要删除这个时段吗？"
+  },
+  "timeline": {
+    "gap_unrecorded": "未记录 {minutes} 分",
+    "interrupt_badge": "插队"
+  }
+}
