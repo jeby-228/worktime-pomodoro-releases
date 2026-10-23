@@ -16,6 +16,7 @@ pub enum AppStateEnum {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateData {
+    #[serde(rename = "status")]
     pub state: AppStateEnum,
     pub current_slot_id: Option<i64>,
     pub paused_slot_id: Option<i64>,

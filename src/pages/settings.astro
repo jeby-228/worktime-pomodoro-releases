@@ -1,9 +1,11 @@
 ---
+import BaseLayout from '../layouts/BaseLayout.astro';
 import DesktopLayout from '$components/DesktopLayout.svelte';
 import SettingsPage from '$components/SettingsPage.svelte';
-import '../styles/global.css';
 ---
 
-<DesktopLayout currentRoute="settings" client:load>
-  <SettingsPage client:load />
-</DesktopLayout>
+<BaseLayout title="設定 - 工時記錄">
+  <DesktopLayout currentRoute="settings" client:load>
+    <SettingsPage client:load />
+  </DesktopLayout>
+</BaseLayout>
