@@ -28,7 +28,7 @@
   let updateInterval: number | undefined;
   
   let displayTime = $derived(() => {
-    const seconds = state.status === 'idle' ? 0 : state.elapsed_seconds;
+    const seconds = state.status === 'idle' ? 0 : (state.elapsed_seconds || 0);
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
@@ -36,7 +36,8 @@
   
   let progress = $derived(() => {
     if (state.status === 'idle') return 0;
-    return Math.min(100, (state.elapsed_seconds / pomodoroLength) * 100);
+    const elapsed = state.elapsed_seconds || 0;
+    return Math.min(100, (elapsed / pomodoroLength) * 100);
   });
   
   onMount(() => {
@@ -62,10 +63,26 @@
       const elapsed = await invoke<number | null>('get_elapsed_seconds');
       const remaining = await invoke<number | null>('get_remaining_seconds');
       
-      if (elapsed !== null) state.elapsed_seconds = elapsed;
-      if (remaining !== null) state.remaining_seconds = remaining;
+      if (elapsed !== null && !isNaN(elapsed)) {
+        state.elapsed_seconds = elapsed;
+      } else {
+        state.elapsed_seconds = 0;
+      }
+      
+      if (remaining !== null && !isNaN(remaining)) {
+        state.remaining_seconds = remaining;
+      } else {
+        state.remaining_seconds = 0;
+      }
     } catch (err) {
       console.error('Failed to load state:', err);
+      // Reset to safe idle state on error
+      state = {
+        status: 'idle',
+        current_task: null,
+        elapsed_seconds: 0,
+        remaining_seconds: 0,
+      };
     }
   }
   
