@@ -85,19 +85,9 @@ pub fn run() {
             // Create tray icon
             tray::create_tray(app.handle())?;
 
-            let window = tauri::WebviewWindowBuilder::new(app, "main", Default::default())
-                .title("Worktime Pomodoro")
-                .inner_size(960.0, 640.0)
-                .min_inner_size(800.0, 560.0)
-                .resizable(true)
-                .build()?;
-
-            window.on_window_event(|event| {
-                if let WindowEvent::CloseRequested { .. } = event {
-                    info!("Window close requested");
-                }
-            });
-
+            // Note: The main window is already created from tauri.conf.json
+            // No need to create it again here to avoid "webview with label 'main' already exists" error
+            
             info!("App setup completed");
             Ok(())
         })
