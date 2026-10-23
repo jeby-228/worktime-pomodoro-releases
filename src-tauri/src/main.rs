@@ -121,6 +121,8 @@ pub fn run() {
             export_to_csv,
             show_minibar,
             hide_minibar,
+            show_pet,
+            hide_pet,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

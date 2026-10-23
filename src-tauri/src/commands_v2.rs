@@ -353,6 +353,22 @@ pub fn hide_minibar(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub fn show_pet(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("pet") {
+        window.show().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn hide_pet(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("pet") {
+        window.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 // ==================== Export Commands ====================
 
 #[derive(Debug, Serialize, Deserialize)]

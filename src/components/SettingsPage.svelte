@@ -1,48 +1,40 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import { open } from '@tauri-apps/plugin-dialog';
   import { check as checkUpdate } from '@tauri-apps/plugin-updater';
   import { relaunch } from '@tauri-apps/plugin-process';
   import { Settings, Palette, Clock, Calendar, Keyboard, Monitor, Info } from 'lucide-svelte';
   import { t, setLocale, currentLocale } from '$lib/i18n';
   
   interface AppSettings {
-    language: string;
     theme: string;
-    pomodoro_length_minutes: number;
-    idle_threshold_minutes: number;
-    lunch_start_time: string;
-    lunch_end_time: string;
-    work_end_time: string;
+    pomodoro_minutes: number;
+    lunch_start: string;
+    lunch_end: string;
+    work_end: string;
     eod_check_enabled: boolean;
-    eod_check_time: string;
-    companion_mode: string;
-    current_pet_path: string | null;
+    mini_mode: string;
+    pet_id: string;
   }
   
   let settings = $state<AppSettings>({
-    language: 'zh-TW',
     theme: 'system',
-    pomodoro_length_minutes: 25,
-    idle_threshold_minutes: 5,
-    lunch_start_time: '12:00',
-    lunch_end_time: '13:00',
-    work_end_time: '17:30',
+    pomodoro_minutes: 25,
+    lunch_start: '12:00',
+    lunch_end: '13:00',
+    work_end: '17:30',
     eod_check_enabled: true,
-    eod_check_time: '17:20',
-    companion_mode: 'none',
-    current_pet_path: null,
+    mini_mode: 'none',
+    pet_id: 'tomato-kun',
   });
   
-  let activeSection = $state('general');
+  let activeSection = $state('appearance');
   let isDirty = $state(false);
   let checking = $state(false);
   let updateAvailable = $state(false);
   let updateMessage = $state('');
   
   const sections = [
-    { id: 'general', icon: Settings, labelKey: 'settings.general' },
     { id: 'appearance', icon: Palette, labelKey: 'settings.appearance' },
     { id: 'pomodoro', icon: Clock, labelKey: 'settings.pomodoro' },
     { id: 'schedule', icon: Calendar, labelKey: 'settings.schedule' },
@@ -70,15 +62,34 @@
       await invoke('save_settings', { settings });
       isDirty = false;
       
-      // Apply language change immediately
-      if (settings.language !== 'system') {
-        await setLocale(settings.language);
-      }
-      
       // Apply theme change immediately
       applyTheme(settings.theme);
+      
+      // Apply mini mode changes immediately
+      await applyMiniMode(settings.mini_mode);
     } catch (err) {
       console.error('Failed to save settings:', err);
+    }
+  }
+
+  async function applyMiniMode(mode: string) {
+    try {
+      const showMini = mode === 'mini' || mode === 'both';
+      const showPet = mode === 'pet' || mode === 'both';
+      
+      if (showMini) {
+        await invoke('show_minibar');
+      } else {
+        await invoke('hide_minibar');
+      }
+      
+      if (showPet) {
+        await invoke('show_pet');
+      } else {
+        await invoke('hide_pet');
+      }
+    } catch (err) {
+      console.error('Failed to apply mini mode:', err);
     }
   }
   
@@ -107,26 +118,6 @@
     isDirty = true;
   }
   
-  async function importPet() {
-    try {
-      const selected = await open({
-        filters: [{ name: 'Codex Pet', extensions: ['codex-pet.zip', 'zip'] }],
-        multiple: false,
-      });
-      
-      if (selected) {
-        settings.current_pet_path = selected as string;
-        markDirty();
-      }
-    } catch (err) {
-      console.error('Failed to import pet:', err);
-    }
-  }
-  
-  function exportDefault() {
-    // TODO: export default pet
-    console.log('Export default pet');
-  }
 
   async function checkForUpdates() {
     checking = true;
@@ -186,31 +177,7 @@
   <!-- Right: Form content -->
   <div class="flex-1 overflow-y-auto">
     <div class="mx-auto max-w-2xl p-8">
-      {#if activeSection === 'general'}
-        <div class="space-y-6">
-          <div>
-            <h2 class="text-xl font-semibold mb-4">{$t('settings.general')}</h2>
-          </div>
-          
-          <!-- Language -->
-          <div class="space-y-2">
-            <label class="text-sm font-medium">{$t('settings.language')}</label>
-            <select
-              bind:value={settings.language}
-              onchange={markDirty}
-              class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-            >
-              <option value="system">{$t('settings.language_follow_system')}</option>
-              <option value="zh-TW">繁體中文</option>
-              <option value="zh-CN">简体中文</option>
-              <option value="en">English</option>
-              <option value="vi">Tiếng Việt</option>
-              <option value="th">ไทย</option>
-            </select>
-          </div>
-        </div>
-        
-      {:else if activeSection === 'appearance'}
+      {#if activeSection === 'appearance'}
         <div class="space-y-6">
           <div>
             <h2 class="text-xl font-semibold mb-4">{$t('settings.appearance')}</h2>
@@ -260,26 +227,10 @@
             <div class="flex items-center gap-3">
               <input
                 type="number"
-                bind:value={settings.pomodoro_length_minutes}
+                bind:value={settings.pomodoro_minutes}
                 oninput={markDirty}
                 min="1"
                 max="90"
-                class="w-24 rounded-md border border-border bg-background px-3 py-2 text-sm"
-              />
-              <span class="text-sm text-muted-foreground">{$t('time.minutes')}</span>
-            </div>
-          </div>
-          
-          <!-- Idle Threshold -->
-          <div class="space-y-2">
-            <label class="text-sm font-medium">{$t('settings.idle_threshold')}</label>
-            <div class="flex items-center gap-3">
-              <input
-                type="number"
-                bind:value={settings.idle_threshold_minutes}
-                oninput={markDirty}
-                min="1"
-                max="30"
                 class="w-24 rounded-md border border-border bg-background px-3 py-2 text-sm"
               />
               <span class="text-sm text-muted-foreground">{$t('time.minutes')}</span>
@@ -299,14 +250,14 @@
             <div class="flex items-center gap-3">
               <input
                 type="time"
-                bind:value={settings.lunch_start_time}
+                bind:value={settings.lunch_start}
                 oninput={markDirty}
                 class="rounded-md border border-border bg-background px-3 py-2 text-sm"
               />
               <span class="text-muted-foreground">-</span>
               <input
                 type="time"
-                bind:value={settings.lunch_end_time}
+                bind:value={settings.lunch_end}
                 oninput={markDirty}
                 class="rounded-md border border-border bg-background px-3 py-2 text-sm"
               />
@@ -318,7 +269,7 @@
             <label class="text-sm font-medium">{$t('settings.work_end_time')}</label>
             <input
               type="time"
-              bind:value={settings.work_end_time}
+              bind:value={settings.work_end}
               oninput={markDirty}
               class="rounded-md border border-border bg-background px-3 py-2 text-sm"
             />
@@ -335,14 +286,6 @@
               />
               <span class="text-sm font-medium">{$t('settings.eod_check_enabled')}</span>
             </label>
-            {#if settings.eod_check_enabled}
-              <input
-                type="time"
-                bind:value={settings.eod_check_time}
-                oninput={markDirty}
-                class="ml-7 rounded-md border border-border bg-background px-3 py-2 text-sm"
-              />
-            {/if}
           </div>
         </div>
         
@@ -371,39 +314,39 @@
             <h2 class="text-xl font-semibold mb-4">{$t('settings.mini_mode')}</h2>
           </div>
           
-          <!-- Companion Mode -->
+          <!-- Mini Mode -->
           <div class="space-y-2">
             <label class="text-sm font-medium">迷你模式</label>
             <div class="grid grid-cols-2 gap-3">
               <button
-                onclick={() => { settings.companion_mode = 'none'; markDirty(); }}
+                onclick={() => { settings.mini_mode = 'none'; markDirty(); }}
                 class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors"
-                class:border-primary={settings.companion_mode === 'none'}
-                class:bg-accent={settings.companion_mode === 'none'}
+                class:border-primary={settings.mini_mode === 'none'}
+                class:bg-accent={settings.mini_mode === 'none'}
               >
                 {$t('settings.mini_mode_none')}
               </button>
               <button
-                onclick={() => { settings.companion_mode = 'mini'; markDirty(); }}
+                onclick={() => { settings.mini_mode = 'mini'; markDirty(); }}
                 class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors"
-                class:border-primary={settings.companion_mode === 'mini'}
-                class:bg-accent={settings.companion_mode === 'mini'}
+                class:border-primary={settings.mini_mode === 'mini'}
+                class:bg-accent={settings.mini_mode === 'mini'}
               >
                 {$t('settings.mini_mode_bar')}
               </button>
               <button
-                onclick={() => { settings.companion_mode = 'pet'; markDirty(); }}
+                onclick={() => { settings.mini_mode = 'pet'; markDirty(); }}
                 class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors"
-                class:border-primary={settings.companion_mode === 'pet'}
-                class:bg-accent={settings.companion_mode === 'pet'}
+                class:border-primary={settings.mini_mode === 'pet'}
+                class:bg-accent={settings.mini_mode === 'pet'}
               >
                 {$t('settings.mini_mode_pet')}
               </button>
               <button
-                onclick={() => { settings.companion_mode = 'both'; markDirty(); }}
+                onclick={() => { settings.mini_mode = 'both'; markDirty(); }}
                 class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors"
-                class:border-primary={settings.companion_mode === 'both'}
-                class:bg-accent={settings.companion_mode === 'both'}
+                class:border-primary={settings.mini_mode === 'both'}
+                class:bg-accent={settings.mini_mode === 'both'}
               >
                 {$t('settings.mini_mode_both')}
               </button>
@@ -411,29 +354,12 @@
           </div>
           
           <!-- Pet Selection -->
-          {#if settings.companion_mode === 'pet' || settings.companion_mode === 'both'}
+          {#if settings.mini_mode === 'pet' || settings.mini_mode === 'both'}
             <div class="space-y-2">
               <label class="text-sm font-medium">{$t('settings.pet_selection')}</label>
               <div class="rounded-md border border-border p-4">
                 <div class="mb-3 text-sm text-muted-foreground">
-                  {$t('settings.pet_current')}: {settings.current_pet_path || '番茄君 (預設)'}
-                </div>
-                <div class="flex gap-3">
-                  <button
-                    onclick={importPet}
-                    class="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
-                  >
-                    {$t('settings.pet_import')}
-                  </button>
-                  <button
-                    onclick={exportDefault}
-                    class="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
-                  >
-                    匯出預設
-                  </button>
-                </div>
-                <div class="mt-2 text-xs text-muted-foreground">
-                  {$t('settings.pet_import_hint')}
+                  當前寵物：番茄君 (D-mono)
                 </div>
               </div>
             </div>
