@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::{Manager, WindowEvent};
+use tauri::Manager;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 

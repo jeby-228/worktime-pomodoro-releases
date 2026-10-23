@@ -44,7 +44,10 @@ pub struct StartTaskRequest {
 
 #[tauri::command]
 pub fn start_task(request: StartTaskRequest, state_mgr: State<AppStateMgr>) -> Result<i64, String> {
-    let slot_type = SlotType::from_str(&request.slot_type).map_err(|e| e.to_string())?;
+    let slot_type = request
+        .slot_type
+        .parse::<SlotType>()
+        .map_err(|e| e.to_string())?;
     state_mgr
         .start_task(request.task_name, slot_type)
         .map_err(|e| e.to_string())
@@ -201,7 +204,10 @@ pub fn create_slot_manual(
 ) -> Result<i64, String> {
     use chrono::DateTime;
 
-    let slot_type = SlotType::from_str(&request.slot_type).map_err(|e| e.to_string())?;
+    let slot_type = request
+        .slot_type
+        .parse::<SlotType>()
+        .map_err(|e| e.to_string())?;
     let start_ts = DateTime::parse_from_rfc3339(&request.start_ts)
         .map_err(|e| e.to_string())?
         .with_timezone(&chrono::Local);
@@ -244,7 +250,10 @@ pub fn update_slot_manual(
         return Err("請輸入任務名稱".to_string());
     }
 
-    let slot_type = SlotType::from_str(&request.slot_type).map_err(|e| e.to_string())?;
+    let slot_type = request
+        .slot_type
+        .parse::<SlotType>()
+        .map_err(|e| e.to_string())?;
     let start_ts = DateTime::parse_from_rfc3339(&request.start_ts)
         .map_err(|e| e.to_string())?
         .with_timezone(&chrono::Local);
@@ -670,7 +679,7 @@ pub fn export_to_csv(
 
     let mut wtr = csv::Writer::from_path(&path).map_err(|e| e.to_string())?;
 
-    wtr.write_record(&[
+    wtr.write_record([
         "日期",
         "任務",
         "類型",
@@ -682,7 +691,7 @@ pub fn export_to_csv(
     .map_err(|e| e.to_string())?;
 
     for row in rows {
-        wtr.write_record(&[
+        wtr.write_record([
             row.date,
             row.task_name,
             row.slot_type,

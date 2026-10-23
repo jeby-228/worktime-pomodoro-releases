@@ -108,7 +108,7 @@ impl StoreV2 {
                         id: Some(row.get(0)?),
                         uuid: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
                         task_name: row.get(2)?,
-                        slot_type: SlotType::from_str(&row.get::<_, String>(3)?).unwrap(),
+                        slot_type: row.get::<_, String>(3)?.parse().unwrap(),
                         start_ts: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
                             .unwrap()
                             .with_timezone(&Local),
@@ -142,7 +142,7 @@ impl StoreV2 {
                         id: Some(row.get(0)?),
                         uuid: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
                         task_name: row.get(2)?,
-                        slot_type: SlotType::from_str(&row.get::<_, String>(3)?).unwrap(),
+                        slot_type: row.get::<_, String>(3)?.parse().unwrap(),
                         start_ts: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
                             .unwrap()
                             .with_timezone(&Local),
@@ -189,7 +189,7 @@ impl StoreV2 {
                     id: Some(row.get(0)?),
                     uuid: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
                     task_name: row.get(2)?,
-                    slot_type: SlotType::from_str(&row.get::<_, String>(3)?).unwrap(),
+                    slot_type: row.get::<_, String>(3)?.parse().unwrap(),
                     start_ts: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
                         .unwrap()
                         .with_timezone(&Local),
@@ -239,7 +239,7 @@ impl StoreV2 {
                     id: Some(row.get(0)?),
                     uuid: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
                     task_name: row.get(2)?,
-                    slot_type: SlotType::from_str(&row.get::<_, String>(3)?).unwrap(),
+                    slot_type: row.get::<_, String>(3)?.parse().unwrap(),
                     start_ts: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
                         .unwrap()
                         .with_timezone(&Local),
@@ -322,7 +322,7 @@ impl StoreV2 {
                 let minutes: f64 = row.get(2)?;
                 Ok(TaskSummary {
                     task_name: row.get(0)?,
-                    slot_type: SlotType::from_str(&row.get::<_, String>(1)?).unwrap(),
+                    slot_type: row.get::<_, String>(1)?.parse().unwrap(),
                     total_minutes: minutes.round() as i64,
                     total_hours: minutes / 60.0,
                     percentage: 0.0,
@@ -401,7 +401,7 @@ impl StoreV2 {
                         .unwrap()
                         .with_timezone(&Local),
                     use_count: row.get(3)?,
-                    slot_type: SlotType::from_str(&row.get::<_, String>(4)?).unwrap(),
+                    slot_type: row.get::<_, String>(4)?.parse().unwrap(),
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -523,7 +523,6 @@ impl StoreV2 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Timelike;
 
     #[test]
     fn test_update_slot_name() {

@@ -20,8 +20,12 @@ impl SlotType {
             Self::Lunch => "lunch",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> anyhow::Result<Self> {
+impl std::str::FromStr for SlotType {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "work" => Ok(Self::Work),
             "interrupt" => Ok(Self::Interrupt),
