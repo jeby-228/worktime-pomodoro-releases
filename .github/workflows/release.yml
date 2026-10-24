@@ -231,7 +231,11 @@ jobs:
             "worktime-pomodoro_${version}_aarch64.dmg"
             "worktime-pomodoro_${version}_x64.dmg"
           )
-          gh release download "${GITHUB_REF_NAME}" --dir "$workdir" "${installers[@]}"
+          patterns=()
+          for name in "${installers[@]}"; do
+            patterns+=(--pattern "$name")
+          done
+          gh release download "${GITHUB_REF_NAME}" --dir "$workdir" --clobber "${patterns[@]}"
           : > "$sums"
           for name in "${installers[@]}"; do
             ( cd "$workdir" && sha256sum "$name" ) >> "$sums"
