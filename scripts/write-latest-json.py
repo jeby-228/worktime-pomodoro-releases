@@ -54,8 +54,8 @@ def choose(predicate, preference) -> str | None:
 
 platforms = {
     "linux-x86_64": choose(
-        lambda name: name.endswith(".AppImage.tar.gz"),
-        (".AppImage.tar.gz",),
+        lambda name: name.endswith(".AppImage.tar.gz") or name.endswith(".AppImage"),
+        (".AppImage.tar.gz", ".AppImage"),
     ),
     "windows-x86_64": choose(
         lambda name: name.endswith(("-setup.exe.zip", ".msi.zip", "-setup.exe")),
