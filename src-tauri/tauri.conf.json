@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "worktime-pomodoro",
   "mainBinaryName": "worktime-pomodoro",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "com.worktime.pomodoro",
   "build": {
     "frontendDist": "../dist",
@@ -63,6 +63,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -92,7 +93,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "YOUR_PUBLIC_KEY_HERE",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU4MjVERjhCODIyNkE5MkQKUldRdHFTYUNpOThsV0FoRkovM2dsRHg4MVU3UWs5bmJlTEtLK3Yyam9IcWVxV3NNRlU5NnJYY2oK",
       "endpoints": [
         "https://github.com/jeby-228/worktime-pomodoro-releases/releases/latest/download/latest.json"
       ]
