@@ -130,9 +130,10 @@ jobs:
           path: dist/
 
       - name: Build Tauri application
-        run: npm run tauri:build
+        run: npm run tauri:build -- --config '{"bundle":{"createUpdaterArtifacts":false}}'
         env:
-          # 跳過簽名（CI 環境中無私鑰）
+          # TAURI_SKIP_SIGNING does not skip updater minisign. This job only
+          # checks that the app bundles; release.yml signs updater artifacts.
           TAURI_SKIP_SIGNING: true
 
       - name: Upload Tauri artifacts
