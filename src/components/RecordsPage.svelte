@@ -147,6 +147,28 @@
         }
         grouped[date].slots.push(slot);
       }
+
+      const today = localDateString(new Date());
+      for (const slot of slots) {
+        if (slotEnd(slot)) continue;
+        const started = slotDate(slot);
+        if (!started || started === today) continue;
+        if (!grouped[today]) {
+          grouped[today] = {
+            slots: [],
+            stats: {
+              work_minutes: 0,
+              interrupt_minutes: 0,
+              meeting_minutes: 0,
+              lunch_minutes: 0,
+              total_recorded: 0,
+            },
+          };
+        }
+        if (!grouped[today].slots.some((item) => item.id === slot.id)) {
+          grouped[today].slots.push(slot);
+        }
+      }
       for (const data of Object.values(grouped)) {
         data.stats = summarize(data.slots);
       }
@@ -209,11 +231,18 @@
   });
 
   const totalStats = $derived.by(() => {
+    const seen: Record<string, true> = {};
     let totalMinutes = 0;
     let totalCount = 0;
     for (const [, data] of Object.entries(groupedData)) {
-      totalMinutes += data.stats.total_recorded;
-      totalCount += data.slots.length;
+      for (const slot of data.slots) {
+        if (slot.id == null) continue;
+        const key = String(slot.id);
+        if (seen[key]) continue;
+        seen[key] = true;
+        totalMinutes += slotMinutes(slot);
+        totalCount += 1;
+      }
     }
     return { totalMinutes, totalCount };
   });

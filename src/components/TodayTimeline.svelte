@@ -108,6 +108,39 @@
     return a.start_ts === b.start_ts && a.end_ts === b.end_ts;
   }
   
+  function localDateString(date: Date): string {
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${date.getFullYear()}-${month}-${day}`;
+  }
+
+  function slotMinutes(slot: TimeSlot): number {
+    const start = tsValue(slot.start_ts);
+    if (!start) return 0;
+    const end = slot.end_ts ? tsValue(slot.end_ts) : Date.now();
+    if (!end) return 0;
+    return Math.max(0, Math.round((end - start) / 60000));
+  }
+
+  function summarize(list: TimeSlot[]): DayStats {
+    const next: DayStats = {
+      work_minutes: 0,
+      interrupt_minutes: 0,
+      meeting_minutes: 0,
+      lunch_minutes: 0,
+      total_recorded: 0,
+    };
+    for (const slot of list) {
+      const minutes = slotMinutes(slot);
+      if (slot.slot_type === 'interrupt') next.interrupt_minutes += minutes;
+      else if (slot.slot_type === 'meeting') next.meeting_minutes += minutes;
+      else if (slot.slot_type === 'lunch') next.lunch_minutes += minutes;
+      else next.work_minutes += minutes;
+      next.total_recorded += minutes;
+    }
+    return next;
+  }
+
   function formatDuration(minutes: number): string {
     const safeMinutes = minutes || 0;
     const hours = Math.floor(safeMinutes / 60);
@@ -132,17 +165,17 @@
   
   async function loadToday() {
     try {
-      const today = new Date().toISOString().split('T')[0];
-      
-      // Load today's slots
-      const todaySlots = await invoke<TimeSlot[]>('get_slots_for_date', { date: today });
-      slots = todaySlots;
-      
-      // Load day stats
-      const dayStats = await invoke<DayStats>('get_day_stats', { date: today });
-      stats = dayStats;
-      
-      // Load gaps
+      const today = localDateString(new Date());
+      const lookback = localDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+      const ranged = await invoke<TimeSlot[]>('get_slots_for_range', {
+        request: { startDate: lookback, endDate: today },
+      });
+      slots = ranged.filter((slot) => {
+        if (!slot.end_ts) return true;
+        return localDateString(new Date(tsValue(slot.start_ts))) === today;
+      });
+      stats = summarize(slots);
+
       const todayGaps = await invoke<Gap[]>('find_gaps', { date: today });
       gaps = todayGaps;
     } catch (err) {
@@ -268,7 +301,7 @@
                   {/if}
                 </div>
                 <div class="mt-1 text-sm text-muted-foreground">
-                  {formatTime(slot.start_ts)} - {slot.end_ts ? formatTime(slot.end_ts) : '...'} · {formatDuration(slot.duration_minutes)}
+                  {formatTime(slot.start_ts)} - {slot.end_ts ? formatTime(slot.end_ts) : '...'} · {formatDuration(slotMinutes(slot))}
                 </div>
               </div>
             </button>

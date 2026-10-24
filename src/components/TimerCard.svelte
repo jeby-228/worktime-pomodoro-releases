@@ -155,17 +155,17 @@
     }
   }
   
-  async function startInterrupt() {
-    // TODO: show interrupt dialog
-    // For now, start a default interrupt
+  function startInterrupt() {
+    window.dispatchEvent(new CustomEvent('show-interrupt'));
+  }
+
+  async function endInterrupt() {
     try {
-      await invoke('start_interrupt', {
-        who: '臨時事件',
-        reason: null
-      });
+      await invoke('end_interrupt_and_resume');
       await loadState();
+      window.dispatchEvent(new CustomEvent('task-started'));
     } catch (err) {
-      console.error('Failed to start interrupt:', err);
+      console.error('Failed to end interrupt:', err);
     }
   }
 </script>
@@ -260,20 +260,30 @@
         <Pause class="size-4" />
         {$t('timer.pause')}
       </button>
-      <button 
+      {#if state.status === 'interrupt'}
+        <button
+          onclick={endInterrupt}
+          class="flex flex-1 items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground hover:bg-accent/80"
+        >
+          <Zap class="size-4" />
+          {$t('timer.back_to_work')}
+        </button>
+      {:else}
+        <button
+          onclick={startInterrupt}
+          class="flex items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground hover:bg-accent/80"
+          title={$t('timer.interrupt_hint')}
+        >
+          <Zap class="size-4" />
+          {$t('timer.interrupt_btn')}
+        </button>
+      {/if}
+      <button
         onclick={endTask}
         class="flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
       >
         <Square class="size-4" />
         {$t('timer.end_task')}
-      </button>
-      <button 
-        onclick={startInterrupt}
-        class="flex items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground hover:bg-accent/80"
-        title={$t('timer.interrupt_hint')}
-      >
-        <Zap class="size-4" />
-        {$t('timer.interrupt_btn')}
       </button>
     {/if}
   </div>
