@@ -93,7 +93,9 @@
     "no_slots": "今天还没有记录",
     "ongoing": "进行中",
     "fill_gap": "补登",
-    "ignore_gap": "忽略"
+    "ignore_gap": "忽略",
+    "fill_hint": "同一段时间可以填多笔，也可以把时间拆开",
+    "selected": "已选 {count} 笔"
   },
   "records": {
     "title": "记录",
@@ -256,7 +258,10 @@
     "delete": "删除",
     "fill": "补登",
     "fill_gap": "补记",
-    "skip_all": "跳过全部"
+    "skip_all": "跳过全部",
+    "add_row": "再加一笔",
+    "remove": "移除",
+    "merge": "合并"
   },
   "slot_types": {
     "work": "工作",
@@ -271,7 +276,10 @@
     "person": "联系人",
     "start_time": "开始时间",
     "end_time": "结束时间",
-    "note": "备注"
+    "note": "备注",
+    "split": "分割",
+    "split_at": "分割时间",
+    "second_task": "后半任务"
   },
   "placeholders": {
     "task_title": "输入任务名称...",
@@ -280,7 +288,12 @@
   },
   "errors": {
     "task_title_required": "请输入任务名称",
-    "start_time_required": "请选择开始时间"
+    "start_time_required": "请选择开始时间",
+    "end_before_start": "结束时间要比开始时间晚",
+    "fill_outside_gap": "补登时间要落在这段空白里",
+    "split_outside": "分割时间要落在这笔纪录中间",
+    "merge_gap": "这几笔中间有空档，不能合并",
+    "merge_need_two": "请选至少两笔纪录"
   },
   "confirm": {
     "delete_slot": "确定要删除这个时段吗？"

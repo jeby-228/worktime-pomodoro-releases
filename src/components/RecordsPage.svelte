@@ -30,6 +30,9 @@
   let exporting = $state(false);
   let exportError = $state('');
   let exportMessage = $state('');
+  let selectedIds = $state<number[]>([]);
+  let mergeError = $state('');
+  let merging = $state(false);
 
   const slotTypeIcons = {
     work: Briefcase,
@@ -207,6 +210,31 @@
     loadData();
   }
 
+  function toggleSelect(id: number) {
+    selectedIds = selectedIds.includes(id)
+      ? selectedIds.filter((item) => item !== id)
+      : [...selectedIds, id];
+    mergeError = '';
+  }
+
+  async function mergeSelected() {
+    if (selectedIds.length < 2) {
+      mergeError = $t('errors.merge_need_two');
+      return;
+    }
+    merging = true;
+    mergeError = '';
+    try {
+      await invoke('merge_slots', { request: { ids: selectedIds, task_name: null } });
+      selectedIds = [];
+      await loadData();
+    } catch (err) {
+      mergeError = String(err);
+    } finally {
+      merging = false;
+    }
+  }
+
   function openExport() {
     exportError = '';
     exportMessage = '';
@@ -358,6 +386,30 @@
       </button>
     </div>
 
+    {#if selectedIds.length > 0}
+      <div class="flex items-center justify-between gap-3 border-b border-border px-6 py-2 text-sm">
+        <span class="text-muted-foreground">{$t('today.selected', { count: selectedIds.length })}</span>
+        <div class="flex items-center gap-2">
+          {#if mergeError}
+            <span class="max-w-xs truncate text-destructive">{mergeError}</span>
+          {/if}
+          <button
+            onclick={() => { selectedIds = []; mergeError = ''; }}
+            class="rounded-md px-3 py-1.5 font-medium text-muted-foreground hover:bg-muted"
+          >
+            {$t('actions.cancel')}
+          </button>
+          <button
+            onclick={mergeSelected}
+            disabled={merging || selectedIds.length < 2}
+            class="rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {$t('actions.merge')}
+          </button>
+        </div>
+      </div>
+    {/if}
+
     <!-- Records Content -->
     <div class="flex-1 overflow-y-auto">
       {#if loading}
@@ -386,9 +438,19 @@
             {#each data.slots as slot (slot.id)}
               {@const end = slotEnd(slot)}
               {@const Icon = slotTypeIcons[slot.slot_type]}
+              <div class="flex items-stretch {slot.parent_id ? 'pl-6' : ''}">
+              <label class="flex items-center pl-4">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(Number(slot.id))}
+                  onchange={() => toggleSelect(Number(slot.id))}
+                  aria-label={slotTitle(slot)}
+                  class="size-4 rounded border-input"
+                />
+              </label>
               <button
                 onclick={() => handleEditSlot(slot)}
-                class="flex w-full items-center gap-3 px-6 py-3 text-left hover:bg-accent/50 transition-colors {slot.parent_id ? 'pl-12' : ''}"
+                class="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-accent/50 transition-colors"
               >
                 <div class="flex size-10 flex-shrink-0 items-center justify-center rounded-md bg-muted">
                   <Icon size={20} class="text-muted-foreground" />
@@ -410,6 +472,7 @@
                   </div>
                 </div>
               </button>
+              </div>
             {/each}
           {/each}
         </div>
@@ -452,7 +515,11 @@
   </div>
 </div>
 
-<SlotEditDrawer bind:open={showEditDrawer} bind:slot={editingSlot} onSaved={handleSlotSaved} />
+{#if showEditDrawer && editingSlot}
+  {#key editingSlot.id}
+    <SlotEditDrawer bind:open={showEditDrawer} bind:slot={editingSlot} onSaved={handleSlotSaved} />
+  {/key}
+{/if}
 
 {#if showExportDialog}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4">

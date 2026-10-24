@@ -304,6 +304,82 @@ pub struct FillGapRequest {
     pub note: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct FillGapEntry {
+    pub task_name: String,
+    pub start_time: String,
+    pub end_time: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FillGapsRequest {
+    pub entries: Vec<FillGapEntry>,
+}
+
+#[tauri::command]
+pub fn fill_gaps(request: FillGapsRequest, store: State<AppStore>) -> Result<Vec<i64>, String> {
+    use chrono::DateTime;
+
+    if request.entries.is_empty() {
+        return Err("請至少填一筆工作".to_string());
+    }
+    let mut ids = Vec::new();
+    for entry in request.entries {
+        let task_name = entry.task_name.trim();
+        if task_name.is_empty() {
+            return Err("請輸入任務名稱".to_string());
+        }
+        let start_ts = DateTime::parse_from_rfc3339(&entry.start_time)
+            .map_err(|e| e.to_string())?
+            .with_timezone(&chrono::Local);
+        let end_ts = DateTime::parse_from_rfc3339(&entry.end_time)
+            .map_err(|e| e.to_string())?
+            .with_timezone(&chrono::Local);
+        if end_ts <= start_ts {
+            return Err("結束時間要比開始時間晚".to_string());
+        }
+        let mut slot = TimeSlot::new(task_name.to_string(), SlotType::Work, start_ts);
+        slot.end_ts = Some(end_ts);
+        ids.push(store.create_slot(&slot).map_err(|e| e.to_string())?);
+        store
+            .add_or_update_recent_task(task_name, SlotType::Work)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(ids)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SplitSlotRequest {
+    pub id: i64,
+    pub at: String,
+    pub second_task_name: Option<String>,
+}
+
+#[tauri::command]
+pub fn split_slot(request: SplitSlotRequest, store: State<AppStore>) -> Result<i64, String> {
+    use chrono::DateTime;
+
+    let at = DateTime::parse_from_rfc3339(&request.at)
+        .map_err(|e| e.to_string())?
+        .with_timezone(&chrono::Local);
+    store
+        .split_slot(request.id, at, request.second_task_name.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MergeSlotsRequest {
+    pub ids: Vec<i64>,
+    pub task_name: Option<String>,
+}
+
+#[tauri::command]
+pub fn merge_slots(request: MergeSlotsRequest, store: State<AppStore>) -> Result<i64, String> {
+    store
+        .merge_slots(&request.ids, request.task_name.as_deref())
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn fill_gap(request: FillGapRequest, store: State<AppStore>) -> Result<i64, String> {
     use chrono::DateTime;

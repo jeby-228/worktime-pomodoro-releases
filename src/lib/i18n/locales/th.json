@@ -24,7 +24,10 @@
     "delete": "ลบ",
     "fill": "เติม",
     "fill_gap": "บันทึกช่วงว่าง",
-    "skip_all": "ข้ามทั้งหมด"
+    "skip_all": "ข้ามทั้งหมด",
+    "add_row": "เพิ่มอีกหนึ่งรายการ",
+    "remove": "เอาออก",
+    "merge": "รวม"
   },
   "slot_types": {
     "work": "ทำงาน",
@@ -39,14 +42,25 @@
     "person": "ผู้ติดต่อ",
     "start_time": "เวลาเริ่ม",
     "end_time": "เวลาสิ้นสุด",
-    "note": "หมายเหตุ"
+    "note": "หมายเหตุ",
+    "split": "แบ่ง",
+    "split_at": "เวลาที่แบ่ง",
+    "second_task": "งานช่วงหลัง"
   },
   "placeholders": {
     "task_title": "ป้อนชื่องาน...",
     "person": "ป้อนผู้ติดต่อ (ไม่บังคับ)...",
     "note": "ป้อนหมายเหตุ (ไม่บังคับ)..."
   },
-  "errors": { "task_title_required": "กรุณาป้อนชื่องาน", "start_time_required": "กรุณาเลือกเวลาเริ่ม" },
+  "errors": {
+    "task_title_required": "กรุณาป้อนชื่องาน",
+    "start_time_required": "กรุณาเลือกเวลาเริ่ม",
+    "end_before_start": "เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่ม",
+    "fill_outside_gap": "เวลาต้องอยู่ในช่วงว่างนี้",
+    "split_outside": "เวลาที่แบ่งต้องอยู่ภายในรายการนี้",
+    "merge_gap": "รายการเหล่านี้มีช่วงว่างคั่นอยู่",
+    "merge_need_two": "เลือกอย่างน้อยสองรายการ"
+  },
   "confirm": { "delete_slot": "ยืนยันการลบช่วงเวลานี้?" },
   "time": {
     "minutes": "{minutes} นาที",
@@ -117,7 +131,9 @@
     "no_slots": "ยังไม่มีบันทึกวันนี้",
     "ongoing": "กำลังดำเนินการ",
     "fill_gap": "เติม",
-    "ignore_gap": "ข้าม"
+    "ignore_gap": "ข้าม",
+    "fill_hint": "ช่วงว่างเดียวกันใส่ได้หลายงาน เวลาซ้อนกันได้",
+    "selected": "เลือกแล้ว {count} รายการ"
   },
   "timeline": { "gap_unrecorded": "ยังไม่บันทึก {minutes} นาที", "interrupt_badge": "ขัดจังหวะ" },
   "records": {

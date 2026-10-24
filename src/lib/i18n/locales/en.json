@@ -93,7 +93,9 @@
     "no_slots": "No records today",
     "ongoing": "Ongoing",
     "fill_gap": "Fill",
-    "ignore_gap": "Ignore"
+    "ignore_gap": "Ignore",
+    "fill_hint": "You can enter several tasks in the same gap, even if the times overlap",
+    "selected": "{count} selected"
   },
   "records": {
     "title": "Records",
@@ -256,7 +258,10 @@
     "delete": "Delete",
     "fill": "Fill",
     "fill_gap": "Fill Gap",
-    "skip_all": "Skip All"
+    "skip_all": "Skip All",
+    "add_row": "Add another",
+    "remove": "Remove",
+    "merge": "Merge"
   },
   "slot_types": {
     "work": "Work",
@@ -271,7 +276,10 @@
     "person": "Person",
     "start_time": "Start Time",
     "end_time": "End Time",
-    "note": "Note"
+    "note": "Note",
+    "split": "Split",
+    "split_at": "Split at",
+    "second_task": "Second task"
   },
   "placeholders": {
     "task_title": "Enter task title...",
@@ -280,7 +288,12 @@
   },
   "errors": {
     "task_title_required": "Please enter task title",
-    "start_time_required": "Please select start time"
+    "start_time_required": "Please select start time",
+    "end_before_start": "End time must be after the start",
+    "fill_outside_gap": "Each entry has to stay inside this gap",
+    "split_outside": "The split time has to fall inside this record",
+    "merge_gap": "These records have a gap between them",
+    "merge_need_two": "Select at least two records"
   },
   "confirm": {
     "delete_slot": "Confirm deletion of this slot?"

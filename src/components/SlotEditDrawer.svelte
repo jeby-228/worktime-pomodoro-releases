@@ -10,14 +10,26 @@
     onSaved?: () => void;
   }>();
 
-  let taskTitle = $derived(open && slot ? slot.task_name || slot.task_title || '' : '');
-  let person = $derived(open && slot ? slot.person || '' : '');
-  let note = $derived(open && slot ? slot.note || '' : '');
-  let startTime = $derived(open && slot ? toLocalInput(slot.start_time ?? slot.start_ts) : '');
-  let endTime = $derived(open && slot ? toLocalInput(slot.end_time ?? slot.end_ts) : '');
-  let slotType = $derived(open && slot ? slot.slot_type : 'work');
+  const openingTitle = slot?.task_name || slot?.task_title || '';
+  const openingStart = toLocalInput(slot?.start_time ?? slot?.start_ts);
+  const openingEnd = toLocalInput(slot?.end_time ?? slot?.end_ts);
+  let taskTitle = $state(openingTitle);
+  let person = $state(slot?.person || '');
+  let note = $state(slot?.note || '');
+  let startTime = $state(openingStart);
+  let endTime = $state(openingEnd);
+  let slotType = $state<'work' | 'interrupt' | 'meeting' | 'lunch'>(slot?.slot_type ?? 'work');
+  let splitAt = $state(midpoint(openingStart, openingEnd));
+  let secondTitle = $state(openingTitle);
   let saving = $state(false);
   let error = $state('');
+
+  function midpoint(start: string, end: string): string {
+    const a = new Date(start).getTime();
+    const b = new Date(end).getTime();
+    if (Number.isNaN(a) || Number.isNaN(b) || b <= a) return '';
+    return toLocalInput(new Date(Math.floor((a + b) / 2)).toISOString());
+  }
 
   function slotInstant(value: string | number | null | undefined): Date | null {
     if (value == null || value === '') return null;
@@ -64,6 +76,35 @@
           start_ts: new Date(startTime).toISOString(),
           end_ts: endTime ? new Date(endTime).toISOString() : null,
           note: note.trim() || null,
+        },
+      });
+      window.dispatchEvent(new CustomEvent('task-started'));
+      onSaved();
+      close();
+    } catch (err: any) {
+      error = err.toString();
+    } finally {
+      saving = false;
+    }
+  }
+
+  async function handleSplit() {
+    if (!slot?.id || !splitAt) return;
+    const cut = new Date(splitAt).getTime();
+    const start = new Date(startTime).getTime();
+    const end = new Date(endTime).getTime();
+    if (Number.isNaN(cut) || Number.isNaN(start) || Number.isNaN(end) || cut <= start || cut >= end) {
+      error = $t('errors.split_outside');
+      return;
+    }
+    saving = true;
+    error = '';
+    try {
+      await invoke('split_slot', {
+        request: {
+          id: Number(slot.id),
+          at: new Date(splitAt).toISOString(),
+          second_task_name: secondTitle.trim() || null,
         },
       });
       window.dispatchEvent(new CustomEvent('task-started'));
@@ -205,6 +246,34 @@
             />
           </div>
         </div>
+
+        {#if endTime}
+          <div class="space-y-2 rounded-md border border-border p-3">
+            <div class="text-sm font-medium text-foreground">{$t('slot_edit.split')}</div>
+            <label for="split-at" class="text-sm text-muted-foreground">{$t('slot_edit.split_at')}</label>
+            <input
+              id="split-at"
+              type="datetime-local"
+              bind:value={splitAt}
+              class="w-full px-3 py-2 bg-background border border-input rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <label for="second-task" class="text-sm text-muted-foreground">{$t('slot_edit.second_task')}</label>
+            <input
+              id="second-task"
+              type="text"
+              bind:value={secondTitle}
+              class="w-full px-3 py-2 bg-background border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder={$t('placeholders.task_title')}
+            />
+            <button
+              onclick={handleSplit}
+              disabled={saving}
+              class="px-3 py-1.5 text-sm font-medium rounded-md border border-border hover:bg-muted disabled:opacity-50"
+            >
+              {$t('slot_edit.split')}
+            </button>
+          </div>
+        {/if}
 
         <!-- Note -->
         <div class="space-y-2">

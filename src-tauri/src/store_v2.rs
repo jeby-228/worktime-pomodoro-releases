@@ -556,6 +556,121 @@ impl StoreV2 {
         )?;
         Ok(())
     }
+
+    pub fn reparent_children(&self, from_id: i64, to_id: i64) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE time_slots SET parent_id = ?1, updated_at = ?2 WHERE parent_id = ?3",
+            params![to_id, Local::now().to_rfc3339(), from_id],
+        )?;
+        Ok(())
+    }
+
+    /// Cut one finished slot into two at `at`. The original keeps its name and ends at `at`.
+    pub fn split_slot(
+        &self,
+        id: i64,
+        at: DateTime<Local>,
+        second_name: Option<&str>,
+    ) -> Result<i64> {
+        let slot = self
+            .get_slot(id)?
+            .ok_or_else(|| anyhow::anyhow!("找不到這個時段"))?;
+        let end = slot
+            .end_ts
+            .ok_or_else(|| anyhow::anyhow!("進行中的紀錄要先結束才能分割"))?;
+        if at <= slot.start_ts || at >= end {
+            anyhow::bail!("分割時間要落在這筆紀錄中間");
+        }
+        let name = second_name
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+            .unwrap_or(slot.task_name.as_str());
+        self.update_slot_details(
+            id,
+            &slot.task_name,
+            slot.slot_type.clone(),
+            slot.start_ts,
+            Some(at),
+            slot.note.as_deref(),
+        )?;
+        let mut next = TimeSlot::new(name.to_string(), slot.slot_type, at);
+        next.end_ts = Some(end);
+        next.parent_id = slot.parent_id;
+        self.create_slot(&next)
+    }
+
+    /// Join finished slots that touch or overlap. The earliest one is kept.
+    pub fn merge_slots(&self, ids: &[i64], task_name: Option<&str>) -> Result<i64> {
+        let mut unique = Vec::new();
+        for id in ids {
+            if !unique.contains(id) {
+                unique.push(*id);
+            }
+        }
+        if unique.len() < 2 {
+            anyhow::bail!("請選至少兩筆紀錄");
+        }
+        let mut slots = Vec::new();
+        for id in &unique {
+            slots.push(
+                self.get_slot(*id)?
+                    .ok_or_else(|| anyhow::anyhow!("找不到這個時段"))?,
+            );
+        }
+        slots.sort_by_key(|slot| slot.start_ts);
+        for slot in &slots {
+            if slot.end_ts.is_none() {
+                anyhow::bail!("進行中的紀錄要先結束才能合併");
+            }
+        }
+        for pair in slots.windows(2) {
+            let prev_end = pair[0].end_ts.unwrap();
+            if pair[1].start_ts > prev_end {
+                anyhow::bail!("這幾筆中間有空檔，不能合併");
+            }
+        }
+        let kept = &slots[0];
+        let kept_id = kept.id.ok_or_else(|| anyhow::anyhow!("找不到這個時段"))?;
+        let start = slots.iter().map(|slot| slot.start_ts).min().unwrap();
+        let end = slots.iter().filter_map(|slot| slot.end_ts).max().unwrap();
+        let name = task_name
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+            .unwrap_or(kept.task_name.as_str());
+        let mut notes = Vec::new();
+        for slot in &slots {
+            if let Some(note) = slot
+                .note
+                .as_deref()
+                .map(str::trim)
+                .filter(|text| !text.is_empty())
+            {
+                if !notes.iter().any(|existing: &String| existing == note) {
+                    notes.push(note.to_string());
+                }
+            }
+        }
+        let note = if notes.is_empty() {
+            None
+        } else {
+            Some(notes.join("\n"))
+        };
+        self.update_slot_details(
+            kept_id,
+            name,
+            kept.slot_type.clone(),
+            start,
+            Some(end),
+            note.as_deref(),
+        )?;
+        for slot in slots.iter().skip(1) {
+            let id = slot.id.ok_or_else(|| anyhow::anyhow!("找不到這個時段"))?;
+            self.reparent_children(id, kept_id)?;
+            self.delete_slot(id)?;
+        }
+        Ok(kept_id)
+    }
 }
 
 #[cfg(test)]
@@ -646,5 +761,97 @@ mod tests {
         assert_eq!(recent.len(), 2);
         assert_eq!(recent[0].task_name, "Task A");
         assert_eq!(recent[0].use_count, 2);
+    }
+
+    fn near(a: DateTime<Local>, b: DateTime<Local>) -> bool {
+        a.signed_duration_since(b).num_seconds().abs() <= 1
+    }
+
+    #[test]
+    fn test_split_keeps_first_half_and_names_the_second() {
+        let store = StoreV2::new(Path::new(":memory:")).unwrap();
+        let start = Local::now();
+        let end = start + chrono::Duration::minutes(60);
+        let at = start + chrono::Duration::minutes(20);
+        let mut slot = TimeSlot::new("甲".to_string(), SlotType::Work, start);
+        slot.end_ts = Some(end);
+        slot.note = Some("備註".to_string());
+        let id = store.create_slot(&slot).unwrap();
+
+        let second_id = store.split_slot(id, at, Some("乙")).unwrap();
+        let first = store.get_slot(id).unwrap().unwrap();
+        let second = store.get_slot(second_id).unwrap().unwrap();
+        assert!(near(first.end_ts.unwrap(), at));
+        assert!(near(second.start_ts, at));
+        assert!(near(second.end_ts.unwrap(), end));
+        assert_eq!(first.task_name, "甲");
+        assert_eq!(second.task_name, "乙");
+        assert_eq!(first.note.as_deref(), Some("備註"));
+        assert!(store.split_slot(id, start, None).is_err());
+    }
+
+    #[test]
+    fn test_merge_joins_touching_slots_and_rejects_a_gap() {
+        let store = StoreV2::new(Path::new(":memory:")).unwrap();
+        let start = Local::now();
+        let mut first = TimeSlot::new("甲".to_string(), SlotType::Work, start);
+        first.end_ts = Some(start + chrono::Duration::minutes(20));
+        first.note = Some("一".to_string());
+        let first_id = store.create_slot(&first).unwrap();
+        let mut second = TimeSlot::new(
+            "乙".to_string(),
+            SlotType::Meeting,
+            start + chrono::Duration::minutes(20),
+        );
+        second.end_ts = Some(start + chrono::Duration::minutes(50));
+        second.note = Some("二".to_string());
+        let second_id = store.create_slot(&second).unwrap();
+
+        let kept = store.merge_slots(&[second_id, first_id], None).unwrap();
+        assert_eq!(kept, first_id);
+        let merged = store.get_slot(first_id).unwrap().unwrap();
+        assert_eq!(merged.task_name, "甲");
+        assert_eq!(merged.slot_type, SlotType::Work);
+        assert!(near(merged.start_ts, start));
+        assert!(near(
+            merged.end_ts.unwrap(),
+            start + chrono::Duration::minutes(50)
+        ));
+        assert!(store.get_slot(second_id).unwrap().is_none());
+        assert_eq!(merged.note.as_deref(), Some("一\n二"));
+
+        let later = start + chrono::Duration::minutes(80);
+        let mut third = TimeSlot::new("丙".to_string(), SlotType::Work, later);
+        third.end_ts = Some(later + chrono::Duration::minutes(10));
+        let third_id = store.create_slot(&third).unwrap();
+        assert!(store.merge_slots(&[first_id, third_id], None).is_err());
+    }
+
+    #[test]
+    fn test_merge_reparents_children() {
+        let store = StoreV2::new(Path::new(":memory:")).unwrap();
+        let start = Local::now();
+        let mut parent = TimeSlot::new("甲".to_string(), SlotType::Work, start);
+        parent.end_ts = Some(start + chrono::Duration::minutes(30));
+        let parent_id = store.create_slot(&parent).unwrap();
+        let mut child = TimeSlot::new(
+            "插隊".to_string(),
+            SlotType::Interrupt,
+            start + chrono::Duration::minutes(5),
+        );
+        child.end_ts = Some(start + chrono::Duration::minutes(10));
+        child.parent_id = Some(parent_id);
+        let child_id = store.create_slot(&child).unwrap();
+
+        let mut next = TimeSlot::new(
+            "乙".to_string(),
+            SlotType::Work,
+            start + chrono::Duration::minutes(30),
+        );
+        next.end_ts = Some(start + chrono::Duration::minutes(40));
+        let next_id = store.create_slot(&next).unwrap();
+        store.merge_slots(&[parent_id, next_id], None).unwrap();
+        let interrupt = store.get_slot(child_id).unwrap().unwrap();
+        assert_eq!(interrupt.parent_id, Some(parent_id));
     }
 }

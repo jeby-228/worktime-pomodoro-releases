@@ -24,7 +24,10 @@
     "delete": "Xóa",
     "fill": "Điền",
     "fill_gap": "Ghi khoảng trống",
-    "skip_all": "Bỏ qua tất cả"
+    "skip_all": "Bỏ qua tất cả",
+    "add_row": "Thêm một mục",
+    "remove": "Xóa dòng",
+    "merge": "Gộp"
   },
   "slot_types": {
     "work": "Làm việc",
@@ -39,7 +42,10 @@
     "person": "Liên hệ",
     "start_time": "Giờ bắt đầu",
     "end_time": "Giờ kết thúc",
-    "note": "Ghi chú"
+    "note": "Ghi chú",
+    "split": "Tách",
+    "split_at": "Thời điểm tách",
+    "second_task": "Công việc nửa sau"
   },
   "placeholders": {
     "task_title": "Nhập tên công việc...",
@@ -48,7 +54,12 @@
   },
   "errors": {
     "task_title_required": "Vui lòng nhập tên công việc",
-    "start_time_required": "Vui lòng chọn giờ bắt đầu"
+    "start_time_required": "Vui lòng chọn giờ bắt đầu",
+    "end_before_start": "Giờ kết thúc phải sau giờ bắt đầu",
+    "fill_outside_gap": "Thời gian phải nằm trong khoảng trống này",
+    "split_outside": "Thời điểm tách phải nằm trong bản ghi này",
+    "merge_gap": "Các bản ghi này còn khoảng trống ở giữa",
+    "merge_need_two": "Hãy chọn ít nhất hai bản ghi"
   },
   "confirm": { "delete_slot": "Xác nhận xóa khoảng thời gian này?" },
   "time": {
@@ -125,7 +136,9 @@
     "no_slots": "Chưa có ghi chép hôm nay",
     "ongoing": "Đang tiến hành",
     "fill_gap": "Điền",
-    "ignore_gap": "Bỏ qua"
+    "ignore_gap": "Bỏ qua",
+    "fill_hint": "Có thể ghi nhiều công việc trong cùng một khoảng, kể cả khi giờ trùng nhau",
+    "selected": "Đã chọn {count}"
   },
   "timeline": { "gap_unrecorded": "Chưa ghi {minutes} phút", "interrupt_badge": "Gián đoạn" },
   "records": {

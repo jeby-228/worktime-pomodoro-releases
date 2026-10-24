@@ -27,7 +27,10 @@
     "delete": "刪除",
     "fill": "補登",
     "fill_gap": "補記",
-    "skip_all": "跳過全部"
+    "skip_all": "跳過全部",
+    "add_row": "再加一筆",
+    "remove": "移除",
+    "merge": "合併"
   },
   "slot_types": {
     "work": "工作",
@@ -42,7 +45,10 @@
     "person": "聯絡人",
     "start_time": "開始時間",
     "end_time": "結束時間",
-    "note": "備註"
+    "note": "備註",
+    "split": "分割",
+    "split_at": "分割時間",
+    "second_task": "後半任務"
   },
   "placeholders": {
     "task_title": "輸入任務名稱...",
@@ -51,7 +57,12 @@
   },
   "errors": {
     "task_title_required": "請輸入任務名稱",
-    "start_time_required": "請選擇開始時間"
+    "start_time_required": "請選擇開始時間",
+    "end_before_start": "結束時間要比開始時間晚",
+    "fill_outside_gap": "補登時間要落在這段空白裡",
+    "split_outside": "分割時間要落在這筆紀錄中間",
+    "merge_gap": "這幾筆中間有空檔，不能合併",
+    "merge_need_two": "請選至少兩筆紀錄"
   },
   "confirm": {
     "delete_slot": "確定要刪除這個時段嗎？"
@@ -130,7 +141,9 @@
     "no_slots": "今天還沒有記錄",
     "ongoing": "進行中",
     "fill_gap": "補登",
-    "ignore_gap": "忽略"
+    "ignore_gap": "忽略",
+    "fill_hint": "同一段時間可以填多筆，也可以把時間拆開",
+    "selected": "已選 {count} 筆"
   },
   "timeline": {
     "gap_unrecorded": "未記錄 {minutes} 分",

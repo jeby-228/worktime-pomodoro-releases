@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "worktime-pomodoro",
   "mainBinaryName": "worktime-pomodoro",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "identifier": "com.worktime.pomodoro",
   "build": {
     "frontendDist": "../dist",
