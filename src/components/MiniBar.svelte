@@ -52,7 +52,8 @@
   });
 
   function secondsSince(ts: string): number {
-    const parsed = Date.parse(ts);
+    const trimmed = ts.replace(/(\.\d{3})\d+/, '$1');
+    const parsed = Date.parse(trimmed);
     if (Number.isNaN(parsed)) return 0;
     return Math.max(0, Math.floor((Date.now() - parsed) / 1000));
   }
@@ -67,8 +68,11 @@
         currentSlot = null;
       }
 
-      if (next.status === 'interrupt' && currentSlot?.start_ts) {
-        elapsedSeconds = secondsSince(String(currentSlot.start_ts));
+      if (next.status === 'interrupt') {
+        const fromSlot = currentSlot?.start_ts ? secondsSince(String(currentSlot.start_ts)) : 0;
+        const reported = await invoke<number | null>('get_elapsed_seconds');
+        const value = typeof reported === 'number' && reported >= 0 ? reported : 0;
+        elapsedSeconds = Math.max(fromSlot, value);
         pausedHold = false;
         return;
       }

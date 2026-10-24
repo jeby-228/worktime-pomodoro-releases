@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { save } from '@tauri-apps/plugin-dialog';
   import { List, Table as TableIcon, Filter, Download, Calendar, Briefcase, Zap, Users, Coffee, Clock, AlertTriangle } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import type { TimeSlot, DayStats } from '$lib/types';
@@ -25,6 +26,10 @@
   let showFilterDialog = $state(false);
   let showExportDialog = $state(false);
   let showDatePicker = $state(false);
+  let includeInterrupts = $state(true);
+  let exporting = $state(false);
+  let exportError = $state('');
+  let exportMessage = $state('');
 
   const slotTypeIcons = {
     work: Briefcase,
@@ -202,6 +207,39 @@
     loadData();
   }
 
+  function openExport() {
+    exportError = '';
+    exportMessage = '';
+    showExportDialog = true;
+  }
+
+  async function exportFile(kind: 'xlsx' | 'csv') {
+    exportError = '';
+    exportMessage = '';
+    const extension = kind === 'xlsx' ? 'xlsx' : 'csv';
+    exporting = true;
+    try {
+      const path = await save({
+        defaultPath: `工時記錄_${startDate}_${endDate}.${extension}`,
+        filters: [{ name: kind === 'xlsx' ? 'Excel' : 'CSV', extensions: [extension] }],
+      });
+      if (!path) return;
+      const saved = await invoke<string>(kind === 'xlsx' ? 'export_to_xlsx' : 'export_to_csv', {
+        request: {
+          start_date: startDate,
+          end_date: endDate,
+          include_interrupts: includeInterrupts,
+        },
+        outputPath: path,
+      });
+      exportMessage = saved;
+    } catch (err) {
+      exportError = String(err);
+    } finally {
+      exporting = false;
+    }
+  }
+
   onMount(() => {
     loadData();
     const refresh = () => loadData();
@@ -312,7 +350,7 @@
 
       <!-- Export -->
       <button
-        onclick={() => showExportDialog = true}
+        onclick={openExport}
         class="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
       >
         <Download size={16} />
@@ -415,3 +453,58 @@
 </div>
 
 <SlotEditDrawer bind:open={showEditDrawer} bind:slot={editingSlot} onSaved={handleSlotSaved} />
+
+{#if showExportDialog}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <button
+      type="button"
+      class="absolute inset-0 bg-black/40"
+      aria-label={$t('common.cancel')}
+      onclick={() => { showExportDialog = false; }}
+    ></button>
+    <div
+      role="dialog"
+      aria-labelledby="export-title"
+      class="relative z-10 w-full max-w-md rounded-lg border border-border bg-card p-6 text-card-foreground shadow-lg"
+    >
+      <h2 id="export-title" class="text-lg font-semibold">{$t('records.export_dialog_title')}</h2>
+      <p class="mt-2 text-sm text-muted-foreground">{formatDate(startDate)} - {formatDate(endDate)}</p>
+      <label class="mt-4 flex items-center gap-2 text-sm">
+        <input type="checkbox" bind:checked={includeInterrupts} />
+        {$t('records.include_interrupts')}
+      </label>
+      {#if exportError}
+        <p class="mt-3 text-sm text-destructive">{exportError}</p>
+      {/if}
+      {#if exportMessage}
+        <p class="mt-3 break-all text-sm text-muted-foreground">{exportMessage}</p>
+      {/if}
+      <div class="mt-6 flex justify-end gap-2">
+        <button
+          type="button"
+          onclick={() => { showExportDialog = false; }}
+          disabled={exporting}
+          class="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
+        >
+          {$t('common.cancel')}
+        </button>
+        <button
+          type="button"
+          onclick={() => exportFile('csv')}
+          disabled={exporting}
+          class="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+        >
+          CSV
+        </button>
+        <button
+          type="button"
+          onclick={() => exportFile('xlsx')}
+          disabled={exporting}
+          class="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          Excel
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

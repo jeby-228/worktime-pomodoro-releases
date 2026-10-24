@@ -14,7 +14,9 @@ type AppStore = Arc<StoreV2>;
 type AppStateMgr = Arc<StateManager>;
 
 mod commands_v2;
+mod github_update;
 use commands_v2::*;
+use github_update::{check_github_release, install_github_release};
 
 mod tray;
 
@@ -136,6 +138,8 @@ pub fn run() {
             show_pet,
             hide_pet,
             preview_companion_mode,
+            check_github_release,
+            install_github_release,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

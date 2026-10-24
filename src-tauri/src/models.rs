@@ -134,6 +134,13 @@ pub struct AppSettings {
     pub theme: String,
     pub mini_mode: String,
     pub pet_id: String,
+    /// Missing values stay enabled, matching TokenTracker's auto-update default.
+    #[serde(default = "default_auto_update")]
+    pub auto_update: bool,
+}
+
+fn default_auto_update() -> bool {
+    true
 }
 
 impl Default for AppSettings {
@@ -147,6 +154,7 @@ impl Default for AppSettings {
             theme: "system".to_string(),
             mini_mode: "none".to_string(),
             pet_id: "tomato-kun".to_string(),
+            auto_update: true,
         }
     }
 }

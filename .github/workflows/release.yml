@@ -27,9 +27,15 @@ jobs:
           set -euo pipefail
           version="${{ steps.get_version.outputs.VERSION }}"
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            echo "Release ${GITHUB_REF_NAME} already exists"
+            draft="$(gh release view "${GITHUB_REF_NAME}" --json isDraft --jq '.isDraft')"
+            if [ "$draft" != "true" ]; then
+              echo "Release ${GITHUB_REF_NAME} is already public and will not be changed."
+            else
+              echo "Reusing draft ${GITHUB_REF_NAME}"
+            fi
           else
             gh release create "${GITHUB_REF_NAME}" \
+              --draft \
               --title "Release ${version}" \
               --notes "Release ${version}"
           fi
@@ -103,6 +109,10 @@ jobs:
           RUST_TARGET: ${{ matrix.rust_target }}
         run: |
           set -euo pipefail
+          if [ "$(gh release view "${GITHUB_REF_NAME}" --json isDraft --jq '.isDraft')" != "true" ]; then
+            echo "Refusing to overwrite assets on published release ${GITHUB_REF_NAME}."
+            exit 1
+          fi
           bundle="src-tauri/target/${RUST_TARGET}/release/bundle"
           # macOS runners ship Bash 3.2, which has no mapfile.
           list_bundles() {
@@ -154,13 +164,38 @@ jobs:
             gh release upload "${GITHUB_REF_NAME}" "$stage/$name" --clobber
           done < <(list_bundles)
 
-  generate-update-manifest:
-    name: Generate Update Manifest
+  publish:
+    name: Publish release
     needs: [create-release, build-tauri]
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Require every platform installer
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          if [ "$(gh release view "${GITHUB_REF_NAME}" --json isDraft --jq '.isDraft')" != "true" ]; then
+            echo "Release ${GITHUB_REF_NAME} is no longer a draft."
+            exit 1
+          fi
+          for asset in \
+            "worktime-pomodoro_${version}_amd64.AppImage" \
+            "worktime-pomodoro_${version}_amd64.deb" \
+            "worktime-pomodoro-${version}-1.x86_64.rpm" \
+            "worktime-pomodoro_${version}_x64-setup.exe" \
+            "worktime-pomodoro_${version}_x64_zh-TW.msi" \
+            "worktime-pomodoro_${version}_aarch64.dmg" \
+            "worktime-pomodoro_${version}_x64.dmg"
+          do
+            if ! gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | grep -Fxq "$asset"; then
+              echo "Draft ${GITHUB_REF_NAME} is missing ${asset}"
+              exit 1
+            fi
+          done
 
       - name: Generate latest.json
         env:
@@ -171,3 +206,43 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${GITHUB_REF_NAME}" latest.json --clobber
+
+      - name: Publish SHA256SUMS
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          sums="$workdir.SHA256SUMS"
+          gh release download "${GITHUB_REF_NAME}" --dir "$workdir"
+          rm -f "$workdir/SHA256SUMS"
+          ( cd "$workdir" && find . -maxdepth 1 -type f -printf '%P\n' | sort | xargs -r sha256sum ) > "$sums"
+          if [ ! -s "$sums" ]; then
+            echo "Computed no checksums."
+            exit 1
+          fi
+          if grep -q ' SHA256SUMS$' "$sums"; then
+            echo "SHA256SUMS listed itself."
+            exit 1
+          fi
+          cat "$sums"
+          cp "$sums" "$workdir/SHA256SUMS"
+          gh release upload "${GITHUB_REF_NAME}" "$workdir/SHA256SUMS" --clobber
+          notes="$workdir.notes.md"
+          gh release view "${GITHUB_REF_NAME}" --json body --jq '.body' \
+            | awk '/^<!-- sha256sums -->$/ { exit } { print }' > "$notes"
+          {
+            echo "<!-- sha256sums -->"
+            echo
+            echo "### SHA-256 checksums"
+            echo
+            echo '```'
+            cat "$sums"
+            echo '```'
+          } >> "$notes"
+          gh release edit "${GITHUB_REF_NAME}" --notes-file "$notes"
+
+      - name: Publish the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${GITHUB_REF_NAME}" --draft=false --latest

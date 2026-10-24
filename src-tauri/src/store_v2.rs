@@ -54,11 +54,38 @@ impl StoreV2 {
         note: Option<String>,
     ) -> Result<()> {
         let conn = self.conn.lock().unwrap();
+        if let Some(note) = note {
+            conn.execute(
+                "UPDATE time_slots SET end_ts = ?1, note = ?2, updated_at = ?3 WHERE id = ?4",
+                params![
+                    end_ts.map(|t| t.to_rfc3339()),
+                    note,
+                    Local::now().to_rfc3339(),
+                    id,
+                ],
+            )?;
+        } else {
+            self.close_slot_conn(&conn, id, end_ts)?;
+        }
+        Ok(())
+    }
+
+    /// Close a slot without erasing its note.
+    pub fn close_slot(&self, id: i64, end_ts: DateTime<Local>) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        self.close_slot_conn(&conn, id, Some(end_ts))
+    }
+
+    fn close_slot_conn(
+        &self,
+        conn: &Connection,
+        id: i64,
+        end_ts: Option<DateTime<Local>>,
+    ) -> Result<()> {
         conn.execute(
-            "UPDATE time_slots SET end_ts = ?1, note = ?2, updated_at = ?3 WHERE id = ?4",
+            "UPDATE time_slots SET end_ts = ?1, updated_at = ?2 WHERE id = ?3",
             params![
                 end_ts.map(|t| t.to_rfc3339()),
-                note,
                 Local::now().to_rfc3339(),
                 id,
             ],
@@ -496,6 +523,9 @@ impl StoreV2 {
         if let Some(v) = self.get_setting("pet_id")? {
             settings.pet_id = v;
         }
+        if let Some(v) = self.get_setting("auto_update")? {
+            settings.auto_update = v == "true";
+        }
 
         Ok(settings)
     }
@@ -516,6 +546,14 @@ impl StoreV2 {
         self.set_setting("theme", &settings.theme)?;
         self.set_setting("mini_mode", &settings.mini_mode)?;
         self.set_setting("pet_id", &settings.pet_id)?;
+        self.set_setting(
+            "auto_update",
+            if settings.auto_update {
+                "true"
+            } else {
+                "false"
+            },
+        )?;
         Ok(())
     }
 }

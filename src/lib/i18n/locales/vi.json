@@ -205,7 +205,11 @@
     "update_confirm": "Tải và cài phiên bản {version}?",
     "restart_confirm": "Cài đặt hoàn tất, khởi động lại ngay?",
     "no_updates": "Bạn đang dùng phiên bản mới nhất",
-    "update_check_failed": "Kiểm tra cập nhật thất bại"
+    "update_check_failed": "Kiểm tra cập nhật thất bại",
+    "auto_update": "Tự động cập nhật",
+    "auto_update_desc": "Kiểm tra bản mới trên GitHub khi mở ứng dụng. Chỉ cài sau khi SHA-256 khớp.",
+    "update_installing": "Đang tải và kiểm tra bộ cài...",
+    "update_open_dmg": "Đã mở ảnh đĩa. Kéo ứng dụng vào Applications."
   },
   "idle_return": {
     "title": "Phát hiện rảnh",

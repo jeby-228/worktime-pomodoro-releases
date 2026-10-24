@@ -1,8 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import { check as checkUpdate } from '@tauri-apps/plugin-updater';
-  import { relaunch } from '@tauri-apps/plugin-process';
   import { Palette, Clock, Calendar, Keyboard, Monitor, Info } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import { applyTheme, type ThemeChoice } from '$lib/theme';
@@ -16,6 +14,7 @@
     eod_check_enabled: boolean;
     mini_mode: string;
     pet_id: string;
+    auto_update: boolean;
   }
   
   let settings = $state<AppSettings>({
@@ -27,6 +26,7 @@
     eod_check_enabled: true,
     mini_mode: 'none',
     pet_id: 'tomato-kun',
+    auto_update: true,
   });
   
   let activeSection = $state('appearance');
@@ -119,26 +119,27 @@
     updateAvailable = false;
 
     try {
-      const update = await checkUpdate();
-      
-      if (update?.available) {
+      const update = await invoke<{
+        available: boolean;
+        latest_version: string;
+      }>('check_github_release');
+
+      if (update.available) {
         updateAvailable = true;
-        updateMessage = $t('settings.update_available', { version: update.version });
-        
-        // Ask user to install
-        if (confirm($t('settings.update_confirm', { version: update.version }))) {
-          await update.downloadAndInstall();
-          // Prompt to restart
-          if (confirm($t('settings.restart_confirm'))) {
-            await relaunch();
-          }
+        updateMessage = $t('settings.update_available', { version: update.latest_version });
+        if (confirm($t('settings.update_confirm', { version: update.latest_version }))) {
+          updateMessage = $t('settings.update_installing');
+          const result = await invoke<string>('install_github_release');
+          updateMessage = result === 'opened-dmg'
+            ? $t('settings.update_open_dmg')
+            : $t('settings.update_installing');
         }
       } else {
         updateMessage = $t('settings.no_updates');
       }
     } catch (error: any) {
       console.error('Update check failed:', error);
-      updateMessage = $t('settings.update_check_failed');
+      updateMessage = error?.toString?.() || $t('settings.update_check_failed');
     } finally {
       checking = false;
     }
@@ -355,7 +356,7 @@
           <div class="space-y-4">
             <div>
               <div class="text-sm font-medium">{$t('app.title')}</div>
-              <div class="text-sm text-muted-foreground">v1.0.0</div>
+              <div class="text-sm text-muted-foreground">v1.0.1</div>
             </div>
             
             <div>
@@ -364,6 +365,19 @@
                 Tauri 2 · Rust · Astro · Svelte 5 · Tailwind CSS
               </div>
             </div>
+
+            <label class="flex items-center justify-between gap-4 pt-4 border-t border-border">
+              <div>
+                <div class="text-sm font-medium">{$t('settings.auto_update')}</div>
+                <div class="text-xs text-muted-foreground">{$t('settings.auto_update_desc')}</div>
+              </div>
+              <input
+                type="checkbox"
+                bind:checked={settings.auto_update}
+                onchange={markDirty}
+                class="size-4"
+              />
+            </label>
 
             <!-- Check for Updates -->
             <div class="pt-4 border-t border-border">

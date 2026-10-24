@@ -22,6 +22,9 @@ pub struct StateData {
     pub paused_slot_id: Option<i64>,
     pub remaining_seconds: Option<i64>,
     pub pomodoro_start: Option<DateTime<Local>>,
+    /// Work seconds already counted before the current segment.
+    /// The interrupt stopwatch ignores this and starts from `pomodoro_start`.
+    pub carried_seconds: i64,
 }
 
 impl Default for StateData {
@@ -32,8 +35,21 @@ impl Default for StateData {
             paused_slot_id: None,
             remaining_seconds: None,
             pomodoro_start: None,
+            carried_seconds: 0,
         }
     }
+}
+
+fn segment_secs(state: &StateData) -> i64 {
+    state
+        .pomodoro_start
+        .map(|start| {
+            Local::now()
+                .signed_duration_since(start)
+                .num_seconds()
+                .max(0)
+        })
+        .unwrap_or(0)
 }
 
 pub struct StateManager {
@@ -70,24 +86,43 @@ impl StateManager {
         state.current_slot_id = Some(id);
         state.pomodoro_start = Some(now);
         state.remaining_seconds = None;
+        state.carried_seconds = 0;
 
         Ok(id)
     }
 
+    fn clear_activity(state: &mut StateData) {
+        state.state = AppStateEnum::Idle;
+        state.current_slot_id = None;
+        state.paused_slot_id = None;
+        state.pomodoro_start = None;
+        state.remaining_seconds = None;
+        state.carried_seconds = 0;
+    }
+
     pub fn end_task(&self, note: Option<String>) -> anyhow::Result<()> {
         let mut state = self.state.lock().unwrap();
+        let now = Local::now();
 
-        if let Some(slot_id) = state.current_slot_id {
-            self.store.update_slot(slot_id, Some(Local::now()), note)?;
-            state.state = AppStateEnum::Idle;
-            state.current_slot_id = None;
-            state.pomodoro_start = None;
-            state.remaining_seconds = None;
+        if state.state == AppStateEnum::Interrupt {
+            if let Some(interrupt_id) = state.current_slot_id {
+                self.store.close_slot(interrupt_id, now)?;
+            }
+            if let Some(parent_id) = state.paused_slot_id {
+                self.store.update_slot(parent_id, Some(now), note)?;
+            }
+            Self::clear_activity(&mut state);
+            return Ok(());
+        }
+
+        let slot_id = state.current_slot_id.or(state.paused_slot_id);
+        if let Some(slot_id) = slot_id {
+            self.store.update_slot(slot_id, Some(now), note)?;
+            Self::clear_activity(&mut state);
+            Ok(())
         } else {
             anyhow::bail!("No active task to end");
         }
-
-        Ok(())
     }
 
     /// Close the active or paused slot at a specific time.
@@ -96,12 +131,8 @@ impl StateManager {
         let slot_id = state.current_slot_id.or(state.paused_slot_id);
 
         if let Some(slot_id) = slot_id {
-            self.store.update_slot(slot_id, Some(end_ts), None)?;
-            state.state = AppStateEnum::Idle;
-            state.current_slot_id = None;
-            state.paused_slot_id = None;
-            state.pomodoro_start = None;
-            state.remaining_seconds = None;
+            self.store.close_slot(slot_id, end_ts)?;
+            Self::clear_activity(&mut state);
         } else {
             anyhow::bail!("No active task to end");
         }
@@ -112,13 +143,22 @@ impl StateManager {
     pub fn pause_task(&self) -> anyhow::Result<i64> {
         let mut state = self.state.lock().unwrap();
 
+        if state.state != AppStateEnum::Working {
+            anyhow::bail!("No active task to pause");
+        }
+
         if let Some(slot_id) = state.current_slot_id {
             if let Some(start) = state.pomodoro_start {
-                let elapsed = Local::now().signed_duration_since(start).num_seconds();
+                let elapsed = Local::now()
+                    .signed_duration_since(start)
+                    .num_seconds()
+                    .max(0);
                 let pomodoro_secs = self.store.get_settings()?.pomodoro_minutes * 60;
                 state.remaining_seconds = Some((pomodoro_secs - elapsed).max(0));
             }
 
+            state.carried_seconds = state.carried_seconds.saturating_add(segment_secs(&state));
+            state.pomodoro_start = None;
             state.state = AppStateEnum::Paused;
             state.paused_slot_id = Some(slot_id);
             Ok(slot_id)
@@ -134,10 +174,7 @@ impl StateManager {
             state.state = AppStateEnum::Working;
             state.current_slot_id = Some(slot_id);
             state.paused_slot_id = None;
-
-            if state.remaining_seconds.is_some() {
-                state.pomodoro_start = Some(Local::now());
-            }
+            state.pomodoro_start = Some(Local::now());
 
             Ok(slot_id)
         } else {
@@ -154,13 +191,16 @@ impl StateManager {
 
         let parent_id = if let Some(slot_id) = state.current_slot_id {
             let elapsed = if let Some(start) = state.pomodoro_start {
-                Local::now().signed_duration_since(start).num_seconds()
+                Local::now()
+                    .signed_duration_since(start)
+                    .num_seconds()
+                    .max(0)
             } else {
                 0
             };
             let pomodoro_secs = self.store.get_settings()?.pomodoro_minutes * 60;
             state.remaining_seconds = Some((pomodoro_secs - elapsed).max(0));
-
+            state.carried_seconds = state.carried_seconds.saturating_add(elapsed);
             state.paused_slot_id = Some(slot_id);
             Some(slot_id)
         } else {
@@ -180,6 +220,7 @@ impl StateManager {
 
         state.state = AppStateEnum::Interrupt;
         state.current_slot_id = Some(interrupt_id);
+        state.pomodoro_start = Some(Local::now());
 
         Ok(interrupt_id)
     }
@@ -191,33 +232,36 @@ impl StateManager {
             anyhow::bail!("Not in interrupt state");
         }
 
+        let now = Local::now();
         if let Some(interrupt_id) = state.current_slot_id {
-            self.store
-                .update_slot(interrupt_id, Some(Local::now()), None)?;
+            self.store.close_slot(interrupt_id, now)?;
         }
 
         if let Some(paused_id) = state.paused_slot_id {
             state.state = AppStateEnum::Working;
             state.current_slot_id = Some(paused_id);
             state.paused_slot_id = None;
-
-            if state.remaining_seconds.is_some() {
-                state.pomodoro_start = Some(Local::now());
-            }
+            // `carried_seconds` is the work time before this interrupt.
+            // Start a new segment so the work clock continues instead of reading zero.
+            state.pomodoro_start = Some(now);
 
             Ok(Some(paused_id))
         } else {
-            state.state = AppStateEnum::Idle;
-            state.current_slot_id = None;
+            Self::clear_activity(&mut state);
             Ok(None)
         }
     }
 
     pub fn get_elapsed_seconds(&self) -> Option<i64> {
         let state = self.state.lock().unwrap();
-        state
-            .pomodoro_start
-            .map(|start| Local::now().signed_duration_since(start).num_seconds())
+        match state.state {
+            AppStateEnum::Idle => None,
+            AppStateEnum::Interrupt => Some(segment_secs(&state)),
+            AppStateEnum::Paused => Some(state.carried_seconds),
+            AppStateEnum::Working => {
+                Some(state.carried_seconds.saturating_add(segment_secs(&state)))
+            }
+        }
     }
 
     pub fn get_remaining_seconds(&self) -> Option<i64> {
@@ -305,5 +349,53 @@ mod tests {
         let interrupt_slot = store.get_slot(interrupt_id).unwrap().unwrap();
         assert_eq!(interrupt_slot.parent_id, Some(work_id));
         assert!(interrupt_slot.end_ts.is_some());
+        assert_eq!(interrupt_slot.note.as_deref(), Some("緊急事項"));
+    }
+
+    #[test]
+    fn test_interrupt_ends_on_return_and_work_clock_continues() {
+        use std::thread;
+        use std::time::Duration;
+
+        let store = Arc::new(StoreV2::new(Path::new(":memory:")).unwrap());
+        let mgr = StateManager::new(store.clone());
+        let work_id = mgr.start_task("Work".to_string(), SlotType::Work).unwrap();
+        thread::sleep(Duration::from_millis(1100));
+
+        let interrupt_id = mgr
+            .start_interrupt(Some("A".to_string()), Some("原因".to_string()))
+            .unwrap();
+        let started = mgr.get_elapsed_seconds().unwrap();
+        assert!(
+            started <= 1,
+            "interrupt stopwatch should start over, got {started}"
+        );
+        thread::sleep(Duration::from_millis(1100));
+        let counted = mgr.get_elapsed_seconds().unwrap();
+        assert!(
+            counted >= 1,
+            "interrupt stopwatch should count until returning to work, got {counted}"
+        );
+
+        mgr.end_interrupt_and_resume().unwrap();
+        let work_clock = mgr.get_elapsed_seconds().unwrap();
+        assert!(
+            work_clock >= 1,
+            "work stopwatch should keep the time from before the interrupt, got {work_clock}"
+        );
+
+        let interrupt_end = store
+            .get_slot(interrupt_id)
+            .unwrap()
+            .unwrap()
+            .end_ts
+            .unwrap();
+        thread::sleep(Duration::from_millis(1100));
+        mgr.end_task(None).unwrap();
+
+        let work_end = store.get_slot(work_id).unwrap().unwrap().end_ts.unwrap();
+        let interrupt_after = store.get_slot(interrupt_id).unwrap().unwrap();
+        assert_eq!(interrupt_after.end_ts, Some(interrupt_end));
+        assert!(interrupt_end < work_end);
     }
 }

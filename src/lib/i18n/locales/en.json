@@ -172,7 +172,11 @@
     "update_confirm": "下載並安裝版本 {version}？",
     "restart_confirm": "安裝完成，現在重啟應用？",
     "no_updates": "目前已是最新版本",
-    "update_check_failed": "檢查更新失敗"
+    "update_check_failed": "檢查更新失敗",
+    "auto_update": "Automatic updates",
+    "auto_update_desc": "Check GitHub on startup. The download is installed only after its SHA-256 matches.",
+    "update_installing": "Downloading and verifying the installer...",
+    "update_open_dmg": "The disk image is open. Drag the app into Applications."
   },
   "idle_return": {
     "title": "Idle Detected",

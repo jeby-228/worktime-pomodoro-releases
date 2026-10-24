@@ -197,7 +197,11 @@
     "update_confirm": "ดาวน์โหลดและติดตั้งเวอร์ชัน {version}?",
     "restart_confirm": "ติดตั้งเสร็จแล้ว รีสตาร์ทแอปเดี๋ยวนี้?",
     "no_updates": "คุณใช้เวอร์ชันล่าสุดแล้ว",
-    "update_check_failed": "ตรวจสอบอัปเดตไม่สำเร็จ"
+    "update_check_failed": "ตรวจสอบอัปเดตไม่สำเร็จ",
+    "auto_update": "อัปเดตอัตโนมัติ",
+    "auto_update_desc": "ตรวจเวอร์ชันล่าสุดบน GitHub ตอนเปิดแอป และติดตั้งเมื่อ SHA-256 ตรงกัน",
+    "update_installing": "กำลังดาวน์โหลดและตรวจสอบไฟล์ติดตั้ง...",
+    "update_open_dmg": "เปิดไฟล์อิมเมจแล้ว ลากแอปไปที่ Applications"
   },
   "idle_return": {
     "title": "ตรวจพบว่าง",

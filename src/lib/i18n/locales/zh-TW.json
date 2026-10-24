@@ -213,7 +213,11 @@
     "update_confirm": "下載並安裝版本 {version}？",
     "restart_confirm": "安裝完成，現在重啟應用？",
     "no_updates": "目前已是最新版本",
-    "update_check_failed": "檢查更新失敗"
+    "update_check_failed": "檢查更新失敗",
+    "auto_update": "自動更新",
+    "auto_update_desc": "啟動時檢查 GitHub 最新版。下載後先核對 SHA-256，相符才安裝。",
+    "update_installing": "正在下載並核對安裝檔...",
+    "update_open_dmg": "已打開安裝映像檔，請把 App 拖進「應用程式」。"
   },
   "idle_return": {
     "title": "離開檢測",

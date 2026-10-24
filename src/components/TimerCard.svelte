@@ -27,7 +27,15 @@
   let pomodoroLength = $state(25 * 60);
   let taskName = $state('');
   let startError = $state('');
+  let actionError = $state('');
   let updateInterval: number | undefined;
+
+  function secondsSince(ts: string): number {
+    const trimmed = ts.replace(/(\.\d{3})\d+/, '$1');
+    const parsed = Date.parse(trimmed);
+    if (Number.isNaN(parsed)) return 0;
+    return Math.max(0, Math.floor((Date.now() - parsed) / 1000));
+  }
   
   let displayTime = $derived.by(() => {
     const seconds = state.status === 'idle' ? 0 : (state.elapsed_seconds || 0);
@@ -65,15 +73,23 @@
         invoke<StateData>('get_app_state'),
         invoke<number | null>('get_elapsed_seconds'),
         invoke<number | null>('get_remaining_seconds'),
-        invoke<{ task_name?: string } | null>('get_current_slot'),
+        invoke<{ task_name?: string; start_ts?: string } | null>('get_current_slot'),
       ]);
 
-      const nextElapsed =
+      let nextElapsed =
         data.status === 'idle'
           ? 0
           : typeof elapsed === 'number' && !Number.isNaN(elapsed)
             ? elapsed
             : state.elapsed_seconds;
+
+      if (data.status === 'interrupt' && slot?.start_ts) {
+        const fromSlot = secondsSince(String(slot.start_ts));
+        nextElapsed = fromSlot > 0 ? fromSlot : nextElapsed;
+      } else if (data.status === 'working' && nextElapsed === 0 && slot?.start_ts) {
+        const fromSlot = secondsSince(String(slot.start_ts));
+        if (fromSlot > 1) nextElapsed = fromSlot;
+      }
 
       state = {
         status: data.status,
@@ -161,12 +177,13 @@
   }
 
   async function endInterrupt() {
+    actionError = '';
     try {
       await invoke('end_interrupt_and_resume');
       await loadState();
       window.dispatchEvent(new CustomEvent('task-started'));
     } catch (err) {
-      console.error('Failed to end interrupt:', err);
+      actionError = String(err);
     }
   }
 </script>
@@ -254,13 +271,15 @@
         {$t('timer.end_task')}
       </button>
     {:else}
-      <button 
-        onclick={pauseTask}
-        class="flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
-      >
-        <Pause class="size-4" />
-        {$t('timer.pause')}
-      </button>
+      {#if state.status !== 'interrupt'}
+        <button 
+          onclick={pauseTask}
+          class="flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+        >
+          <Pause class="size-4" />
+          {$t('timer.pause')}
+        </button>
+      {/if}
       {#if state.status === 'interrupt'}
         <button
           onclick={endInterrupt}
@@ -288,6 +307,10 @@
       </button>
     {/if}
   </div>
+
+  {#if actionError}
+    <p class="mt-3 text-sm text-destructive">{actionError}</p>
+  {/if}
   
   {#if !compact}
     <div class="mt-4 text-center text-xs text-muted-foreground">
