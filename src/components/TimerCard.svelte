@@ -150,6 +150,7 @@
     try {
       await invoke('end_task', { note: null });
       await loadState();
+      window.dispatchEvent(new CustomEvent('task-started'));
     } catch (err) {
       console.error('Failed to end task:', err);
     }

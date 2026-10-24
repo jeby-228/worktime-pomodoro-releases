@@ -114,6 +114,23 @@
     return `${date.getFullYear()}-${month}-${day}`;
   }
 
+  function dayOf(ts: number | string | null): string {
+    if (ts == null || ts === '') return '';
+    const parsed = new Date(tsValue(ts));
+    if (Number.isNaN(parsed.getTime())) {
+      return typeof ts === 'string' ? ts.split('T')[0] : '';
+    }
+    return localDateString(parsed);
+  }
+
+  function slotOverlapsDay(slot: TimeSlot, day: string): boolean {
+    const started = dayOf(slot.start_ts);
+    if (!slot.end_ts) return started === '' || started <= day;
+    const ended = dayOf(slot.end_ts);
+    if (started === day || ended === day) return true;
+    return started !== '' && ended !== '' && started < day && ended > day;
+  }
+
   function slotMinutes(slot: TimeSlot): number {
     const start = tsValue(slot.start_ts);
     if (!start) return 0;
@@ -168,12 +185,9 @@
       const today = localDateString(new Date());
       const lookback = localDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
       const ranged = await invoke<TimeSlot[]>('get_slots_for_range', {
-        request: { startDate: lookback, endDate: today },
+        request: { start_date: lookback, end_date: today },
       });
-      slots = ranged.filter((slot) => {
-        if (!slot.end_ts) return true;
-        return localDateString(new Date(tsValue(slot.start_ts))) === today;
-      });
+      slots = ranged.filter((slot) => slotOverlapsDay(slot, today));
       stats = summarize(slots);
 
       const todayGaps = await invoke<Gap[]>('find_gaps', { date: today });

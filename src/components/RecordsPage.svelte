@@ -126,7 +126,7 @@
     loading = true;
     try {
       const slots: TimeSlot[] = await invoke('get_slots_for_range', {
-        request: { startDate, endDate },
+        request: { start_date: startDate, end_date: endDate },
       });
 
       const grouped: GroupedSlots = {};
@@ -150,9 +150,13 @@
 
       const today = localDateString(new Date());
       for (const slot of slots) {
-        if (slotEnd(slot)) continue;
         const started = slotDate(slot);
-        if (!started || started === today) continue;
+        const endRaw = slotEnd(slot);
+        const ended = endRaw
+          ? (Number.isNaN(Date.parse(endRaw)) ? endRaw.split('T')[0] : localDateString(new Date(endRaw)))
+          : '';
+        const carryToToday = Boolean(started && started !== today && (!endRaw || ended === today));
+        if (!carryToToday) continue;
         if (!grouped[today]) {
           grouped[today] = {
             slots: [],
@@ -200,6 +204,9 @@
 
   onMount(() => {
     loadData();
+    const refresh = () => loadData();
+    window.addEventListener('task-started', refresh);
+    return () => window.removeEventListener('task-started', refresh);
   });
 
   const filteredData = $derived.by(() => {

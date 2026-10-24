@@ -41,6 +41,7 @@
     try {
       await invoke("end_task", { note: note || null });
       await loadState();
+      window.dispatchEvent(new CustomEvent("task-started"));
     } catch (e: any) {
       alert(`結束任務失敗：${e}`);
     }

@@ -109,7 +109,9 @@ pub fn get_day_stats(date: String, store: State<AppStore>) -> Result<DayStats, S
 
 #[derive(Debug, Deserialize)]
 pub struct DateRangeRequest {
+    #[serde(alias = "startDate")]
     pub start_date: String,
+    #[serde(alias = "endDate")]
     pub end_date: String,
 }
 
