@@ -104,25 +104,31 @@ jobs:
         run: |
           set -euo pipefail
           bundle="src-tauri/target/${RUST_TARGET}/release/bundle"
-          mapfile -t files < <(find "$bundle" -type f \
-            \( -name '*.AppImage' -o -name '*.AppImage.sig' \
-               -o -name '*.AppImage.tar.gz' -o -name '*.AppImage.tar.gz.sig' \
-               -o -name '*.deb' -o -name '*.rpm' \
-               -o -name '*.dmg' -o -name '*.dmg.sig' \
-               -o -name '*.msi' -o -name '*.msi.sig' -o -name '*.msi.zip' -o -name '*.msi.zip.sig' \
-               -o -name '*.exe' -o -name '*.exe.sig' -o -name '*-setup.exe.zip' -o -name '*-setup.exe.zip.sig' \
-               -o -name '*.app.tar.gz' -o -name '*.app.tar.gz.sig' \))
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "No installers found under $bundle"
-            find "$bundle" -type f | head -100
-            exit 1
-          fi
+          # macOS runners ship Bash 3.2, which has no mapfile.
+          list_bundles() {
+            find "$bundle" -type f \
+              \( -name '*.AppImage' -o -name '*.AppImage.sig' \
+                 -o -name '*.AppImage.tar.gz' -o -name '*.AppImage.tar.gz.sig' \
+                 -o -name '*.deb' -o -name '*.rpm' \
+                 -o -name '*.dmg' -o -name '*.dmg.sig' \
+                 -o -name '*.msi' -o -name '*.msi.sig' -o -name '*.msi.zip' -o -name '*.msi.zip.sig' \
+                 -o -name '*.exe' -o -name '*.exe.sig' -o -name '*-setup.exe.zip' -o -name '*-setup.exe.zip.sig' \
+                 -o -name '*.app.tar.gz' -o -name '*.app.tar.gz.sig' \) \
+              -print0
+          }
+          found=0
           sigs=0
-          for f in "${files[@]}"; do
+          while IFS= read -r -d '' f; do
+            found=1
             case "$f" in
               *.sig) sigs=$((sigs + 1)) ;;
             esac
-          done
+          done < <(list_bundles)
+          if [ "$found" -eq 0 ]; then
+            echo "No installers found under $bundle"
+            find "$bundle" -type f | head -100 || true
+            exit 1
+          fi
           if [ "$sigs" -eq 0 ]; then
             echo "Tauri did not sign the bundles. TAURI_SIGNING_PRIVATE_KEY is missing."
             exit 1
@@ -141,12 +147,12 @@ jobs:
               *) printf '%s-%s' "$RUST_TARGET" "$base" ;;
             esac
           }
-          for f in "${files[@]}"; do
+          while IFS= read -r -d '' f; do
             name=$(dest_name "$(basename "$f")")
             cp "$f" "$stage/$name"
             echo "Uploading $name"
             gh release upload "${GITHUB_REF_NAME}" "$stage/$name" --clobber
-          done
+          done < <(list_bundles)
 
   generate-update-manifest:
     name: Generate Update Manifest
