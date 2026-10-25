@@ -156,31 +156,6 @@
         grouped[date].slots.push(slot);
       }
 
-      const today = localDateString(new Date());
-      for (const slot of slots) {
-        const started = slotDate(slot);
-        const endRaw = slotEnd(slot);
-        const ended = endRaw
-          ? (Number.isNaN(Date.parse(endRaw)) ? endRaw.split('T')[0] : localDateString(new Date(endRaw)))
-          : '';
-        const carryToToday = Boolean(started && started !== today && (!endRaw || ended === today));
-        if (!carryToToday) continue;
-        if (!grouped[today]) {
-          grouped[today] = {
-            slots: [],
-            stats: {
-              work_minutes: 0,
-              interrupt_minutes: 0,
-              meeting_minutes: 0,
-              lunch_minutes: 0,
-              total_recorded: 0,
-            },
-          };
-        }
-        if (!grouped[today].slots.some((item) => item.id === slot.id)) {
-          grouped[today].slots.push(slot);
-        }
-      }
       for (const data of Object.values(grouped)) {
         data.stats = summarize(data.slots);
       }
