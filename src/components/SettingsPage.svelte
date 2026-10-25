@@ -356,7 +356,7 @@
           <div class="space-y-4">
             <div>
               <div class="text-sm font-medium">{$t('app.title')}</div>
-              <div class="text-sm text-muted-foreground">v1.1.0</div>
+              <div class="text-sm text-muted-foreground">v1.1.1</div>
             </div>
             
             <div>
