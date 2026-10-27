@@ -1,6 +1,6 @@
 [package]
 name = "worktime-pomodoro"
-version = "1.1.2"
+version = "1.1.3"
 description = "Offline-first desktop time tracking tool with Pomodoro timer"
 authors = ["jeby-228"]
 license = "MIT"
