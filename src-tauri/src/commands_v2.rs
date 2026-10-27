@@ -612,11 +612,48 @@ pub struct ExportRowV2 {
     pub note: String,
 }
 
+#[derive(Debug, Deserialize, Default)]
+pub struct ExportTypeLabels {
+    #[serde(default)]
+    pub work: String,
+    #[serde(default)]
+    pub interrupt: String,
+    #[serde(default)]
+    pub meeting: String,
+    #[serde(default)]
+    pub lunch: String,
+}
+
+impl ExportTypeLabels {
+    fn for_slot(&self, slot_type: &SlotType) -> String {
+        let label = match slot_type {
+            SlotType::Work => self.work.as_str(),
+            SlotType::Interrupt => self.interrupt.as_str(),
+            SlotType::Meeting => self.meeting.as_str(),
+            SlotType::Lunch => self.lunch.as_str(),
+        };
+        let label = label.trim();
+        if label.is_empty() {
+            slot_type.as_str().to_string()
+        } else {
+            label.to_string()
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExportResult {
+    pub path: String,
+    pub count: i64,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ExportRequest {
     pub start_date: String,
     pub end_date: String,
     pub include_interrupts: bool,
+    #[serde(default)]
+    pub type_labels: ExportTypeLabels,
 }
 
 #[tauri::command]
@@ -643,7 +680,7 @@ pub fn prepare_export_data(
             Some(ExportRowV2 {
                 date: slot.start_ts.format("%Y-%m-%d").to_string(),
                 task_name: slot.task_name.clone(),
-                slot_type: slot.slot_type.as_str().to_string(),
+                slot_type: request.type_labels.for_slot(&slot.slot_type),
                 start_time: slot.start_ts.format("%H:%M:%S").to_string(),
                 end_time: end_ts.format("%H:%M:%S").to_string(),
                 duration_minutes: duration,
@@ -663,8 +700,9 @@ pub fn export_to_xlsx(
     request: ExportRequest,
     output_path: String,
     store: State<AppStore>,
-) -> Result<String, String> {
+) -> Result<ExportResult, String> {
     let rows = prepare_export_data(request, store)?;
+    let count = rows.len() as i64;
     let path = PathBuf::from(output_path);
 
     let mut workbook = Workbook::new();
@@ -743,7 +781,10 @@ pub fn export_to_xlsx(
 
     workbook.save(&path).map_err(|e| e.to_string())?;
 
-    Ok(path.to_string_lossy().to_string())
+    Ok(ExportResult {
+        path: path.to_string_lossy().to_string(),
+        count,
+    })
 }
 
 #[tauri::command]
@@ -751,8 +792,9 @@ pub fn export_to_csv(
     request: ExportRequest,
     output_path: String,
     store: State<AppStore>,
-) -> Result<String, String> {
+) -> Result<ExportResult, String> {
     let rows = prepare_export_data(request, store)?;
+    let count = rows.len() as i64;
     let path = PathBuf::from(output_path);
 
     let mut wtr = csv::Writer::from_path(&path).map_err(|e| e.to_string())?;
@@ -783,5 +825,8 @@ pub fn export_to_csv(
 
     wtr.flush().map_err(|e| e.to_string())?;
 
-    Ok(path.to_string_lossy().to_string())
+    Ok(ExportResult {
+        path: path.to_string_lossy().to_string(),
+        count,
+    })
 }

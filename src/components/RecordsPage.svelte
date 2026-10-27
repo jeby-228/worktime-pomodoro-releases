@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { save } from '@tauri-apps/plugin-dialog';
-  import { List, Table as TableIcon, Filter, Download, Calendar, Briefcase, Zap, Users, Coffee, Clock, AlertTriangle } from 'lucide-svelte';
+  import { List, Table as TableIcon, Filter, Download, Calendar, Briefcase, Zap, Users, Coffee, Clock, AlertTriangle, Check } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import type { TimeSlot, DayStats } from '$lib/types';
   import SlotEditDrawer from './SlotEditDrawer.svelte';
@@ -28,8 +28,11 @@
   let showDatePicker = $state(false);
   let includeInterrupts = $state(true);
   let exporting = $state(false);
+  let exportKind = $state<'csv' | 'xlsx' | null>(null);
   let exportError = $state('');
   let exportMessage = $state('');
+  let exportCount = $state<number | null>(null);
+  let exportCancelled = $state(false);
   let selectedIds = $state<number[]>([]);
   let mergeError = $state('');
   let merging = $state(false);
@@ -213,12 +216,26 @@
   function openExport() {
     exportError = '';
     exportMessage = '';
+    exportCount = null;
+    exportCancelled = false;
     showExportDialog = true;
+  }
+
+  function currentTypeLabels() {
+    return {
+      work: $t('slot_types.work'),
+      interrupt: $t('slot_types.interrupt'),
+      meeting: $t('slot_types.meeting'),
+      lunch: $t('slot_types.lunch'),
+    };
   }
 
   async function exportFile(kind: 'xlsx' | 'csv') {
     exportError = '';
     exportMessage = '';
+    exportCount = null;
+    exportCancelled = false;
+    exportKind = kind;
     const extension = kind === 'xlsx' ? 'xlsx' : 'csv';
     exporting = true;
     try {
@@ -226,20 +243,29 @@
         defaultPath: `工時記錄_${startDate}_${endDate}.${extension}`,
         filters: [{ name: kind === 'xlsx' ? 'Excel' : 'CSV', extensions: [extension] }],
       });
-      if (!path) return;
-      const saved = await invoke<string>(kind === 'xlsx' ? 'export_to_xlsx' : 'export_to_csv', {
-        request: {
-          start_date: startDate,
-          end_date: endDate,
-          include_interrupts: includeInterrupts,
+      if (!path) {
+        exportCancelled = true;
+        return;
+      }
+      const saved = await invoke<{ path: string; count: number }>(
+        kind === 'xlsx' ? 'export_to_xlsx' : 'export_to_csv',
+        {
+          request: {
+            start_date: startDate,
+            end_date: endDate,
+            include_interrupts: includeInterrupts,
+            type_labels: currentTypeLabels(),
+          },
+          outputPath: path,
         },
-        outputPath: path,
-      });
-      exportMessage = saved;
+      );
+      exportMessage = saved.path;
+      exportCount = saved.count;
     } catch (err) {
       exportError = String(err);
     } finally {
       exporting = false;
+      exportKind = null;
     }
   }
 
@@ -515,12 +541,28 @@
         <input type="checkbox" bind:checked={includeInterrupts} />
         {$t('records.include_interrupts')}
       </label>
-      {#if exportError}
-        <p class="mt-3 text-sm text-destructive">{exportError}</p>
-      {/if}
-      {#if exportMessage}
-        <p class="mt-3 break-all text-sm text-muted-foreground">{exportMessage}</p>
-      {/if}
+      <div class="mt-4" aria-live="polite">
+        {#if exporting}
+          <p class="text-sm font-medium text-foreground">{$t('records.exporting')}</p>
+        {:else if exportError}
+          <p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{exportError}</p>
+        {:else if exportCancelled}
+          <p class="rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground">{$t('records.export_cancelled')}</p>
+        {:else if exportCount !== null}
+          <div class="rounded-md border border-primary/30 bg-primary/10 px-3 py-3" role="status">
+            <div class="flex items-center gap-2 font-medium text-foreground">
+              <Check class="size-4" />
+              {#if exportCount === 0}
+                {$t('records.export_empty')}
+              {:else}
+                {$t('records.export_success', { count: exportCount })}
+              {/if}
+            </div>
+            <p class="mt-2 text-xs text-muted-foreground">{$t('records.export_saved_to')}</p>
+            <p class="mt-1 break-all text-sm text-foreground">{exportMessage}</p>
+          </div>
+        {/if}
+      </div>
       <div class="mt-6 flex justify-end gap-2">
         <button
           type="button"
@@ -528,7 +570,7 @@
           disabled={exporting}
           class="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
         >
-          {$t('common.cancel')}
+          {exportCount !== null ? $t('common.close') : $t('common.cancel')}
         </button>
         <button
           type="button"
@@ -536,7 +578,7 @@
           disabled={exporting}
           class="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
         >
-          CSV
+          {exporting && exportKind === 'csv' ? $t('records.exporting') : 'CSV'}
         </button>
         <button
           type="button"
@@ -544,7 +586,7 @@
           disabled={exporting}
           class="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
-          Excel
+          {exporting && exportKind === 'xlsx' ? $t('records.exporting') : 'Excel'}
         </button>
       </div>
     </div>
