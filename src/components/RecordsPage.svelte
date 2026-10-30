@@ -326,26 +326,26 @@
   <!-- Main Content -->
   <div class="flex-1 flex flex-col">
     <!-- Toolbar -->
-    <div class="flex items-center justify-between border-b border-border px-6 py-4">
-      <div class="flex items-center gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-4">
+      <div class="flex min-w-0 flex-wrap items-center gap-3">
         <!-- View toggle -->
-        <div class="flex rounded-md border border-border">
+        <div class="flex shrink-0 rounded-md border border-border">
           <button
             onclick={() => viewMode = 'list'}
-            class="flex items-center gap-2 rounded-l-md px-3 py-2 text-sm font-medium transition-colors {viewMode === 'list'
+            class="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-l-md px-3 py-2 text-sm font-medium transition-colors {viewMode === 'list'
               ? 'bg-accent text-accent-foreground'
               : 'text-muted-foreground hover:bg-accent/50'}"
           >
-            <List size={16} />
+            <List size={16} class="shrink-0" />
             {$t('records.list_view')}
           </button>
           <button
             onclick={() => viewMode = 'table'}
-            class="flex items-center gap-2 rounded-r-md px-3 py-2 text-sm font-medium transition-colors {viewMode === 'table'
+            class="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-r-md px-3 py-2 text-sm font-medium transition-colors {viewMode === 'table'
               ? 'bg-accent text-accent-foreground'
               : 'text-muted-foreground hover:bg-accent/50'}"
           >
-            <TableIcon size={16} />
+            <TableIcon size={16} class="shrink-0" />
             {$t('records.table_view')}
           </button>
         </div>
@@ -353,18 +353,18 @@
         <!-- Date range -->
         <button
           onclick={() => showDatePicker = !showDatePicker}
-          class="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent"
+          class="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent"
         >
-          <Calendar size={16} />
+          <Calendar size={16} class="shrink-0" />
           {formatDate(startDate)} - {formatDate(endDate)}
         </button>
 
         <!-- Filter -->
         <button
           onclick={() => showFilterDialog = !showFilterDialog}
-          class="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent {filterType ? 'bg-accent' : ''}"
+          class="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent {filterType ? 'bg-accent' : ''}"
         >
-          <Filter size={16} />
+          <Filter size={16} class="shrink-0" />
           {filterType ? $t(`slot_types.${filterType}`) : $t('records.filter')}
         </button>
 
@@ -373,16 +373,16 @@
           type="search"
           bind:value={searchQuery}
           placeholder={$t('records.search_placeholder')}
-          class="w-64 rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          class="min-w-40 max-w-64 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
       </div>
 
       <!-- Export -->
       <button
         onclick={openExport}
-        class="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        class="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
       >
-        <Download size={16} />
+        <Download size={16} class="shrink-0" />
         {$t('records.export')}
       </button>
     </div>
@@ -425,12 +425,12 @@
         <div class="divide-y divide-border">
           {#each filteredData as [date, data] (date)}
             <!-- Day group header -->
-            <div class="bg-muted/30 px-6 py-2 text-sm font-medium sticky top-0">
-              <div class="flex items-center justify-between">
-                <span>{formatDate(date)}</span>
-                <div class="flex items-center gap-4 text-muted-foreground">
-                  <span>{formatDuration(data.stats.total_recorded)} / 8h</span>
-                  <span>{data.slots.length} {$t('records.items')}</span>
+            <div class="sticky top-0 z-10 border-b border-border bg-muted px-6 py-2 text-sm font-medium">
+              <div class="flex items-center justify-between gap-4">
+                <span class="shrink-0 whitespace-nowrap">{formatDate(date)}</span>
+                <div class="flex shrink-0 items-center gap-4 text-muted-foreground">
+                  <span class="whitespace-nowrap tabular-nums">{formatDuration(data.stats.total_recorded)} / 8h</span>
+                  <span class="whitespace-nowrap">{data.slots.length} {$t('records.items')}</span>
                 </div>
               </div>
             </div>
