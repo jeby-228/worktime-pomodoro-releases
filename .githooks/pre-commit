@@ -9,13 +9,15 @@ if [ ! -f "package.json" ]; then
     exit 1
 fi
 
-# 1. Rust formatting check
-echo "📝 Checking Rust formatting..."
-if ! cargo fmt --manifest-path=src-tauri/Cargo.toml --all -- --check; then
-    echo "❌ Rust formatting check failed. Run: cargo fmt --manifest-path=src-tauri/Cargo.toml --all"
-    exit 1
+# 1. Auto-format, then re-stage the files that were already staged
+echo "📝 Formatting code..."
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+cargo fmt --manifest-path=src-tauri/Cargo.toml --all || exit 1
+npm run fmt >/dev/null || exit 1
+if [ -n "$staged" ]; then
+    echo "$staged" | xargs git add --
 fi
-echo "✅ Rust formatting OK"
+echo "✅ Formatting applied"
 
 # 2. Rust clippy
 echo "🔍 Running Clippy..."
@@ -40,12 +42,6 @@ if ! npm run lint; then
     exit 1
 fi
 echo "✅ Linting OK"
-
-# 5. Frontend format check
-echo "📋 Checking frontend formatting..."
-if ! npm run format:check; then
-    echo "⚠️  Frontend formatting issues found (non-blocking)"
-fi
 
 echo "✅ All pre-commit checks passed!"
 exit 0

@@ -1,0 +1,11 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import DesktopLayout from '$components/DesktopLayout.svelte';
+import ReportPage from '$components/ReportPage.svelte';
+---
+
+<BaseLayout title="週會報告 - 工時記錄">
+<DesktopLayout currentRoute="report" client:load>
+  <ReportPage client:only="svelte" />
+</DesktopLayout>
+</BaseLayout>

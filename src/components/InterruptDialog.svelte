@@ -3,7 +3,8 @@
   import { Zap } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
-  
+  import CategorySelect from './CategorySelect.svelte';
+
   interface Props {
     visible?: boolean;
     onClose?: () => void;
@@ -15,13 +16,24 @@
   let reason = $state('');
   let recentPeople = $state<string[]>([]);
   let submitError = $state('');
-  
+  let categoryId = $state<number | null>(null);
+
   function openDialog() {
     who = '';
     reason = '';
     submitError = '';
+    categoryId = null;
     visible = true;
     loadRecentPeople();
+    loadDefaultCategory();
+  }
+
+  async function loadDefaultCategory() {
+    try {
+      categoryId = await invoke<number | null>('get_default_category', { slotType: 'interrupt' });
+    } catch (err) {
+      console.error('Failed to load default category:', err);
+    }
   }
 
   function handleGlobalEvent() {
@@ -30,8 +42,8 @@
 
   async function loadRecentPeople() {
     try {
-      const people = await invoke<Array<{person_name: string}>>('get_recent_people', { limit: 5 });
-      recentPeople = people.map(p => p.person_name);
+      const people = await invoke<Array<{name: string}>>('get_recent_people', { limit: 5 });
+      recentPeople = people.map(p => p.name);
     } catch (err) {
       console.error('Failed to load recent people:', err);
     }
@@ -45,6 +57,7 @@
         request: {
           who: who.trim(),
           reason: reason.trim() || null,
+          category_id: categoryId,
         },
       });
       window.dispatchEvent(new CustomEvent('task-started'));
@@ -118,6 +131,12 @@
           {/if}
         </div>
         
+        <!-- Category -->
+        <div class="space-y-2">
+          <label for="interrupt-category" class="text-sm font-medium">{$t('categories.label')}</label>
+          <CategorySelect id="interrupt-category" bind:value={categoryId} />
+        </div>
+
         <!-- Reason -->
         <div class="space-y-2">
           <label for="interrupt-reason" class="text-sm font-medium">{$t('interrupt.reason')}</label>

@@ -3,6 +3,7 @@
   import { X, Clock, User, FileText, Calendar, Tag } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import type { TimeSlot } from '$lib/types';
+  import CategorySelect from './CategorySelect.svelte';
 
   let { open = $bindable(false), slot = $bindable<TimeSlot | null>(null), onSaved = () => {} } = $props<{
     open: boolean;
@@ -19,6 +20,7 @@
   let startTime = $state(openingStart);
   let endTime = $state(openingEnd);
   let slotType = $state<'work' | 'interrupt' | 'meeting' | 'lunch'>(slot?.slot_type ?? 'work');
+  let categoryId = $state<number | null>(slot?.category_id ?? null);
   let splitAt = $state(midpoint(openingStart, openingEnd));
   let secondTitle = $state(openingTitle);
   let saving = $state(false);
@@ -76,6 +78,7 @@
           start_ts: new Date(startTime).toISOString(),
           end_ts: endTime ? new Date(endTime).toISOString() : null,
           note: note.trim() || null,
+          category_id: slotType === 'lunch' ? null : categoryId,
         },
       });
       window.dispatchEvent(new CustomEvent('task-started'));
@@ -187,6 +190,17 @@
             {/each}
           </div>
         </div>
+
+        <!-- Category -->
+        {#if slotType !== 'lunch'}
+          <div class="space-y-2">
+            <label for="slot-category" class="text-sm font-medium text-foreground flex items-center gap-2">
+              <Tag size={16} class="text-muted-foreground" />
+              {$t('categories.label')}
+            </label>
+            <CategorySelect id="slot-category" bind:value={categoryId} />
+          </div>
+        {/if}
 
         <!-- Task Title -->
         <div class="space-y-2">

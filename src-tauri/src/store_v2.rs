@@ -1,12 +1,76 @@
 use anyhow::Result;
 use chrono::{DateTime, Local, NaiveDate};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, Row};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 use crate::migrations::MigrationManager;
 use crate::models::*;
+use crate::report::build_category_report;
+
+const SLOT_SELECT: &str =
+    "SELECT s.id, s.uuid, s.task_name, s.slot_type, s.start_ts, s.end_ts, s.note, s.parent_id,
+            s.created_at, s.updated_at, s.category_id, c.name, c.report_code
+     FROM time_slots s
+     LEFT JOIN categories c ON c.id = s.category_id";
+
+const CATEGORY_COLUMNS: &str = "c.id, c.name, c.report_code, c.sort_order, c.hidden";
+
+fn parse_ts(value: &str) -> DateTime<Local> {
+    DateTime::parse_from_rfc3339(value)
+        .unwrap()
+        .with_timezone(&Local)
+}
+
+fn slot_from_row(row: &Row) -> rusqlite::Result<TimeSlot> {
+    Ok(TimeSlot {
+        id: Some(row.get(0)?),
+        uuid: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
+        task_name: row.get(2)?,
+        slot_type: row.get::<_, String>(3)?.parse().unwrap(),
+        start_ts: parse_ts(&row.get::<_, String>(4)?),
+        end_ts: row.get::<_, Option<String>>(5)?.map(|s| parse_ts(&s)),
+        note: row.get(6)?,
+        parent_id: row.get(7)?,
+        created_at: parse_ts(&row.get::<_, String>(8)?),
+        updated_at: parse_ts(&row.get::<_, String>(9)?),
+        category_id: row.get(10)?,
+        category_name: row.get(11)?,
+        category_code: row.get(12)?,
+    })
+}
+
+fn category_from_row(row: &Row) -> rusqlite::Result<Category> {
+    Ok(Category {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        report_code: row.get(2)?,
+        sort_order: row.get(3)?,
+        hidden: row.get(4)?,
+    })
+}
+
+fn clean_category_name(name: &str) -> Result<&str> {
+    let name = name.trim();
+    if name.is_empty() {
+        anyhow::bail!("請輸入類別名稱");
+    }
+    Ok(name)
+}
+
+fn clean_report_code(code: Option<&str>) -> Option<&str> {
+    code.map(str::trim).filter(|text| !text.is_empty())
+}
+
+pub struct SlotDetails<'a> {
+    pub task_name: &'a str,
+    pub slot_type: SlotType,
+    pub start_ts: DateTime<Local>,
+    pub end_ts: Option<DateTime<Local>>,
+    pub note: Option<&'a str>,
+    pub category_id: Option<i64>,
+}
 
 pub struct StoreV2 {
     conn: Arc<Mutex<Connection>>,
@@ -30,8 +94,8 @@ impl StoreV2 {
     pub fn create_slot(&self, slot: &TimeSlot) -> Result<i64> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
-            "INSERT INTO time_slots (uuid, task_name, slot_type, start_ts, end_ts, note, parent_id, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            "INSERT INTO time_slots (uuid, task_name, slot_type, start_ts, end_ts, note, parent_id, created_at, updated_at, category_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
                 slot.uuid.to_string(),
                 slot.task_name,
@@ -42,6 +106,7 @@ impl StoreV2 {
                 slot.parent_id,
                 slot.created_at.to_rfc3339(),
                 slot.updated_at.to_rfc3339(),
+                slot.category_id.filter(|_| slot.slot_type.has_category()),
             ],
         )?;
         Ok(conn.last_insert_rowid())
@@ -93,19 +158,21 @@ impl StoreV2 {
         Ok(())
     }
 
-    pub fn update_slot_details(
-        &self,
-        id: i64,
-        task_name: &str,
-        slot_type: SlotType,
-        start_ts: DateTime<Local>,
-        end_ts: Option<DateTime<Local>>,
-        note: Option<&str>,
-    ) -> Result<()> {
+    pub fn update_slot_details(&self, id: i64, details: SlotDetails) -> Result<()> {
+        let SlotDetails {
+            task_name,
+            slot_type,
+            start_ts,
+            end_ts,
+            note,
+            category_id,
+        } = details;
         let conn = self.conn.lock().unwrap();
+        let category_id = category_id.filter(|_| slot_type.has_category());
         let changed = conn.execute(
             "UPDATE time_slots
-             SET task_name = ?1, slot_type = ?2, start_ts = ?3, end_ts = ?4, note = ?5, updated_at = ?6
+             SET task_name = ?1, slot_type = ?2, start_ts = ?3, end_ts = ?4, note = ?5, updated_at = ?6,
+                 category_id = ?8
              WHERE id = ?7",
             params![
                 task_name,
@@ -115,6 +182,7 @@ impl StoreV2 {
                 note,
                 Local::now().to_rfc3339(),
                 id,
+                category_id,
             ],
         )?;
         if changed == 0 {
@@ -127,31 +195,9 @@ impl StoreV2 {
         let conn = self.conn.lock().unwrap();
         let slot = conn
             .query_row(
-                "SELECT id, uuid, task_name, slot_type, start_ts, end_ts, note, parent_id, created_at, updated_at
-                 FROM time_slots WHERE id = ?1",
+                &format!("{SLOT_SELECT} WHERE s.id = ?1"),
                 params![id],
-                |row| {
-                    Ok(TimeSlot {
-                        id: Some(row.get(0)?),
-                        uuid: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                        task_name: row.get(2)?,
-                        slot_type: row.get::<_, String>(3)?.parse().unwrap(),
-                        start_ts: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
-                            .unwrap()
-                            .with_timezone(&Local),
-                        end_ts: row
-                            .get::<_, Option<String>>(5)?
-                            .map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Local)),
-                        note: row.get(6)?,
-                        parent_id: row.get(7)?,
-                        created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
-                            .unwrap()
-                            .with_timezone(&Local),
-                        updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(9)?)
-                            .unwrap()
-                            .with_timezone(&Local),
-                    })
-                },
+                slot_from_row,
             )
             .optional()?;
         Ok(slot)
@@ -161,31 +207,9 @@ impl StoreV2 {
         let conn = self.conn.lock().unwrap();
         let slot = conn
             .query_row(
-                "SELECT id, uuid, task_name, slot_type, start_ts, end_ts, note, parent_id, created_at, updated_at
-                 FROM time_slots WHERE end_ts IS NULL ORDER BY start_ts DESC LIMIT 1",
+                &format!("{SLOT_SELECT} WHERE s.end_ts IS NULL ORDER BY s.start_ts DESC LIMIT 1"),
                 [],
-                |row| {
-                    Ok(TimeSlot {
-                        id: Some(row.get(0)?),
-                        uuid: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                        task_name: row.get(2)?,
-                        slot_type: row.get::<_, String>(3)?.parse().unwrap(),
-                        start_ts: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
-                            .unwrap()
-                            .with_timezone(&Local),
-                        end_ts: row
-                            .get::<_, Option<String>>(5)?
-                            .map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Local)),
-                        note: row.get(6)?,
-                        parent_id: row.get(7)?,
-                        created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
-                            .unwrap()
-                            .with_timezone(&Local),
-                        updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(9)?)
-                            .unwrap()
-                            .with_timezone(&Local),
-                    })
-                },
+                slot_from_row,
             )
             .optional()?;
         Ok(slot)
@@ -197,47 +221,7 @@ impl StoreV2 {
         Ok(())
     }
     pub fn get_slots_for_date(&self, date: NaiveDate) -> Result<Vec<TimeSlot>> {
-        let conn = self.conn.lock().unwrap();
-        let start = date.and_hms_opt(0, 0, 0).unwrap();
-        let end = date.and_hms_opt(23, 59, 59).unwrap();
-        let start_str = start.and_local_timezone(Local).unwrap().to_rfc3339();
-        let end_str = end.and_local_timezone(Local).unwrap().to_rfc3339();
-
-        let mut stmt = conn.prepare(
-            "SELECT id, uuid, task_name, slot_type, start_ts, end_ts, note, parent_id, created_at, updated_at
-             FROM time_slots 
-             WHERE start_ts >= ?1 AND start_ts <= ?2
-             ORDER BY start_ts ASC",
-        )?;
-
-        let slots = stmt
-            .query_map(params![start_str, end_str], |row| {
-                Ok(TimeSlot {
-                    id: Some(row.get(0)?),
-                    uuid: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                    task_name: row.get(2)?,
-                    slot_type: row.get::<_, String>(3)?.parse().unwrap(),
-                    start_ts: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
-                        .unwrap()
-                        .with_timezone(&Local),
-                    end_ts: row.get::<_, Option<String>>(5)?.map(|s| {
-                        DateTime::parse_from_rfc3339(&s)
-                            .unwrap()
-                            .with_timezone(&Local)
-                    }),
-                    note: row.get(6)?,
-                    parent_id: row.get(7)?,
-                    created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
-                        .unwrap()
-                        .with_timezone(&Local),
-                    updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(9)?)
-                        .unwrap()
-                        .with_timezone(&Local),
-                })
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(slots)
+        self.get_slots_for_range(date, date)
     }
 
     pub fn get_slots_for_range(&self, start: NaiveDate, end: NaiveDate) -> Result<Vec<TimeSlot>> {
@@ -253,38 +237,17 @@ impl StoreV2 {
             .and_local_timezone(Local)
             .unwrap();
 
-        let mut stmt = conn.prepare(
-            "SELECT id, uuid, task_name, slot_type, start_ts, end_ts, note, parent_id, created_at, updated_at
-             FROM time_slots 
-             WHERE start_ts >= ?1 AND start_ts <= ?2
-             ORDER BY start_ts ASC",
-        )?;
+        let mut stmt = conn.prepare(&format!(
+            "{SLOT_SELECT}
+             WHERE s.start_ts >= ?1 AND s.start_ts <= ?2
+             ORDER BY s.start_ts ASC"
+        ))?;
 
         let slots = stmt
-            .query_map(params![start_dt.to_rfc3339(), end_dt.to_rfc3339()], |row| {
-                Ok(TimeSlot {
-                    id: Some(row.get(0)?),
-                    uuid: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap(),
-                    task_name: row.get(2)?,
-                    slot_type: row.get::<_, String>(3)?.parse().unwrap(),
-                    start_ts: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
-                        .unwrap()
-                        .with_timezone(&Local),
-                    end_ts: row.get::<_, Option<String>>(5)?.map(|s| {
-                        DateTime::parse_from_rfc3339(&s)
-                            .unwrap()
-                            .with_timezone(&Local)
-                    }),
-                    note: row.get(6)?,
-                    parent_id: row.get(7)?,
-                    created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
-                        .unwrap()
-                        .with_timezone(&Local),
-                    updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(9)?)
-                        .unwrap()
-                        .with_timezone(&Local),
-                })
-            })?
+            .query_map(
+                params![start_dt.to_rfc3339(), end_dt.to_rfc3339()],
+                slot_from_row,
+            )?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(slots)
@@ -473,6 +436,144 @@ impl StoreV2 {
         Ok(people)
     }
 
+    // ==================== Categories ====================
+
+    /// All categories in display order, hidden ones included.
+    pub fn get_categories(&self) -> Result<Vec<Category>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {CATEGORY_COLUMNS} FROM categories c ORDER BY c.sort_order ASC, c.id ASC"
+        ))?;
+        let categories = stmt
+            .query_map([], category_from_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(categories)
+    }
+
+    fn ensure_category_name_free(conn: &Connection, name: &str, except_id: i64) -> Result<()> {
+        let taken: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM categories WHERE name = ?1 AND id <> ?2",
+                params![name, except_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if taken.is_some() {
+            anyhow::bail!("已經有同名的類別");
+        }
+        Ok(())
+    }
+
+    pub fn create_category(&self, name: &str, report_code: Option<&str>) -> Result<i64> {
+        let name = clean_category_name(name)?;
+        let conn = self.conn.lock().unwrap();
+        Self::ensure_category_name_free(&conn, name, 0)?;
+        conn.execute(
+            "INSERT INTO categories (name, report_code, sort_order)
+             VALUES (?1, ?2, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM categories))",
+            params![name, clean_report_code(report_code)],
+        )?;
+        Ok(conn.last_insert_rowid())
+    }
+
+    pub fn update_category(
+        &self,
+        id: i64,
+        name: &str,
+        report_code: Option<&str>,
+        hidden: bool,
+    ) -> Result<()> {
+        let name = clean_category_name(name)?;
+        let conn = self.conn.lock().unwrap();
+        Self::ensure_category_name_free(&conn, name, id)?;
+        let changed = conn.execute(
+            "UPDATE categories
+             SET name = ?1, report_code = ?2, hidden = ?3, updated_at = ?4
+             WHERE id = ?5",
+            params![
+                name,
+                clean_report_code(report_code),
+                hidden,
+                Local::now().to_rfc3339(),
+                id,
+            ],
+        )?;
+        if changed == 0 {
+            anyhow::bail!("找不到這個類別");
+        }
+        Ok(())
+    }
+
+    /// `ids` is the full new order, first to last.
+    pub fn reorder_categories(&self, ids: &[i64]) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        for (index, id) in ids.iter().enumerate() {
+            tx.execute(
+                "UPDATE categories SET sort_order = ?1, updated_at = ?2 WHERE id = ?3",
+                params![index as i64 + 1, Local::now().to_rfc3339(), id],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Most recently used visible categories, padded from the display order so
+    /// a new install still gets `limit` choices.
+    pub fn get_recent_categories(&self, limit: usize) -> Result<Vec<Category>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {CATEGORY_COLUMNS}
+             FROM categories c
+             LEFT JOIN time_slots s ON s.category_id = c.id
+             WHERE c.hidden = 0
+             GROUP BY c.id
+             ORDER BY MAX(s.start_ts) IS NULL, MAX(s.start_ts) DESC, c.sort_order ASC, c.id ASC
+             LIMIT ?1"
+        ))?;
+        let categories = stmt
+            .query_map(params![limit], category_from_row)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(categories)
+    }
+
+    /// The category to pre-select for a new slot: the last one used with this
+    /// status, otherwise the last one used at all. Hidden categories are skipped.
+    pub fn get_default_category(&self, slot_type: &SlotType) -> Result<Option<i64>> {
+        if !slot_type.has_category() || !self.get_settings()?.remember_last_category {
+            return Ok(None);
+        }
+        let conn = self.conn.lock().unwrap();
+        let id = conn
+            .query_row(
+                "SELECT s.category_id
+                 FROM time_slots s
+                 JOIN categories c ON c.id = s.category_id
+                 WHERE c.hidden = 0
+                 ORDER BY s.slot_type = ?1 DESC, s.start_ts DESC
+                 LIMIT 1",
+                params![slot_type.as_str()],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(id)
+    }
+
+    pub fn get_category_report(&self, start: NaiveDate, end: NaiveDate) -> Result<CategoryReport> {
+        if end < start {
+            anyhow::bail!("結束日期不能早於開始日期");
+        }
+        let slots = self.get_slots_for_range(start, end)?;
+        let categories = self.get_categories()?;
+        Ok(build_category_report(
+            &slots,
+            &categories,
+            start,
+            end,
+            Local::now(),
+        ))
+    }
+
     // ==================== Settings ====================
 
     pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
@@ -526,6 +627,12 @@ impl StoreV2 {
         if let Some(v) = self.get_setting("auto_update")? {
             settings.auto_update = v == "true";
         }
+        if let Some(v) = self.get_setting("remember_last_category")? {
+            settings.remember_last_category = v == "true";
+        }
+        if let Some(v) = self.get_setting("mini_quick_categories")? {
+            settings.mini_quick_categories = v == "true";
+        }
 
         Ok(settings)
     }
@@ -549,6 +656,22 @@ impl StoreV2 {
         self.set_setting(
             "auto_update",
             if settings.auto_update {
+                "true"
+            } else {
+                "false"
+            },
+        )?;
+        self.set_setting(
+            "remember_last_category",
+            if settings.remember_last_category {
+                "true"
+            } else {
+                "false"
+            },
+        )?;
+        self.set_setting(
+            "mini_quick_categories",
+            if settings.mini_quick_categories {
                 "true"
             } else {
                 "false"
@@ -588,15 +711,19 @@ impl StoreV2 {
             .unwrap_or(slot.task_name.as_str());
         self.update_slot_details(
             id,
-            &slot.task_name,
-            slot.slot_type.clone(),
-            slot.start_ts,
-            Some(at),
-            slot.note.as_deref(),
+            SlotDetails {
+                task_name: &slot.task_name,
+                slot_type: slot.slot_type.clone(),
+                start_ts: slot.start_ts,
+                end_ts: Some(at),
+                note: slot.note.as_deref(),
+                category_id: slot.category_id,
+            },
         )?;
         let mut next = TimeSlot::new(name.to_string(), slot.slot_type, at);
         next.end_ts = Some(end);
         next.parent_id = slot.parent_id;
+        next.category_id = slot.category_id;
         self.create_slot(&next)
     }
 
@@ -658,11 +785,14 @@ impl StoreV2 {
         };
         self.update_slot_details(
             kept_id,
-            name,
-            kept.slot_type.clone(),
-            start,
-            Some(end),
-            note.as_deref(),
+            SlotDetails {
+                task_name: name,
+                slot_type: kept.slot_type.clone(),
+                start_ts: start,
+                end_ts: Some(end),
+                note: note.as_deref(),
+                category_id: kept.category_id,
+            },
         )?;
         for slot in slots.iter().skip(1) {
             let id = slot.id.ok_or_else(|| anyhow::anyhow!("找不到這個時段"))?;
@@ -686,11 +816,14 @@ mod tests {
         store
             .update_slot_details(
                 id,
-                "新名稱",
-                SlotType::Meeting,
-                slot.start_ts,
-                None,
-                Some("備註"),
+                SlotDetails {
+                    task_name: "新名稱",
+                    slot_type: SlotType::Meeting,
+                    start_ts: slot.start_ts,
+                    end_ts: None,
+                    note: Some("備註"),
+                    category_id: None,
+                },
             )
             .unwrap();
 
@@ -723,8 +856,13 @@ mod tests {
     #[test]
     fn test_day_stats() {
         let store = StoreV2::new(Path::new(":memory:")).unwrap();
-        let now = Local::now();
-        let date = now.date_naive();
+        // A fixed morning time keeps both slots on one date whenever this runs.
+        let date = Local::now().date_naive();
+        let now = date
+            .and_hms_opt(9, 0, 0)
+            .unwrap()
+            .and_local_timezone(Local)
+            .unwrap();
 
         let mut slot1 = TimeSlot::new("Work 1".to_string(), SlotType::Work, now);
         slot1.end_ts = Some(now + chrono::Duration::minutes(30));
@@ -853,5 +991,237 @@ mod tests {
         store.merge_slots(&[parent_id, next_id], None).unwrap();
         let interrupt = store.get_slot(child_id).unwrap().unwrap();
         assert_eq!(interrupt.parent_id, Some(parent_id));
+    }
+
+    fn category_id(store: &StoreV2, name: &str) -> i64 {
+        store
+            .get_categories()
+            .unwrap()
+            .into_iter()
+            .find(|category| category.name == name)
+            .unwrap()
+            .id
+    }
+
+    fn slot_in(
+        store: &StoreV2,
+        slot_type: SlotType,
+        category: Option<i64>,
+        start: DateTime<Local>,
+    ) -> i64 {
+        let mut slot = TimeSlot::new("任務".to_string(), slot_type, start);
+        slot.end_ts = Some(start + chrono::Duration::minutes(10));
+        slot.category_id = category;
+        store.create_slot(&slot).unwrap()
+    }
+
+    #[test]
+    fn test_slot_reads_back_its_category() {
+        let store = StoreV2::new(Path::new(":memory:")).unwrap();
+        let id = category_id(&store, "實作");
+        store
+            .update_category(id, "實作", Some(" A01 "), false)
+            .unwrap();
+
+        let slot_id = slot_in(&store, SlotType::Work, Some(id), Local::now());
+        let slot = store.get_slot(slot_id).unwrap().unwrap();
+        assert_eq!(slot.category_id, Some(id));
+        assert_eq!(slot.category_name.as_deref(), Some("實作"));
+        assert_eq!(slot.category_code.as_deref(), Some("A01"));
+    }
+
+    #[test]
+    fn test_lunch_never_keeps_a_category() {
+        let store = StoreV2::new(Path::new(":memory:")).unwrap();
+        let id = category_id(&store, "實作");
+        let start = Local::now();
+
+        let lunch = slot_in(&store, SlotType::Lunch, Some(id), start);
+        assert_eq!(store.get_slot(lunch).unwrap().unwrap().category_id, None);
+
+        let work = slot_in(&store, SlotType::Work, Some(id), start);
+        store
+            .update_slot_details(
+                work,
+                SlotDetails {
+                    task_name: "任務",
+                    slot_type: SlotType::Lunch,
+                    start_ts: start,
+                    end_ts: None,
+                    note: None,
+                    category_id: Some(id),
+                },
+            )
+            .unwrap();
+        assert_eq!(store.get_slot(work).unwrap().unwrap().category_id, None);
+    }
+
+    #[test]
+    fn test_hiding_a_category_keeps_its_history() {
+        let store = StoreV2::new(Path::new(":memory:")).unwrap();
+        let id = category_id(&store, "實作");
+        let slot_id = slot_in(&store, SlotType::Work, Some(id), Local::now());
+
+        store.update_category(id, "實作", None, true).unwrap();
+
+        let slot = store.get_slot(slot_id).unwrap().unwrap();
+        assert_eq!(slot.category_name.as_deref(), Some("實作"));
+        let recent = store.get_recent_categories(10).unwrap();
+        assert!(recent.iter().all(|category| category.id != id));
+        assert_eq!(store.get_default_category(&SlotType::Work).unwrap(), None);
+    }
+
+    #[test]
+    fn test_category_names_must_be_unique_and_not_blank() {
+        let store = StoreV2::new(Path::new(":memory:")).unwrap();
+        let id = category_id(&store, "實作");
+
+        assert!(store.create_category("  ", None).is_err());
+        assert!(store.create_category("實作", None).is_err());
+        assert!(store.update_category(id, "問題處理", None, false).is_err());
+        store.update_category(id, "實作", None, false).unwrap();
+    }
+
+    #[test]
+    fn test_new_category_goes_last_and_reorder_sticks() {
+        let store = StoreV2::new(Path::new(":memory:")).unwrap();
+        let added = store.create_category("測試", Some("T9")).unwrap();
+        assert_eq!(store.get_categories().unwrap().last().unwrap().id, added);
+
+        let mut ids: Vec<i64> = store
+            .get_categories()
+            .unwrap()
+            .iter()
+            .map(|category| category.id)
+            .collect();
+        ids.reverse();
+        store.reorder_categories(&ids).unwrap();
+
+        let reordered: Vec<i64> = store
+            .get_categories()
+            .unwrap()
+            .iter()
+            .map(|category| category.id)
+            .collect();
+        assert_eq!(reordered, ids);
+    }
+
+    #[test]
+    fn test_recent_categories_lead_and_are_padded_to_the_limit() {
+        let store = StoreV2::new(Path::new(":memory:")).unwrap();
+        let docs = category_id(&store, "文件維護");
+        let data = category_id(&store, "資料調整");
+        let start = Local::now();
+        slot_in(&store, SlotType::Work, Some(docs), start);
+        slot_in(
+            &store,
+            SlotType::Meeting,
+            Some(data),
+            start + chrono::Duration::minutes(10),
+        );
+
+        let names: Vec<String> = store
+            .get_recent_categories(3)
+            .unwrap()
+            .into_iter()
+            .map(|category| category.name)
+            .collect();
+        assert_eq!(names, ["資料調整", "文件維護", "實作"]);
+    }
+
+    #[test]
+    fn test_default_category_prefers_the_same_status() {
+        let store = StoreV2::new(Path::new(":memory:")).unwrap();
+        let build = category_id(&store, "實作");
+        let fix = category_id(&store, "問題處理");
+        let start = Local::now();
+        slot_in(&store, SlotType::Work, Some(build), start);
+        slot_in(
+            &store,
+            SlotType::Interrupt,
+            Some(fix),
+            start + chrono::Duration::minutes(10),
+        );
+
+        assert_eq!(
+            store.get_default_category(&SlotType::Work).unwrap(),
+            Some(build)
+        );
+        assert_eq!(
+            store.get_default_category(&SlotType::Interrupt).unwrap(),
+            Some(fix)
+        );
+        assert_eq!(
+            store.get_default_category(&SlotType::Meeting).unwrap(),
+            Some(fix)
+        );
+        assert_eq!(store.get_default_category(&SlotType::Lunch).unwrap(), None);
+    }
+
+    #[test]
+    fn test_default_category_respects_the_setting() {
+        let store = StoreV2::new(Path::new(":memory:")).unwrap();
+        slot_in(
+            &store,
+            SlotType::Work,
+            Some(category_id(&store, "實作")),
+            Local::now(),
+        );
+
+        let mut settings = store.get_settings().unwrap();
+        assert!(settings.remember_last_category);
+        assert!(settings.mini_quick_categories);
+        settings.remember_last_category = false;
+        settings.mini_quick_categories = false;
+        store.save_settings(&settings).unwrap();
+
+        let saved = store.get_settings().unwrap();
+        assert!(!saved.remember_last_category);
+        assert!(!saved.mini_quick_categories);
+        assert_eq!(store.get_default_category(&SlotType::Work).unwrap(), None);
+    }
+
+    #[test]
+    fn test_split_and_merge_keep_the_category() {
+        let store = StoreV2::new(Path::new(":memory:")).unwrap();
+        let id = category_id(&store, "規格討論");
+        let start = Local::now();
+        let mut slot = TimeSlot::new("甲".to_string(), SlotType::Work, start);
+        slot.end_ts = Some(start + chrono::Duration::minutes(60));
+        slot.category_id = Some(id);
+        let first = store.create_slot(&slot).unwrap();
+
+        let second = store
+            .split_slot(first, start + chrono::Duration::minutes(20), None)
+            .unwrap();
+        assert_eq!(
+            store.get_slot(first).unwrap().unwrap().category_id,
+            Some(id)
+        );
+        assert_eq!(
+            store.get_slot(second).unwrap().unwrap().category_id,
+            Some(id)
+        );
+
+        let kept = store.merge_slots(&[first, second], None).unwrap();
+        assert_eq!(store.get_slot(kept).unwrap().unwrap().category_id, Some(id));
+    }
+
+    #[test]
+    fn test_category_report_reads_from_the_database() {
+        let store = StoreV2::new(Path::new(":memory:")).unwrap();
+        let id = category_id(&store, "實作");
+        let start = Local::now();
+        slot_in(&store, SlotType::Work, Some(id), start);
+        slot_in(&store, SlotType::Lunch, None, start);
+        let date = start.date_naive();
+
+        let report = store.get_category_report(date, date).unwrap();
+        assert_eq!(report.total_seconds, 600);
+        assert_eq!(report.rows.len(), 1);
+        assert_eq!(report.rows[0].name.as_deref(), Some("實作"));
+        assert!(store
+            .get_category_report(date, date - chrono::Duration::days(1))
+            .is_err());
     }
 }

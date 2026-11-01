@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { Briefcase, Zap, Users, Coffee, Clock, AlertTriangle } from 'lucide-svelte';
   import SlotEditDrawer from './SlotEditDrawer.svelte';
+  import CategorySelect from './CategorySelect.svelte';
   import { t } from '$lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
   
@@ -14,6 +15,8 @@
     note: string | null;
     duration_minutes: number;
     parent_id: string | number | null;
+    category_id?: number | null;
+    category_name?: string | null;
   }
   
   interface Gap {
@@ -32,11 +35,18 @@
   
   let slots = $state<TimeSlot[]>([]);
   let gaps = $state<Gap[]>([]);
-  type FillRow = { id: number; taskName: string; start: string; end: string };
+  type FillRow = {
+    id: number;
+    taskName: string;
+    start: string;
+    end: string;
+    categoryId: number | null;
+  };
 
   let fillingGap = $state<Gap | null>(null);
   let fillRows = $state<FillRow[]>([]);
   let fillRowSeq = 0;
+  let fillCategoryId: number | null = null;
   let fillError = $state('');
   let savingFill = $state(false);
   let selectedIds = $state<number[]>([]);
@@ -190,7 +200,12 @@
     editOpen = true;
   }
   
-  function handleFillGap(gap: Gap) {
+  async function handleFillGap(gap: Gap) {
+    try {
+      fillCategoryId = await invoke<number | null>('get_default_category', { slotType: 'work' });
+    } catch (err) {
+      console.error('Failed to load default category:', err);
+    }
     fillingGap = gap;
     fillError = '';
     fillRows = [blankFillRow(gap)];
@@ -203,6 +218,7 @@
       taskName: '',
       start: toLocalInput(gap.start_ts),
       end: toLocalInput(gap.end_ts),
+      categoryId: fillCategoryId,
     };
   }
 
@@ -271,6 +287,7 @@
         task_name: row.taskName.trim(),
         start_time: new Date(row.start).toISOString(),
         end_time: new Date(row.end).toISOString(),
+        category_id: row.categoryId,
       });
     }
     if (entries.length === 0) return;
@@ -385,6 +402,11 @@
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2">
                   <div class="font-medium truncate">{slot.task_name}</div>
+                  {#if slot.category_name}
+                    <span class="flex-shrink-0 whitespace-nowrap rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                      {slot.category_name}
+                    </span>
+                  {/if}
                   {#if !slot.end_ts}
                     <span class="flex-shrink-0 rounded bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
                       {$t('today.ongoing')}
@@ -440,6 +462,7 @@
                       placeholder={$t('placeholders.task_title')}
                       class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                     />
+                    <CategorySelect bind:value={row.categoryId} />
                     <div class="grid grid-cols-2 gap-2">
                       <input
                         type="datetime-local"
