@@ -21,7 +21,11 @@
   ];
   
   let currentTheme = $state<ThemeChoice>('system');
-  let isDark = $state(false);
+  // BaseLayout has already themed <html> before hydration; start from that so
+  // the icon doesn't flash Sun while get_settings is still in flight.
+  let isDark = $state(
+    typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  );
   
   onMount(() => {
     loadTheme();
