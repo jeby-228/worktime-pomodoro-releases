@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import { Palette, Clock, Calendar, Keyboard, Monitor, Info } from 'lucide-svelte';
+  import { Palette, Clock, Calendar, Keyboard, Monitor, Info, Tags, ArrowUp, ArrowDown, Eye, EyeOff } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import { applyTheme, type ThemeChoice } from '$lib/theme';
+  import type { Category } from '$lib/types';
   
   interface AppSettings {
     theme: string;
@@ -15,6 +16,8 @@
     mini_mode: string;
     pet_id: string;
     auto_update: boolean;
+    remember_last_category: boolean;
+    mini_quick_categories: boolean;
   }
   
   let settings = $state<AppSettings>({
@@ -27,8 +30,14 @@
     mini_mode: 'none',
     pet_id: 'tomato-kun',
     auto_update: true,
+    remember_last_category: true,
+    mini_quick_categories: true,
   });
-  
+
+  let categories = $state<Category[]>([]);
+  let newCategoryName = $state('');
+  let newCategoryCode = $state('');
+  let categoryError = $state('');
   let activeSection = $state('appearance');
   let isDirty = $state(false);
   let checking = $state(false);
@@ -37,6 +46,7 @@
   
   const sections = [
     { id: 'appearance', icon: Palette, labelKey: 'settings.appearance' },
+    { id: 'categories', icon: Tags, labelKey: 'categories.label' },
     { id: 'pomodoro', icon: Clock, labelKey: 'settings.pomodoro' },
     { id: 'schedule', icon: Calendar, labelKey: 'settings.schedule' },
     { id: 'shortcuts', icon: Keyboard, labelKey: 'settings.shortcuts' },
@@ -45,8 +55,65 @@
   ];
   
   onMount(async () => {
-    await loadSettings();
+    await Promise.all([loadSettings(), loadCategories()]);
   });
+
+  async function loadCategories() {
+    try {
+      categories = await invoke<Category[]>('get_categories');
+    } catch (err) {
+      categoryError = String(err);
+    }
+  }
+
+  async function addCategory() {
+    categoryError = '';
+    try {
+      await invoke('create_category', {
+        request: { name: newCategoryName, report_code: newCategoryCode || null },
+      });
+      newCategoryName = '';
+      newCategoryCode = '';
+      await loadCategories();
+    } catch (err) {
+      categoryError = String(err);
+    }
+  }
+
+  async function saveCategory(category: Category) {
+    categoryError = '';
+    try {
+      await invoke('update_category', {
+        request: {
+          id: category.id,
+          name: category.name,
+          report_code: category.report_code,
+          hidden: category.hidden,
+        },
+      });
+    } catch (err) {
+      categoryError = String(err);
+    }
+    // A rejected rename goes back to the stored name.
+    await loadCategories();
+  }
+
+  function toggleCategory(category: Category) {
+    saveCategory({ ...category, hidden: !category.hidden });
+  }
+
+  async function moveCategory(index: number, offset: number) {
+    const next = [...categories];
+    const [moved] = next.splice(index, 1);
+    next.splice(index + offset, 0, moved);
+    categoryError = '';
+    try {
+      await invoke('reorder_categories', { ids: next.map((category) => category.id) });
+      await loadCategories();
+    } catch (err) {
+      categoryError = String(err);
+    }
+  }
   
   function chooseTheme(theme: ThemeChoice) {
     settings.theme = theme;
@@ -202,6 +269,128 @@
           </div>
         </div>
         
+      {:else if activeSection === 'categories'}
+        <div class="space-y-6">
+          <div>
+            <h2 class="text-xl font-semibold mb-1">{$t('categories.label')}</h2>
+            <p class="text-sm text-muted-foreground">{$t('categories.settings_hint')}</p>
+          </div>
+
+          <div class="space-y-2">
+            {#each categories as category, index (category.id)}
+              <div class="flex items-center gap-2 rounded-md border border-border p-2 {category.hidden ? 'opacity-60' : ''}">
+                <div class="flex shrink-0 flex-col">
+                  <button
+                    onclick={() => moveCategory(index, -1)}
+                    disabled={index === 0}
+                    aria-label={$t('categories.move_up')}
+                    title={$t('categories.move_up')}
+                    class="rounded p-0.5 text-muted-foreground hover:bg-accent disabled:opacity-30"
+                  >
+                    <ArrowUp size={14} />
+                  </button>
+                  <button
+                    onclick={() => moveCategory(index, 1)}
+                    disabled={index === categories.length - 1}
+                    aria-label={$t('categories.move_down')}
+                    title={$t('categories.move_down')}
+                    class="rounded p-0.5 text-muted-foreground hover:bg-accent disabled:opacity-30"
+                  >
+                    <ArrowDown size={14} />
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  bind:value={category.name}
+                  onchange={() => saveCategory(category)}
+                  aria-label={$t('categories.label')}
+                  class="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm"
+                />
+                <input
+                  type="text"
+                  bind:value={category.report_code}
+                  onchange={() => saveCategory(category)}
+                  aria-label={$t('categories.report_code')}
+                  placeholder={$t('categories.report_code')}
+                  class="w-28 shrink-0 rounded-md border border-border bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground"
+                />
+                <button
+                  onclick={() => toggleCategory(category)}
+                  aria-label={category.hidden ? $t('categories.show') : $t('categories.hide')}
+                  title={category.hidden ? $t('categories.show') : $t('categories.hide')}
+                  class="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-accent"
+                >
+                  {#if category.hidden}
+                    <EyeOff size={16} />
+                  {:else}
+                    <Eye size={16} />
+                  {/if}
+                </button>
+                {#if category.hidden}
+                  <span class="shrink-0 whitespace-nowrap text-xs text-muted-foreground">{$t('categories.hidden_badge')}</span>
+                {/if}
+              </div>
+            {/each}
+          </div>
+
+          <form
+            class="flex items-center gap-2"
+            onsubmit={(event) => { event.preventDefault(); addCategory(); }}
+          >
+            <input
+              type="text"
+              bind:value={newCategoryName}
+              placeholder={$t('categories.new_placeholder')}
+              class="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground"
+            />
+            <input
+              type="text"
+              bind:value={newCategoryCode}
+              aria-label={$t('categories.report_code')}
+              placeholder={$t('categories.report_code_placeholder')}
+              class="w-28 shrink-0 rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground"
+            />
+            <button
+              type="submit"
+              disabled={!newCategoryName.trim()}
+              class="shrink-0 whitespace-nowrap rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {$t('categories.add')}
+            </button>
+          </form>
+
+          {#if categoryError}
+            <p class="text-sm text-destructive">{categoryError}</p>
+          {/if}
+
+          <div class="space-y-3 border-t border-border pt-4">
+            <label class="flex items-center justify-between gap-4">
+              <div>
+                <div class="text-sm font-medium">{$t('categories.remember_last')}</div>
+                <div class="text-xs text-muted-foreground">{$t('categories.remember_last_desc')}</div>
+              </div>
+              <input
+                type="checkbox"
+                bind:checked={settings.remember_last_category}
+                onchange={markDirty}
+                class="size-4"
+              />
+            </label>
+            <label class="flex items-center justify-between gap-4">
+              <div>
+                <div class="text-sm font-medium">{$t('categories.mini_quick')}</div>
+                <div class="text-xs text-muted-foreground">{$t('categories.mini_quick_desc')}</div>
+              </div>
+              <input
+                type="checkbox"
+                bind:checked={settings.mini_quick_categories}
+                onchange={markDirty}
+                class="size-4"
+              />
+            </label>
+          </div>
+        </div>
+
       {:else if activeSection === 'pomodoro'}
         <div class="space-y-6">
           <div>

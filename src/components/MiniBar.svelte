@@ -1,6 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { t } from '$lib/i18n';
+  import type { Category } from '$lib/types';
+
+  const QUICK_REFRESH_TICKS = 15;
 
   interface StateData {
     status: 'idle' | 'working' | 'interrupt' | 'paused';
@@ -15,6 +19,8 @@
     slot_type: string;
     start_ts: string;
     end_ts: string | null;
+    category_id: number | null;
+    category_name: string | null;
   }
 
   let state = $state<StateData>({
@@ -29,9 +35,31 @@
   let menuOpen = $state(false);
   let hovered = $state(false);
   let pausedHold = false;
+  let quickCategories = $state<Category[]>([]);
+  let quickEnabled = $state(true);
+  let resumeSlot = $state<TimeSlot | null>(null);
+  let quickSlotId: number | null = null;
+  let quickTicks = 0;
 
   const isIdle = $derived(state.status === 'idle');
   const isInterrupt = $derived(state.status === 'interrupt');
+  const hasCategory = $derived(!!currentSlot && currentSlot.slot_type !== 'lunch');
+  const statusLine = $derived.by(() => {
+    if (!currentSlot) return '';
+    const status = $t(`slot_types.${currentSlot.slot_type}`);
+    if (!hasCategory) return status;
+    return `${status} · ${currentSlot.category_name ?? $t('categories.uncategorized')}`;
+  });
+  const backLabel = $derived.by(() => {
+    const target = resumeSlot?.category_name || resumeSlot?.task_name;
+    return target ? $t('categories.back_to', { target }) : '返回工作';
+  });
+  const showQuick = $derived(
+    quickEnabled &&
+      quickCategories.length > 0 &&
+      hasCategory &&
+      (state.status === 'working' || isInterrupt),
+  );
   const taskDisplay = $derived.by(() => {
     const name = currentSlot?.task_name?.trim();
     if (!name) return '未命名任務';
@@ -47,7 +75,7 @@
     if (state.status === 'working' || state.status === 'paused') {
       items.push({ id: 'end', label: '結束' });
     }
-    if (state.status === 'interrupt') items.push({ id: 'end', label: '返回工作' });
+    if (state.status === 'interrupt') items.push({ id: 'end', label: backLabel });
     return items;
   });
 
@@ -58,6 +86,24 @@
     return Math.max(0, Math.floor((Date.now() - parsed) / 1000));
   }
 
+  async function loadQuickCategories() {
+    const [settings, recent] = await Promise.all([
+      invoke<{ mini_quick_categories?: boolean }>('get_settings'),
+      invoke<Category[]>('get_recent_categories', { limit: 3 }),
+    ]);
+    quickEnabled = settings.mini_quick_categories !== false;
+    quickCategories = recent;
+  }
+
+  async function switchCategory(categoryId: number) {
+    try {
+      await invoke('switch_category', { categoryId });
+      await loadState();
+    } catch (err) {
+      console.error('Failed to switch category:', err);
+    }
+  }
+
   async function loadState() {
     try {
       const next = await invoke<StateData>('get_app_state');
@@ -66,6 +112,17 @@
         currentSlot = await invoke<TimeSlot | null>('get_current_slot');
       } else {
         currentSlot = null;
+      }
+      resumeSlot =
+        next.status === 'interrupt' ? await invoke<TimeSlot | null>('get_resume_slot') : null;
+
+      // Settings live in the main window, so pick up changes every few seconds.
+      quickTicks += 1;
+      if (next.current_slot_id !== quickSlotId || quickTicks >= QUICK_REFRESH_TICKS) {
+        quickSlotId = next.current_slot_id;
+        quickTicks = 0;
+        await loadQuickCategories();
+        syncWindowHeight();
       }
 
       if (next.status === 'interrupt') {
@@ -144,7 +201,8 @@
   }
 
   async function syncWindowHeight() {
-    const height = menuOpen ? 56 + menuItems.length * 32 : 48;
+    const barHeight = showQuick ? 82 : 48;
+    const height = menuOpen ? barHeight + 8 + menuItems.length * 32 : barHeight;
     try {
       await invoke('set_minibar_height', { height });
     } catch (err) {
@@ -155,13 +213,11 @@
   function openMenu(event: MouseEvent) {
     event.preventDefault();
     menuOpen = true;
-    syncWindowHeight();
   }
 
   function closeMenu() {
     if (!menuOpen) return;
     menuOpen = false;
-    syncWindowHeight();
   }
 
   async function runMenu(id: string) {
@@ -178,9 +234,13 @@
     focusMain();
   }
 
+  // The window is only as tall as what is showing.
+  $effect(() => {
+    syncWindowHeight();
+  });
+
   onMount(() => {
     loadState();
-    syncWindowHeight();
     const timer = window.setInterval(loadState, 1000);
     return () => window.clearInterval(timer);
   });
@@ -218,13 +278,17 @@
       <button class="kbd" type="button" onclick={openQuickInput}>Alt</button>
       <button class="kbd" type="button" onclick={openQuickInput}>T</button>
     {:else}
-      <span class="task" data-tauri-drag-region>{taskDisplay}</span>
+      <span class="labels" data-tauri-drag-region>
+        <span class="status" data-tauri-drag-region>{statusLine}</span>
+        <span class="task" data-tauri-drag-region>{taskDisplay}</span>
+      </span>
       <span class="timer" data-tauri-drag-region>{formatTime(elapsedSeconds)}</span>
       <button
         class="icon-btn"
         type="button"
         onclick={isInterrupt ? endTask : togglePause}
-        aria-label={isInterrupt ? '返回工作' : state.status === 'paused' ? '繼續' : '暫停'}
+        aria-label={isInterrupt ? backLabel : state.status === 'paused' ? '繼續' : '暫停'}
+        title={isInterrupt ? backLabel : undefined}
       >
         {#if isInterrupt}
           <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
@@ -253,6 +317,28 @@
       {/if}
     {/if}
   </div>
+
+  {#if showQuick}
+    <div
+      class="quick"
+      role="group"
+      aria-label={$t('categories.label')}
+      onmouseenter={() => (hovered = true)}
+      onmouseleave={() => (hovered = false)}
+    >
+      {#each quickCategories as category (category.id)}
+        <button
+          class="chip {currentSlot?.category_id === category.id ? 'active' : ''}"
+          type="button"
+          title={category.name}
+          aria-pressed={currentSlot?.category_id === category.id}
+          onclick={() => switchCategory(category.id)}
+        >
+          {category.name}
+        </button>
+      {/each}
+    </div>
+  {/if}
 
   {#if menuOpen}
     <div class="menu" role="menu">
@@ -318,19 +404,70 @@
     flex-shrink: 0;
   }
 
+  .labels {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .status,
   .task,
   .idle-copy {
     min-width: 0;
-    flex: 1;
-    font-size: 13px;
-    font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
+  .task,
+  .idle-copy {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 16px;
+  }
+
+  .status {
+    font-size: 11px;
+    line-height: 14px;
+    color: hsl(var(--muted-foreground));
+  }
+
   .idle-copy {
     flex: 0 1 auto;
+  }
+
+  .quick {
+    height: 28px;
+    margin-top: 6px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .chip {
+    min-width: 0;
+    padding: 0 6px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 6px;
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--background) / 0.96);
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+
+  .chip:hover {
+    background: hsl(var(--accent));
+  }
+
+  .chip.active {
+    border-color: hsl(var(--foreground));
+    color: hsl(var(--foreground));
+    font-weight: 600;
   }
 
   .timer {

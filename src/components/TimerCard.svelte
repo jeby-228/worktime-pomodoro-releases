@@ -3,7 +3,8 @@
   import { Play, Pause, Square, Zap } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
-  
+  import CategorySelect from './CategorySelect.svelte';
+
   interface Props {
     compact?: boolean;
   }
@@ -13,19 +14,31 @@
   interface StateData {
     status: 'idle' | 'working' | 'paused' | 'interrupt';
     current_task: string | null;
+    slot_type: SlotType | null;
+    category_name: string | null;
+    resume_target: string | null;
     elapsed_seconds: number;
     remaining_seconds: number;
   }
-  
+
+  type SlotType = 'work' | 'meeting' | 'interrupt' | 'lunch';
+
+  const slotTypes: SlotType[] = ['work', 'meeting', 'interrupt', 'lunch'];
+
   let state = $state<StateData>({
     status: 'idle',
     current_task: null,
+    slot_type: null,
+    category_name: null,
+    resume_target: null,
     elapsed_seconds: 0,
     remaining_seconds: 0,
   });
-  
+
   let pomodoroLength = $state(25 * 60);
   let taskName = $state('');
+  let slotType = $state<SlotType>('work');
+  let categoryId = $state<number | null>(null);
   let startError = $state('');
   let actionError = $state('');
   let updateInterval: number | undefined;
@@ -50,9 +63,16 @@
     return Math.min(100, (elapsed / pomodoroLength) * 100);
   });
   
+  const statusLabel = $derived.by(() => {
+    if (state.status === 'paused') return $t('timer.paused');
+    if (state.status === 'interrupt') return $t('timer.interrupt');
+    return state.slot_type ? $t(`slot_types.${state.slot_type}`) : $t('timer.working');
+  });
+
   onMount(() => {
     loadState();
     loadSettings();
+    loadDefaultCategory();
     window.addEventListener('task-started', loadState);
     
     updateInterval = setInterval(() => {
@@ -67,14 +87,40 @@
     };
   });
   
+  async function loadDefaultCategory() {
+    try {
+      categoryId = await invoke<number | null>('get_default_category', { slotType });
+    } catch (err) {
+      console.error('Failed to load default category:', err);
+    }
+  }
+
+  function chooseSlotType(next: SlotType) {
+    slotType = next;
+    startError = '';
+    loadDefaultCategory();
+  }
+
   async function loadState() {
     try {
       const [data, elapsed, remaining, slot] = await Promise.all([
         invoke<StateData>('get_app_state'),
         invoke<number | null>('get_elapsed_seconds'),
         invoke<number | null>('get_remaining_seconds'),
-        invoke<{ task_name?: string; start_ts?: string } | null>('get_current_slot'),
+        invoke<{
+          task_name?: string;
+          start_ts?: string;
+          slot_type?: SlotType;
+          category_name?: string | null;
+        } | null>('get_current_slot'),
       ]);
+      const resume =
+        data.status === 'interrupt'
+          ? await invoke<{ task_name?: string; category_name?: string | null } | null>(
+              'get_resume_slot',
+            )
+          : null;
+      const finished = state.status !== 'idle' && data.status === 'idle';
 
       let nextElapsed =
         data.status === 'idle'
@@ -94,16 +140,23 @@
       state = {
         status: data.status,
         current_task: data.status === 'idle' ? null : slot?.task_name ?? null,
+        slot_type: data.status === 'idle' ? null : slot?.slot_type ?? null,
+        category_name: data.status === 'idle' ? null : slot?.category_name ?? null,
+        resume_target: resume?.category_name || resume?.task_name || null,
         elapsed_seconds: nextElapsed,
         remaining_seconds:
           typeof remaining === 'number' && !Number.isNaN(remaining) ? remaining : 0,
       };
+      if (finished) loadDefaultCategory();
     } catch (err) {
       console.error('Failed to load state:', err);
       // Reset to safe idle state on error
       state = {
         status: 'idle',
         current_task: null,
+        slot_type: null,
+        category_name: null,
+        resume_target: null,
         elapsed_seconds: 0,
         remaining_seconds: 0,
       };
@@ -122,7 +175,8 @@
   }
   
   async function startTask() {
-    const name = taskName.trim();
+    // Only work needs a name; the other statuses can stand on their own.
+    const name = taskName.trim() || (slotType === 'work' ? '' : $t(`slot_types.${slotType}`));
     if (!name) {
       startError = $t('errors.task_title_required');
       return;
@@ -133,7 +187,8 @@
       await invoke('start_task', {
         request: {
           task_name: name,
-          slot_type: 'work'
+          slot_type: slotType,
+          category_id: slotType === 'lunch' ? null : categoryId,
         }
       });
       taskName = '';
@@ -194,12 +249,8 @@
     <div class="text-sm text-muted-foreground">
       {#if state.status === 'idle'}
         {$t('timer.idle')}
-      {:else if state.status === 'working'}
-        {$t('timer.working')}
-      {:else if state.status === 'paused'}
-        {$t('timer.paused')}
       {:else}
-        {$t('timer.interrupt')}
+        {statusLabel}{#if state.slot_type && state.slot_type !== 'lunch'}{' · '}{state.category_name ?? $t('categories.uncategorized')}{/if}
       {/if}
     </div>
     {#if state.current_task}
@@ -210,6 +261,33 @@
   </div>
   
   {#if state.status === 'idle'}
+    <div class="mb-4">
+      <div class="mb-1.5 text-sm font-medium">{$t('categories.status')}</div>
+      <div class="grid grid-cols-4 gap-1 rounded-md border border-border p-1" role="group" aria-label={$t('categories.status')}>
+        {#each slotTypes as type (type)}
+          <button
+            type="button"
+            onclick={() => chooseSlotType(type)}
+            aria-pressed={slotType === type}
+            class="whitespace-nowrap rounded px-2 py-1.5 text-sm font-medium transition-colors {slotType === type
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:bg-accent'}"
+          >
+            {$t(`slot_types.${type}`)}
+          </button>
+        {/each}
+      </div>
+    </div>
+
+    {#if slotType !== 'lunch'}
+      <div class="mb-4">
+        <label for="current-category" class="mb-1.5 block text-sm font-medium">
+          {$t('categories.label')}
+        </label>
+        <CategorySelect id="current-category" bind:value={categoryId} />
+      </div>
+    {/if}
+
     <div class="mb-6">
       <label for="current-task-name" class="mb-1.5 block text-sm font-medium">
         {$t('timer.task_name')}
@@ -286,7 +364,9 @@
           class="flex flex-1 items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground hover:bg-accent/80"
         >
           <Zap class="size-4" />
-          {$t('timer.back_to_work')}
+          {state.resume_target
+            ? $t('categories.back_to', { target: state.resume_target })
+            : $t('timer.back_to_work')}
         </button>
       {:else}
         <button

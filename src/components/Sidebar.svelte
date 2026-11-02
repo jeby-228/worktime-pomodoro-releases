@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Timer, Calendar, Database, Settings, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-svelte';
+  import { Timer, Calendar, Database, ChartPie, Settings, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import { applyTheme, type ThemeChoice } from '$lib/theme';
   import { invoke } from '@tauri-apps/api/core';
@@ -16,6 +16,7 @@
     { id: 'timer', icon: Timer, labelKey: 'nav.timer' },
     { id: 'today', icon: Calendar, labelKey: 'nav.today' },
     { id: 'records', icon: Database, labelKey: 'nav.records' },
+    { id: 'report', icon: ChartPie, labelKey: 'report.nav' },
     { id: 'settings', icon: Settings, labelKey: 'nav.settings' },
   ];
   

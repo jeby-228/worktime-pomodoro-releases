@@ -3,7 +3,8 @@
   import { Search, Clock, Zap, Users, Coffee } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
-  
+  import CategorySelect from './CategorySelect.svelte';
+
   interface Props {
     visible?: boolean;
     onClose?: () => void;
@@ -14,6 +15,7 @@
   let searchQuery = $state('');
   let recentTasks = $state<string[]>([]);
   let selectedIndex = $state(0);
+  let categoryId = $state<number | null>(null);
 
   const quickActions = [
     { id: 'work', icon: Clock, label: '開始工作', type: 'work' },
@@ -37,9 +39,12 @@
   
   function handleKeydown(e: KeyboardEvent) {
     if (!visible) return;
-    
+
     if (e.key === 'Escape') {
       close();
+    } else if (e.target instanceof HTMLSelectElement) {
+      // Leave the arrow keys to the open category menu.
+      return;
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       selectedIndex = Math.min(selectedIndex + 1, recentTasks.length + quickActions.length - 1);
@@ -67,7 +72,8 @@
       await invoke('start_task', {
         request: {
           task_name: taskName,
-          slot_type: slotType
+          slot_type: slotType,
+          category_id: categoryId
         }
       });
       close();
@@ -87,6 +93,15 @@
     selectedIndex = 0;
     visible = true;
     loadRecentTasks();
+    loadDefaultCategory();
+  }
+
+  async function loadDefaultCategory() {
+    try {
+      categoryId = await invoke<number | null>('get_default_category', { slotType: 'work' });
+    } catch (err) {
+      console.error('Failed to load default category:', err);
+    }
   }
   
   onMount(() => {
@@ -126,7 +141,12 @@
         />
         <kbd class="rounded bg-muted px-2 py-1 text-xs font-mono text-muted-foreground">Esc</kbd>
       </div>
-      
+
+      <div class="flex items-center gap-3 border-b border-border px-4 py-2">
+        <span class="shrink-0 text-xs font-medium text-muted-foreground">{$t('categories.label')}</span>
+        <CategorySelect bind:value={categoryId} />
+      </div>
+
       <!-- Results -->
       <div class="max-h-[360px] overflow-y-auto p-2">
         {#if searchQuery}

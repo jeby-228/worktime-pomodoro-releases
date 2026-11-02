@@ -18,6 +18,7 @@ impl MigrationManager {
         let migrations = Migrations::new(vec![
             M::up(include_str!("../migrations/0001_init.sql")),
             M::up(include_str!("../migrations/0002_v2_slots.sql")),
+            M::up(include_str!("../migrations/0003_categories.sql")),
         ]);
 
         Ok(Self { migrations })
@@ -25,7 +26,7 @@ impl MigrationManager {
 
     /// Get the current schema version the app knows about
     pub fn latest_version(&self) -> usize {
-        2
+        3
     }
 
     /// Run migrations on a database connection
@@ -61,8 +62,12 @@ impl MigrationManager {
             return Ok(());
         }
 
-        // Backup before migration
+        // Backup before migration. Checkpoint first: recent rows may still be in
+        // the WAL file, which a plain file copy would miss.
         if let Some(path) = db_path {
+            if let Err(err) = conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(())) {
+                warn!("WAL checkpoint before backup failed: {}", err);
+            }
             self.backup_database(path)?;
         }
 
@@ -258,6 +263,139 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM events", [], |row| row.get(0))
             .unwrap();
 
+        assert_eq!(count, 1);
+    }
+
+    fn database_at_v2(db_path: &Path) -> Connection {
+        let conn = Connection::open(db_path).unwrap();
+        conn.execute_batch(include_str!("../migrations/0001_init.sql"))
+            .unwrap();
+        conn.execute_batch(include_str!("../migrations/0002_v2_slots.sql"))
+            .unwrap();
+        conn.pragma_update(None, "user_version", 2).unwrap();
+        conn
+    }
+
+    /// Builds a database as a v1.1.4 install left it, then upgrades it.
+    fn upgrade_from_v2(db_path: &Path) -> Connection {
+        let mut conn = database_at_v2(db_path);
+        conn.execute(
+            "INSERT INTO time_slots (id, uuid, task_name, slot_type, start_ts, end_ts, note)
+             VALUES (1, 'u-1', '舊任務', 'work', '2026-10-21T09:00:00+08:00',
+                     '2026-10-21T10:00:00+08:00', '舊備註'),
+                    (2, 'u-2', '午休', 'lunch', '2026-10-21T12:00:00+08:00',
+                     '2026-10-21T13:00:00+08:00', NULL)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT OR REPLACE INTO app_state (key, value) VALUES ('pomodoro_minutes', '40')",
+            [],
+        )
+        .unwrap();
+
+        MigrationManager::new()
+            .unwrap()
+            .migrate(&mut conn, Some(db_path))
+            .unwrap();
+        conn
+    }
+
+    #[test]
+    fn test_upgrade_keeps_old_slots_uncategorized() {
+        let temp_dir = TempDir::new().unwrap();
+        let conn = upgrade_from_v2(&temp_dir.path().join("test.db"));
+
+        let version: usize = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 3);
+
+        let (name, note, category): (String, String, Option<i64>) = conn
+            .query_row(
+                "SELECT task_name, note, category_id FROM time_slots WHERE id = 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(name, "舊任務");
+        assert_eq!(note, "舊備註");
+        assert_eq!(category, None);
+
+        let categorized: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM time_slots WHERE category_id IS NOT NULL",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(categorized, 0);
+
+        let minutes: String = conn
+            .query_row(
+                "SELECT value FROM app_state WHERE key = 'pomodoro_minutes'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(minutes, "40");
+    }
+
+    #[test]
+    fn test_upgrade_seeds_default_categories_in_order() {
+        let temp_dir = TempDir::new().unwrap();
+        let conn = upgrade_from_v2(&temp_dir.path().join("test.db"));
+
+        let mut stmt = conn
+            .prepare("SELECT name FROM categories WHERE hidden = 0 ORDER BY sort_order")
+            .unwrap();
+        let names: Vec<String> = stmt
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            names,
+            ["實作", "問題處理", "規格討論", "資料調整", "文件維護"]
+        );
+    }
+
+    #[test]
+    fn test_upgrade_backup_includes_rows_still_in_the_wal() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+
+        let mut conn = Connection::open(&db_path).unwrap();
+        conn.execute_batch("PRAGMA journal_mode=WAL;").unwrap();
+        drop(conn);
+        conn = database_at_v2(&db_path);
+        conn.execute(
+            "INSERT INTO time_slots (uuid, task_name, slot_type, start_ts)
+             VALUES ('u-wal', 'WAL 內的紀錄', 'work', '2026-10-21T09:00:00+08:00')",
+            [],
+        )
+        .unwrap();
+
+        MigrationManager::new()
+            .unwrap()
+            .migrate(&mut conn, Some(&db_path))
+            .unwrap();
+        drop(conn);
+
+        let backup = fs::read_dir(temp_dir.path())
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .find(|path| path.to_string_lossy().contains(".backup_"))
+            .unwrap();
+        let backup = Connection::open(backup).unwrap();
+        let count: i64 = backup
+            .query_row(
+                "SELECT COUNT(*) FROM time_slots WHERE uuid = 'u-wal'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
         assert_eq!(count, 1);
     }
 

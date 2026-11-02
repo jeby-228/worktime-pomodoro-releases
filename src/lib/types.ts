@@ -11,6 +11,45 @@ export interface TimeSlot {
   end_ts?: string | number | null;
   parent_id?: string | number | null;
   duration_minutes?: number;
+  category_id?: number | null;
+  category_name?: string | null;
+  category_code?: string | null;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  report_code: string | null;
+  sort_order: number;
+  hidden: boolean;
+}
+
+export interface CategoryReportRow {
+  category_id: number | null;
+  name: string | null;
+  total_seconds: number;
+  interrupt_seconds: number;
+  percentage: number;
+}
+
+export interface CategoryReportDayItem {
+  category_id: number | null;
+  seconds: number;
+  interrupt_seconds: number;
+}
+
+export interface CategoryReportDay {
+  date: string;
+  total_seconds: number;
+  items: CategoryReportDayItem[];
+}
+
+export interface CategoryReport {
+  start_date: string;
+  end_date: string;
+  total_seconds: number;
+  rows: CategoryReportRow[];
+  days: CategoryReportDay[];
 }
 
 export interface Gap {

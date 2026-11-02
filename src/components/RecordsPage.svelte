@@ -4,7 +4,7 @@
   import { save } from '@tauri-apps/plugin-dialog';
   import { List, Table as TableIcon, Filter, Download, Calendar, Briefcase, Zap, Users, Coffee, Clock, AlertTriangle, Check } from 'lucide-svelte';
   import { t } from '$lib/i18n';
-  import type { TimeSlot, DayStats } from '$lib/types';
+  import type { Category, CategoryReport, TimeSlot, DayStats } from '$lib/types';
   import SlotEditDrawer from './SlotEditDrawer.svelte';
   import EodGapReviewDialog from './EodGapReviewDialog.svelte';
 
@@ -16,7 +16,11 @@
   let endDate = $state(getDateString(new Date()));
   let searchQuery = $state('');
   let filterType = $state<string | null>(null);
-  
+  let filterCategory = $state<number | 'none' | null>(null);
+  let categories = $state<Category[]>([]);
+  let summaryMode = $state<'task' | 'category'>('task');
+  let categoryReport = $state<CategoryReport | null>(null);
+
   let groupedData = $state<GroupedSlots>({});
   let taskSummary = $state<Array<{ task: string; minutes: number }>>([]);
   let loading = $state(true);
@@ -136,9 +140,14 @@
   async function loadData() {
     loading = true;
     try {
-      const slots: TimeSlot[] = await invoke('get_slots_for_range', {
-        request: { start_date: startDate, end_date: endDate },
-      });
+      const request = { start_date: startDate, end_date: endDate };
+      const [slots, report, categoryList] = await Promise.all([
+        invoke<TimeSlot[]>('get_slots_for_range', { request }),
+        invoke<CategoryReport>('get_category_report', { request }),
+        invoke<Category[]>('get_categories'),
+      ]);
+      categoryReport = report;
+      categories = categoryList;
 
       const grouped: GroupedSlots = {};
       for (const slot of slots) {
@@ -177,6 +186,13 @@
     } finally {
       loading = false;
     }
+  }
+
+  function matchesCategory(slot: TimeSlot): boolean {
+    if (filterCategory === 'none') {
+      return slot.slot_type !== 'lunch' && slot.category_id == null;
+    }
+    return slot.category_id === filterCategory;
   }
 
   function handleEditSlot(slot: TimeSlot) {
@@ -227,6 +243,7 @@
       interrupt: $t('slot_types.interrupt'),
       meeting: $t('slot_types.meeting'),
       lunch: $t('slot_types.lunch'),
+      uncategorized: $t('categories.uncategorized'),
     };
   }
 
@@ -301,7 +318,29 @@
       ] as [string, typeof data]).filter(([, data]) => data.slots.length > 0);
     }
 
-    return result;
+    if (filterCategory !== null) {
+      result = result.map(([date, data]) => [
+        date,
+        {
+          ...data,
+          slots: data.slots.filter(matchesCategory),
+        },
+      ] as [string, typeof data]).filter(([, data]) => data.slots.length > 0);
+    }
+
+    // Day totals follow what is on screen.
+    return result.map(([date, data]) => [date, { ...data, stats: summarize(data.slots) }] as [string, typeof data]);
+  });
+
+  const activeFilterLabel = $derived.by(() => {
+    const parts: string[] = [];
+    if (filterType) parts.push($t(`slot_types.${filterType}`));
+    if (filterCategory === 'none') parts.push($t('categories.uncategorized'));
+    else if (filterCategory !== null) {
+      const match = categories.find((category) => category.id === filterCategory);
+      if (match) parts.push(match.name);
+    }
+    return parts.join(' · ');
   });
 
   const totalStats = $derived.by(() => {
@@ -360,13 +399,66 @@
         </button>
 
         <!-- Filter -->
-        <button
-          onclick={() => showFilterDialog = !showFilterDialog}
-          class="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent {filterType ? 'bg-accent' : ''}"
-        >
-          <Filter size={16} class="shrink-0" />
-          {filterType ? $t(`slot_types.${filterType}`) : $t('records.filter')}
-        </button>
+        <div class="relative shrink-0">
+          <button
+            onclick={() => showFilterDialog = !showFilterDialog}
+            aria-expanded={showFilterDialog}
+            class="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent {activeFilterLabel ? 'bg-accent' : ''}"
+          >
+            <Filter size={16} class="shrink-0" />
+            {activeFilterLabel || $t('records.filter')}
+          </button>
+          {#if showFilterDialog}
+            <div class="absolute left-0 top-full z-20 mt-2 w-64 rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-lg">
+              <div class="mb-1.5 text-xs font-medium text-muted-foreground">{$t('categories.status')}</div>
+              <div class="flex flex-wrap gap-1.5">
+                {#each [null, 'work', 'meeting', 'interrupt', 'lunch'] as type (type)}
+                  <button
+                    onclick={() => filterType = type}
+                    aria-pressed={filterType === type}
+                    class="whitespace-nowrap rounded border border-border px-2 py-1 text-xs {filterType === type ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}"
+                  >
+                    {type ? $t(`slot_types.${type}`) : $t('categories.all_statuses')}
+                  </button>
+                {/each}
+              </div>
+              <div class="mb-1.5 mt-3 text-xs font-medium text-muted-foreground">{$t('categories.label')}</div>
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  onclick={() => filterCategory = null}
+                  aria-pressed={filterCategory === null}
+                  class="whitespace-nowrap rounded border border-border px-2 py-1 text-xs {filterCategory === null ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}"
+                >
+                  {$t('categories.all_categories')}
+                </button>
+                <button
+                  onclick={() => filterCategory = 'none'}
+                  aria-pressed={filterCategory === 'none'}
+                  class="whitespace-nowrap rounded border border-border px-2 py-1 text-xs {filterCategory === 'none' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}"
+                >
+                  {$t('categories.uncategorized')}
+                </button>
+                {#each categories as category (category.id)}
+                  <button
+                    onclick={() => filterCategory = category.id}
+                    aria-pressed={filterCategory === category.id}
+                    class="whitespace-nowrap rounded border border-border px-2 py-1 text-xs {filterCategory === category.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'} {category.hidden ? 'opacity-60' : ''}"
+                  >
+                    {category.name}
+                  </button>
+                {/each}
+              </div>
+              {#if filterType || filterCategory !== null}
+                <button
+                  onclick={() => { filterType = null; filterCategory = null; }}
+                  class="mt-3 whitespace-nowrap text-xs font-medium text-muted-foreground hover:text-foreground"
+                >
+                  {$t('categories.clear_filter')}
+                </button>
+              {/if}
+            </div>
+          {/if}
+        </div>
 
         <!-- Search -->
         <input
@@ -459,6 +551,11 @@
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2">
                     <div class="font-medium truncate">{slotTitle(slot)}</div>
+                    {#if slot.slot_type !== 'lunch'}
+                      <span class="flex-shrink-0 whitespace-nowrap rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                        {slot.category_name ?? $t('categories.uncategorized')}
+                      </span>
+                    {/if}
                     {#if slot.parent_id}
                       <span class="flex-shrink-0 rounded bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
                         {$t('timeline.interrupt_badge')}
@@ -484,25 +581,59 @@
   <!-- Summary Side Panel -->
   <div class="w-80 border-l border-border bg-card flex-shrink-0">
     <div class="p-6">
-      <h3 class="mb-4 text-sm font-semibold">{$t('records.summary_by_task')}</h3>
-      <div class="space-y-3">
-        {#each taskSummary.slice(0, 10) as item (`${item.task}-${item.minutes}`)}
-          <div class="flex items-center justify-between">
-            <div class="min-w-0 flex-1">
-              <div class="truncate font-medium">{item.task}</div>
-              <div class="h-2 mt-1.5 overflow-hidden rounded-full bg-muted">
-                <div
-                  class="h-full bg-primary"
-                  style="width: {Math.min((item.minutes / totalStats.totalMinutes) * 100, 100)}%"
-                ></div>
+      <div class="mb-4 flex rounded-md border border-border" role="group">
+        <button
+          onclick={() => summaryMode = 'task'}
+          aria-pressed={summaryMode === 'task'}
+          class="flex-1 whitespace-nowrap rounded-l-md px-2 py-1.5 text-sm font-medium transition-colors {summaryMode === 'task' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50'}"
+        >
+          {$t('records.summary_by_task')}
+        </button>
+        <button
+          onclick={() => summaryMode = 'category'}
+          aria-pressed={summaryMode === 'category'}
+          class="flex-1 whitespace-nowrap rounded-r-md px-2 py-1.5 text-sm font-medium transition-colors {summaryMode === 'category' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50'}"
+        >
+          {$t('categories.summary_by_category')}
+        </button>
+      </div>
+      {#if summaryMode === 'task'}
+        <div class="space-y-3">
+          {#each taskSummary.slice(0, 10) as item (`${item.task}-${item.minutes}`)}
+            <div class="flex items-center justify-between">
+              <div class="min-w-0 flex-1">
+                <div class="truncate font-medium">{item.task}</div>
+                <div class="h-2 mt-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    class="h-full bg-primary"
+                    style="width: {Math.min((item.minutes / totalStats.totalMinutes) * 100, 100)}%"
+                  ></div>
+                </div>
+              </div>
+              <div class="ml-4 flex-shrink-0 text-sm font-semibold tabular-nums">
+                {formatDuration(item.minutes)}
               </div>
             </div>
-            <div class="ml-4 flex-shrink-0 text-sm font-semibold tabular-nums">
-              {formatDuration(item.minutes)}
+          {/each}
+        </div>
+      {:else}
+        <div class="space-y-3">
+          {#each categoryReport?.rows ?? [] as row (row.category_id ?? 'none')}
+            <div class="flex items-center justify-between">
+              <div class="min-w-0 flex-1">
+                <div class="truncate font-medium">{row.name ?? $t('categories.uncategorized')}</div>
+                <div class="h-2 mt-1.5 overflow-hidden rounded-full bg-muted">
+                  <div class="h-full bg-primary" style="width: {row.percentage}%"></div>
+                </div>
+              </div>
+              <div class="ml-4 flex-shrink-0 text-sm font-semibold tabular-nums">
+                {formatDuration(Math.round(row.total_seconds / 60))}
+              </div>
             </div>
-          </div>
-        {/each}
-      </div>
+          {/each}
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">{$t('report.excludes_lunch')}</p>
+      {/if}
 
       <div class="mt-6 pt-6 border-t border-border">
         <div class="flex items-center justify-between text-sm">

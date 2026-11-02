@@ -8,8 +8,9 @@ use tauri::{Emitter, Manager, State};
 
 // These will be imported via `use crate::*` from main.rs
 use crate::{
-    AppSettings, AppStateMgr, AppStore, DayStats, Gap, RecentPerson, RecentTask, SlotType,
-    StateData, TaskSummary, TimeSlot,
+    build_export_rows, export_columns, AppSettings, AppStateMgr, AppStore, Category,
+    CategoryReport, DayStats, ExportCell, ExportRowV2, ExportTypeLabels, Gap, RecentPerson,
+    RecentTask, SlotDetails, SlotType, StateData, TaskSummary, TimeSlot,
 };
 
 // ==================== State & Info Commands ====================
@@ -40,6 +41,8 @@ pub fn get_remaining_seconds(state_mgr: State<AppStateMgr>) -> Option<i64> {
 pub struct StartTaskRequest {
     pub task_name: String,
     pub slot_type: String,
+    #[serde(default)]
+    pub category_id: Option<i64>,
 }
 
 #[tauri::command]
@@ -49,7 +52,7 @@ pub fn start_task(request: StartTaskRequest, state_mgr: State<AppStateMgr>) -> R
         .parse::<SlotType>()
         .map_err(|e| e.to_string())?;
     state_mgr
-        .start_task(request.task_name, slot_type)
+        .start_task(request.task_name, slot_type, request.category_id)
         .map_err(|e| e.to_string())
 }
 
@@ -72,6 +75,8 @@ pub fn resume_task(state_mgr: State<AppStateMgr>) -> Result<i64, String> {
 pub struct StartInterruptRequest {
     pub who: Option<String>,
     pub reason: Option<String>,
+    #[serde(default)]
+    pub category_id: Option<i64>,
 }
 
 #[tauri::command]
@@ -80,7 +85,7 @@ pub fn start_interrupt(
     state_mgr: State<AppStateMgr>,
 ) -> Result<i64, String> {
     state_mgr
-        .start_interrupt(request.who, request.reason)
+        .start_interrupt(request.who, request.reason, request.category_id)
         .map_err(|e| e.to_string())
 }
 
@@ -89,6 +94,100 @@ pub fn end_interrupt_and_resume(state_mgr: State<AppStateMgr>) -> Result<Option<
     state_mgr
         .end_interrupt_and_resume()
         .map_err(|e| e.to_string())
+}
+
+/// The task an interrupt will return to.
+#[tauri::command]
+pub fn get_resume_slot(
+    state_mgr: State<AppStateMgr>,
+    store: State<AppStore>,
+) -> Result<Option<TimeSlot>, String> {
+    match state_mgr.get_state().paused_slot_id {
+        Some(id) => store.get_slot(id).map_err(|e| e.to_string()),
+        None => Ok(None),
+    }
+}
+
+#[tauri::command]
+pub fn switch_category(
+    category_id: Option<i64>,
+    state_mgr: State<AppStateMgr>,
+) -> Result<i64, String> {
+    state_mgr
+        .switch_category(category_id)
+        .map_err(|e| e.to_string())
+}
+
+// ==================== Category Commands ====================
+
+#[tauri::command]
+pub fn get_categories(store: State<AppStore>) -> Result<Vec<Category>, String> {
+    store.get_categories().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_recent_categories(
+    limit: Option<usize>,
+    store: State<AppStore>,
+) -> Result<Vec<Category>, String> {
+    store
+        .get_recent_categories(limit.unwrap_or(3))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_default_category(
+    slot_type: String,
+    store: State<AppStore>,
+) -> Result<Option<i64>, String> {
+    let slot_type = slot_type.parse::<SlotType>().map_err(|e| e.to_string())?;
+    store
+        .get_default_category(&slot_type)
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateCategoryRequest {
+    pub name: String,
+    pub report_code: Option<String>,
+}
+
+#[tauri::command]
+pub fn create_category(
+    request: CreateCategoryRequest,
+    store: State<AppStore>,
+) -> Result<i64, String> {
+    store
+        .create_category(&request.name, request.report_code.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateCategoryRequest {
+    pub id: i64,
+    pub name: String,
+    pub report_code: Option<String>,
+    pub hidden: bool,
+}
+
+#[tauri::command]
+pub fn update_category(
+    request: UpdateCategoryRequest,
+    store: State<AppStore>,
+) -> Result<(), String> {
+    store
+        .update_category(
+            request.id,
+            &request.name,
+            request.report_code.as_deref(),
+            request.hidden,
+        )
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn reorder_categories(ids: Vec<i64>, store: State<AppStore>) -> Result<(), String> {
+    store.reorder_categories(&ids).map_err(|e| e.to_string())
 }
 
 // ==================== Query Commands ====================
@@ -140,6 +239,20 @@ pub fn get_task_summaries(
         NaiveDate::parse_from_str(&request.end_date, "%Y-%m-%d").map_err(|e| e.to_string())?;
     store
         .get_task_summaries(start, end)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_category_report(
+    request: DateRangeRequest,
+    store: State<AppStore>,
+) -> Result<CategoryReport, String> {
+    let start =
+        NaiveDate::parse_from_str(&request.start_date, "%Y-%m-%d").map_err(|e| e.to_string())?;
+    let end =
+        NaiveDate::parse_from_str(&request.end_date, "%Y-%m-%d").map_err(|e| e.to_string())?;
+    store
+        .get_category_report(start, end)
         .map_err(|e| e.to_string())
 }
 
@@ -197,6 +310,8 @@ pub struct CreateSlotRequest {
     pub start_ts: String,
     pub end_ts: Option<String>,
     pub note: Option<String>,
+    #[serde(default)]
+    pub category_id: Option<i64>,
 }
 
 #[tauri::command]
@@ -226,6 +341,7 @@ pub fn create_slot_manual(
     let mut slot = TimeSlot::new(request.task_name, slot_type, start_ts);
     slot.end_ts = end_ts;
     slot.note = request.note;
+    slot.category_id = request.category_id;
 
     store.create_slot(&slot).map_err(|e| e.to_string())
 }
@@ -238,6 +354,8 @@ pub struct UpdateSlotRequest {
     pub start_ts: String,
     pub end_ts: Option<String>,
     pub note: Option<String>,
+    #[serde(default)]
+    pub category_id: Option<i64>,
 }
 
 #[tauri::command]
@@ -277,11 +395,14 @@ pub fn update_slot_manual(
     store
         .update_slot_details(
             request.id,
-            task_name,
-            slot_type.clone(),
-            start_ts,
-            end_ts,
-            note,
+            SlotDetails {
+                task_name,
+                slot_type: slot_type.clone(),
+                start_ts,
+                end_ts,
+                note,
+                category_id: request.category_id,
+            },
         )
         .map_err(|e| e.to_string())?;
     store
@@ -309,6 +430,8 @@ pub struct FillGapEntry {
     pub task_name: String,
     pub start_time: String,
     pub end_time: String,
+    #[serde(default)]
+    pub category_id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -340,6 +463,7 @@ pub fn fill_gaps(request: FillGapsRequest, store: State<AppStore>) -> Result<Vec
         }
         let mut slot = TimeSlot::new(task_name.to_string(), SlotType::Work, start_ts);
         slot.end_ts = Some(end_ts);
+        slot.category_id = entry.category_id;
         ids.push(store.create_slot(&slot).map_err(|e| e.to_string())?);
         store
             .add_or_update_recent_task(task_name, SlotType::Work)
@@ -601,46 +725,6 @@ fn place_companion_window(window: &tauri::WebviewWindow, bottom: bool) -> Result
 
 // ==================== Export Commands ====================
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ExportRowV2 {
-    pub date: String,
-    pub task_name: String,
-    pub slot_type: String,
-    pub start_time: String,
-    pub end_time: String,
-    pub duration_minutes: i64,
-    pub note: String,
-}
-
-#[derive(Debug, Deserialize, Default)]
-pub struct ExportTypeLabels {
-    #[serde(default)]
-    pub work: String,
-    #[serde(default)]
-    pub interrupt: String,
-    #[serde(default)]
-    pub meeting: String,
-    #[serde(default)]
-    pub lunch: String,
-}
-
-impl ExportTypeLabels {
-    fn for_slot(&self, slot_type: &SlotType) -> String {
-        let label = match slot_type {
-            SlotType::Work => self.work.as_str(),
-            SlotType::Interrupt => self.interrupt.as_str(),
-            SlotType::Meeting => self.meeting.as_str(),
-            SlotType::Lunch => self.lunch.as_str(),
-        };
-        let label = label.trim();
-        if label.is_empty() {
-            slot_type.as_str().to_string()
-        } else {
-            label.to_string()
-        }
-    }
-}
-
 #[derive(Debug, Serialize)]
 pub struct ExportResult {
     pub path: String,
@@ -670,26 +754,11 @@ pub fn prepare_export_data(
         .get_slots_for_range(start, end)
         .map_err(|e| e.to_string())?;
 
-    let rows: Vec<ExportRowV2> = slots
-        .into_iter()
-        .filter(|slot| request.include_interrupts || slot.slot_type != SlotType::Interrupt)
-        .filter_map(|slot| {
-            let end_ts = slot.end_ts?;
-            let duration = slot.duration_minutes()?;
-
-            Some(ExportRowV2 {
-                date: slot.start_ts.format("%Y-%m-%d").to_string(),
-                task_name: slot.task_name.clone(),
-                slot_type: request.type_labels.for_slot(&slot.slot_type),
-                start_time: slot.start_ts.format("%H:%M:%S").to_string(),
-                end_time: end_ts.format("%H:%M:%S").to_string(),
-                duration_minutes: duration,
-                note: slot.note.unwrap_or_default(),
-            })
-        })
-        .collect();
-
-    Ok(rows)
+    Ok(build_export_rows(
+        slots,
+        request.include_interrupts,
+        &request.type_labels,
+    ))
 }
 
 use rust_xlsxwriter::*;
@@ -710,74 +779,25 @@ pub fn export_to_xlsx(
 
     let header_format = Format::new().set_bold();
 
-    worksheet
-        .write_with_format(0, 0, "日期", &header_format)
-        .map_err(|e| e.to_string())?;
-    worksheet
-        .write_with_format(0, 1, "任務", &header_format)
-        .map_err(|e| e.to_string())?;
-    worksheet
-        .write_with_format(0, 2, "類型", &header_format)
-        .map_err(|e| e.to_string())?;
-    worksheet
-        .write_with_format(0, 3, "開始時間", &header_format)
-        .map_err(|e| e.to_string())?;
-    worksheet
-        .write_with_format(0, 4, "結束時間", &header_format)
-        .map_err(|e| e.to_string())?;
-    worksheet
-        .write_with_format(0, 5, "分鐘", &header_format)
-        .map_err(|e| e.to_string())?;
-    worksheet
-        .write_with_format(0, 6, "備註", &header_format)
-        .map_err(|e| e.to_string())?;
+    let columns = export_columns(&rows);
+    for (col, column) in columns.iter().enumerate() {
+        let col = col as u16;
+        worksheet
+            .write_with_format(0, col, column.header, &header_format)
+            .map_err(|e| e.to_string())?;
+        worksheet
+            .set_column_width(col, column.width)
+            .map_err(|e| e.to_string())?;
 
-    for (i, row) in rows.iter().enumerate() {
-        let row_num = (i + 1) as u32;
-        worksheet
-            .write(row_num, 0, &row.date)
+        for (i, row) in rows.iter().enumerate() {
+            let row_num = (i + 1) as u32;
+            match (column.value)(row) {
+                ExportCell::Text(text) => worksheet.write(row_num, col, text),
+                ExportCell::Number(number) => worksheet.write(row_num, col, number),
+            }
             .map_err(|e| e.to_string())?;
-        worksheet
-            .write(row_num, 1, &row.task_name)
-            .map_err(|e| e.to_string())?;
-        worksheet
-            .write(row_num, 2, &row.slot_type)
-            .map_err(|e| e.to_string())?;
-        worksheet
-            .write(row_num, 3, &row.start_time)
-            .map_err(|e| e.to_string())?;
-        worksheet
-            .write(row_num, 4, &row.end_time)
-            .map_err(|e| e.to_string())?;
-        worksheet
-            .write(row_num, 5, row.duration_minutes)
-            .map_err(|e| e.to_string())?;
-        worksheet
-            .write(row_num, 6, &row.note)
-            .map_err(|e| e.to_string())?;
+        }
     }
-
-    worksheet
-        .set_column_width(0, 12)
-        .map_err(|e| e.to_string())?;
-    worksheet
-        .set_column_width(1, 30)
-        .map_err(|e| e.to_string())?;
-    worksheet
-        .set_column_width(2, 10)
-        .map_err(|e| e.to_string())?;
-    worksheet
-        .set_column_width(3, 10)
-        .map_err(|e| e.to_string())?;
-    worksheet
-        .set_column_width(4, 10)
-        .map_err(|e| e.to_string())?;
-    worksheet
-        .set_column_width(5, 8)
-        .map_err(|e| e.to_string())?;
-    worksheet
-        .set_column_width(6, 40)
-        .map_err(|e| e.to_string())?;
 
     workbook.save(&path).map_err(|e| e.to_string())?;
 
@@ -799,28 +819,13 @@ pub fn export_to_csv(
 
     let mut wtr = csv::Writer::from_path(&path).map_err(|e| e.to_string())?;
 
-    wtr.write_record([
-        "日期",
-        "任務",
-        "類型",
-        "開始時間",
-        "結束時間",
-        "分鐘",
-        "備註",
-    ])
-    .map_err(|e| e.to_string())?;
-
-    for row in rows {
-        wtr.write_record([
-            row.date,
-            row.task_name,
-            row.slot_type,
-            row.start_time,
-            row.end_time,
-            row.duration_minutes.to_string(),
-            row.note,
-        ])
+    let columns = export_columns(&rows);
+    wtr.write_record(columns.iter().map(|column| column.header))
         .map_err(|e| e.to_string())?;
+
+    for row in &rows {
+        wtr.write_record(columns.iter().map(|column| (column.value)(row).to_text()))
+            .map_err(|e| e.to_string())?;
     }
 
     wtr.flush().map_err(|e| e.to_string())?;
@@ -829,4 +834,13 @@ pub fn export_to_csv(
         path: path.to_string_lossy().to_string(),
         count,
     })
+}
+
+// ==================== Report Image Commands ====================
+
+/// Writes a PNG chosen through the save dialog. The app has no fs plugin.
+#[tauri::command]
+pub fn save_report_image(output_path: String, bytes: Vec<u8>) -> Result<String, String> {
+    std::fs::write(&output_path, bytes).map_err(|e| e.to_string())?;
+    Ok(output_path)
 }

@@ -156,3 +156,7 @@ update-deps:
     cargo update --manifest-path=src-tauri/Cargo.toml
     npm update
     @echo "✅ 依賴已更新"
+
+# 啟用 git hooks（clone 後執行一次）
+setup-hooks:
+    git config core.hooksPath .githooks

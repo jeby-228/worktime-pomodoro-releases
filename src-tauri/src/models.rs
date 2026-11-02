@@ -20,6 +20,11 @@ impl SlotType {
             Self::Lunch => "lunch",
         }
     }
+
+    /// Lunch is the one status that never carries a category.
+    pub fn has_category(&self) -> bool {
+        !matches!(self, Self::Lunch)
+    }
 }
 
 impl std::str::FromStr for SlotType {
@@ -48,6 +53,13 @@ pub struct TimeSlot {
     pub parent_id: Option<i64>,
     pub created_at: DateTime<Local>,
     pub updated_at: DateTime<Local>,
+    #[serde(default)]
+    pub category_id: Option<i64>,
+    /// Joined from `categories` on read. `category_id` is what gets stored.
+    #[serde(default)]
+    pub category_name: Option<String>,
+    #[serde(default)]
+    pub category_code: Option<String>,
 }
 
 impl TimeSlot {
@@ -64,6 +76,9 @@ impl TimeSlot {
             parent_id: None,
             created_at: now,
             updated_at: now,
+            category_id: None,
+            category_name: None,
+            category_code: None,
         }
     }
 
@@ -77,6 +92,15 @@ impl TimeSlot {
     pub fn is_ongoing(&self) -> bool {
         self.end_ts.is_none()
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Category {
+    pub id: i64,
+    pub name: String,
+    pub report_code: Option<String>,
+    pub sort_order: i64,
+    pub hidden: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,6 +141,41 @@ pub struct TaskSummary {
     pub slot_count: i64,
 }
 
+/// One category's share of a report. `category_id: None` is uncategorized.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CategoryReportRow {
+    pub category_id: Option<i64>,
+    pub name: Option<String>,
+    pub total_seconds: i64,
+    /// The part of `total_seconds` spent on interrupts.
+    pub interrupt_seconds: i64,
+    pub percentage: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CategoryReportDayItem {
+    pub category_id: Option<i64>,
+    pub seconds: i64,
+    pub interrupt_seconds: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CategoryReportDay {
+    pub date: String,
+    pub total_seconds: i64,
+    pub items: Vec<CategoryReportDayItem>,
+}
+
+/// Lunch is excluded. Work and meeting time is net of the interrupts inside it.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CategoryReport {
+    pub start_date: String,
+    pub end_date: String,
+    pub total_seconds: i64,
+    pub rows: Vec<CategoryReportRow>,
+    pub days: Vec<CategoryReportDay>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Gap {
     pub start_ts: DateTime<Local>,
@@ -135,11 +194,17 @@ pub struct AppSettings {
     pub mini_mode: String,
     pub pet_id: String,
     /// Missing values stay enabled, matching TokenTracker's auto-update default.
-    #[serde(default = "default_auto_update")]
+    #[serde(default = "default_enabled")]
     pub auto_update: bool,
+    /// Pre-select the last used category when starting a timer.
+    #[serde(default = "default_enabled")]
+    pub remember_last_category: bool,
+    /// Show three quick category switches on the mini bar.
+    #[serde(default = "default_enabled")]
+    pub mini_quick_categories: bool,
 }
 
-fn default_auto_update() -> bool {
+fn default_enabled() -> bool {
     true
 }
 
@@ -155,6 +220,8 @@ impl Default for AppSettings {
             mini_mode: "none".to_string(),
             pet_id: "tomato-kun".to_string(),
             auto_update: true,
+            remember_last_category: true,
+            mini_quick_categories: true,
         }
     }
 }
