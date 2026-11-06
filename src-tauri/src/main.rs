@@ -40,8 +40,7 @@ fn get_db_path(app: &tauri::AppHandle) -> PathBuf {
     app_dir.join("worktime_v2.db")
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+fn run() {
     setup_logging();
 
     tauri::Builder::default()
