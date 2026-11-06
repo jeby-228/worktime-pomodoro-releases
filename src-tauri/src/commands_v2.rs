@@ -446,8 +446,11 @@ pub fn fill_gaps(request: FillGapsRequest, store: State<AppStore>) -> Result<Vec
     if request.entries.is_empty() {
         return Err("請至少填一筆工作".to_string());
     }
-    let mut ids = Vec::new();
-    for entry in request.entries {
+
+    let mut slots = Vec::new();
+    let mut task_names = Vec::new();
+
+    for entry in &request.entries {
         let task_name = entry.task_name.trim();
         if task_name.is_empty() {
             return Err("請輸入任務名稱".to_string());
@@ -461,14 +464,22 @@ pub fn fill_gaps(request: FillGapsRequest, store: State<AppStore>) -> Result<Vec
         if end_ts <= start_ts {
             return Err("結束時間要比開始時間晚".to_string());
         }
+
         let mut slot = TimeSlot::new(task_name.to_string(), SlotType::Work, start_ts);
         slot.end_ts = Some(end_ts);
         slot.category_id = entry.category_id;
-        ids.push(store.create_slot(&slot).map_err(|e| e.to_string())?);
+        slots.push(slot);
+        task_names.push(task_name.to_string());
+    }
+
+    let ids = store.create_slots(&slots).map_err(|e| e.to_string())?;
+
+    for task_name in task_names {
         store
-            .add_or_update_recent_task(task_name, SlotType::Work)
+            .add_or_update_recent_task(&task_name, SlotType::Work)
             .map_err(|e| e.to_string())?;
     }
+
     Ok(ids)
 }
 
