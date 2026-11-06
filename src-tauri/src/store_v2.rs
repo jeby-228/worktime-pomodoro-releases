@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chrono::{DateTime, Local, NaiveDate};
+use chrono::{DateTime, Local, NaiveDate, NaiveTime};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -103,6 +103,36 @@ fn clean_category_name(name: &str) -> Result<&str> {
 
 fn clean_report_code(code: Option<&str>) -> Option<&str> {
     code.map(str::trim).filter(|text| !text.is_empty())
+}
+
+/// The first instant of `date` in local time. If midnight falls in a DST gap,
+/// use the first valid instant after it.
+fn local_day_start(date: NaiveDate) -> Result<DateTime<Local>> {
+    let midnight = date.and_time(NaiveTime::MIN);
+    midnight
+        .and_local_timezone(Local)
+        .earliest()
+        .or_else(|| {
+            (midnight + chrono::Duration::hours(1))
+                .and_local_timezone(Local)
+                .earliest()
+        })
+        .ok_or_else(|| anyhow::anyhow!("無法轉換日期到本地時區：{date}"))
+}
+
+/// Half-open bounds `[start 00:00, end + 1 day 00:00)` for `start_ts` comparisons.
+///
+/// TODO: start_ts is compared as an RFC3339 string, which only orders correctly
+/// while every row carries the same UTC offset. Rows written under a different
+/// time zone (travel, DST change) can fall on the wrong side of the bounds.
+fn day_range(start: NaiveDate, end: NaiveDate) -> Result<(String, String)> {
+    let after_end = end
+        .succ_opt()
+        .ok_or_else(|| anyhow::anyhow!("日期超出範圍：{end}"))?;
+    Ok((
+        local_day_start(start)?.to_rfc3339(),
+        local_day_start(after_end)?.to_rfc3339(),
+    ))
 }
 
 // The helpers below take `&Connection` so they work both on the plain
@@ -300,43 +330,16 @@ impl StoreV2 {
 
     pub fn get_slots_for_range(&self, start: NaiveDate, end: NaiveDate) -> Result<Vec<TimeSlot>> {
         let conn = self.lock_conn();
-        let start_dt = start
-            .and_hms_opt(0, 0, 0)
-            .unwrap()
-            .and_local_timezone(Local)
-            .single()
-            .or_else(|| {
-                start
-                    .and_hms_opt(0, 0, 0)
-                    .unwrap()
-                    .and_local_timezone(Local)
-                    .earliest()
-            })
-            .ok_or_else(|| anyhow::anyhow!("無法轉換開始日期到本地時區"))?;
-        let end_dt = end
-            .and_hms_opt(23, 59, 59)
-            .unwrap()
-            .and_local_timezone(Local)
-            .single()
-            .or_else(|| {
-                end.and_hms_opt(23, 59, 59)
-                    .unwrap()
-                    .and_local_timezone(Local)
-                    .earliest()
-            })
-            .ok_or_else(|| anyhow::anyhow!("無法轉換結束日期到本地時區"))?;
+        let (from, until) = day_range(start, end)?;
 
         let mut stmt = conn.prepare(&format!(
             "{SLOT_SELECT}
-             WHERE s.start_ts >= ?1 AND s.start_ts <= ?2
+             WHERE s.start_ts >= ?1 AND s.start_ts < ?2
              ORDER BY s.start_ts ASC"
         ))?;
 
         let slots = stmt
-            .query_map(
-                params![start_dt.to_rfc3339(), end_dt.to_rfc3339()],
-                slot_from_row,
-            )?
+            .query_map(params![from, until], slot_from_row)?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(slots)
@@ -375,44 +378,20 @@ impl StoreV2 {
 
     pub fn get_task_summaries(&self, start: NaiveDate, end: NaiveDate) -> Result<Vec<TaskSummary>> {
         let conn = self.lock_conn();
-        let start_dt = start
-            .and_hms_opt(0, 0, 0)
-            .unwrap()
-            .and_local_timezone(Local)
-            .single()
-            .or_else(|| {
-                start
-                    .and_hms_opt(0, 0, 0)
-                    .unwrap()
-                    .and_local_timezone(Local)
-                    .earliest()
-            })
-            .ok_or_else(|| anyhow::anyhow!("無法轉換開始日期到本地時區"))?;
-        let end_dt = end
-            .and_hms_opt(23, 59, 59)
-            .unwrap()
-            .and_local_timezone(Local)
-            .single()
-            .or_else(|| {
-                end.and_hms_opt(23, 59, 59)
-                    .unwrap()
-                    .and_local_timezone(Local)
-                    .earliest()
-            })
-            .ok_or_else(|| anyhow::anyhow!("無法轉換結束日期到本地時區"))?;
+        let (from, until) = day_range(start, end)?;
 
         let mut stmt = conn.prepare(
             "SELECT task_name, slot_type, 
                     SUM((julianday(COALESCE(end_ts, datetime('now','localtime'))) - julianday(start_ts)) * 24 * 60) as total_minutes,
                     COUNT(*) as slot_count
              FROM time_slots 
-             WHERE start_ts >= ?1 AND start_ts <= ?2 AND end_ts IS NOT NULL
+             WHERE start_ts >= ?1 AND start_ts < ?2 AND end_ts IS NOT NULL
              GROUP BY task_name, slot_type
              ORDER BY total_minutes DESC",
         )?;
 
         let summaries = stmt
-            .query_map(params![start_dt.to_rfc3339(), end_dt.to_rfc3339()], |row| {
+            .query_map(params![from, until], |row| {
                 let minutes: f64 = row.get(2)?;
                 Ok(TaskSummary {
                     task_name: row.get(0)?,
@@ -1714,5 +1693,44 @@ mod tests {
         assert!(store.conn.is_poisoned());
 
         assert_store_still_works(&store);
+    }
+
+    // P4 date range boundary tests
+
+    fn local_at(date: NaiveDate, h: u32, m: u32, s: u32, ms: u32) -> DateTime<Local> {
+        date.and_hms_milli_opt(h, m, s, ms)
+            .unwrap()
+            .and_local_timezone(Local)
+            .earliest()
+            .unwrap()
+    }
+
+    #[test]
+    fn test_last_half_second_of_the_day_is_in_that_day() {
+        let (_temp, store) = temp_store();
+        let day = NaiveDate::from_ymd_opt(2026, 3, 10).unwrap();
+        let next = day.succ_opt().unwrap();
+        let slot = finished("最後一秒", local_at(day, 23, 59, 59, 500), 10);
+        assert!(slot.start_ts.to_rfc3339().contains("23:59:59.5"));
+        store.create_slot(&slot).unwrap();
+
+        assert_eq!(store.get_slots_for_date(day).unwrap().len(), 1);
+        assert!(store.get_slots_for_date(next).unwrap().is_empty());
+        assert_eq!(store.get_task_summaries(day, day).unwrap().len(), 1);
+        assert!(store.get_task_summaries(next, next).unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_next_midnight_belongs_to_the_next_day_only() {
+        let (_temp, store) = temp_store();
+        let day = NaiveDate::from_ymd_opt(2026, 3, 10).unwrap();
+        let next = day.succ_opt().unwrap();
+        store
+            .create_slot(&finished("午夜", local_at(next, 0, 0, 0, 0), 10))
+            .unwrap();
+
+        assert!(store.get_slots_for_date(day).unwrap().is_empty());
+        assert_eq!(store.get_slots_for_date(next).unwrap().len(), 1);
+        assert_eq!(store.get_slots_for_range(day, next).unwrap().len(), 1);
     }
 }
