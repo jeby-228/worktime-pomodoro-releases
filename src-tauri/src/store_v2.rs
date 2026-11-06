@@ -108,6 +108,96 @@ fn clean_report_code(code: Option<&str>) -> Option<&str> {
     code.map(str::trim).filter(|text| !text.is_empty())
 }
 
+// The helpers below take `&Connection` so they work both on the plain
+// connection and inside a `Transaction` (which derefs to `Connection`).
+
+fn load_slot(conn: &Connection, id: i64) -> Result<Option<TimeSlot>> {
+    let slot = conn
+        .query_row(
+            &format!("{SLOT_SELECT} WHERE s.id = ?1"),
+            params![id],
+            slot_from_row,
+        )
+        .optional()?;
+    Ok(slot)
+}
+
+fn insert_slot(conn: &Connection, slot: &TimeSlot) -> Result<i64> {
+    conn.execute(
+        "INSERT INTO time_slots (uuid, task_name, slot_type, start_ts, end_ts, note, parent_id, created_at, updated_at, category_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        params![
+            slot.uuid.to_string(),
+            slot.task_name,
+            slot.slot_type.as_str(),
+            slot.start_ts.to_rfc3339(),
+            slot.end_ts.map(|t| t.to_rfc3339()),
+            slot.note,
+            slot.parent_id,
+            slot.created_at.to_rfc3339(),
+            slot.updated_at.to_rfc3339(),
+            slot.category_id.filter(|_| slot.slot_type.has_category()),
+        ],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+/// Set `end_ts`, and the note only when one is given. Returns the number of rows changed.
+fn end_slot(
+    conn: &Connection,
+    id: i64,
+    end_ts: Option<DateTime<Local>>,
+    note: Option<&str>,
+) -> Result<usize> {
+    let end_ts = end_ts.map(|t| t.to_rfc3339());
+    let now = Local::now().to_rfc3339();
+    let changed = match note {
+        Some(note) => conn.execute(
+            "UPDATE time_slots SET end_ts = ?1, note = ?2, updated_at = ?3 WHERE id = ?4",
+            params![end_ts, note, now, id],
+        )?,
+        None => conn.execute(
+            "UPDATE time_slots SET end_ts = ?1, updated_at = ?2 WHERE id = ?3",
+            params![end_ts, now, id],
+        )?,
+    };
+    Ok(changed)
+}
+
+fn write_slot_details(conn: &Connection, id: i64, details: &SlotDetails) -> Result<()> {
+    let category_id = details
+        .category_id
+        .filter(|_| details.slot_type.has_category());
+    let changed = conn.execute(
+        "UPDATE time_slots
+         SET task_name = ?1, slot_type = ?2, start_ts = ?3, end_ts = ?4, note = ?5, updated_at = ?6,
+             category_id = ?8
+         WHERE id = ?7",
+        params![
+            details.task_name,
+            details.slot_type.as_str(),
+            details.start_ts.to_rfc3339(),
+            details.end_ts.map(|t| t.to_rfc3339()),
+            details.note,
+            Local::now().to_rfc3339(),
+            id,
+            category_id,
+        ],
+    )?;
+    if changed == 0 {
+        anyhow::bail!("找不到這個時段");
+    }
+    Ok(())
+}
+
+fn reparent(conn: &Connection, from_id: i64, to_id: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE time_slots SET parent_id = ?1, updated_at = ?2 WHERE parent_id = ?3",
+        params![to_id, Local::now().to_rfc3339(), from_id],
+    )?;
+    Ok(())
+}
+
 pub struct SlotDetails<'a> {
     pub task_name: &'a str,
     pub slot_type: SlotType,
@@ -145,50 +235,17 @@ impl StoreV2 {
 
     pub fn create_slot(&self, slot: &TimeSlot) -> Result<i64> {
         let conn = self.lock_conn()?;
-        conn.execute(
-            "INSERT INTO time_slots (uuid, task_name, slot_type, start_ts, end_ts, note, parent_id, created_at, updated_at, category_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-            params![
-                slot.uuid.to_string(),
-                slot.task_name,
-                slot.slot_type.as_str(),
-                slot.start_ts.to_rfc3339(),
-                slot.end_ts.map(|t| t.to_rfc3339()),
-                slot.note,
-                slot.parent_id,
-                slot.created_at.to_rfc3339(),
-                slot.updated_at.to_rfc3339(),
-                slot.category_id.filter(|_| slot.slot_type.has_category()),
-            ],
-        )?;
-        Ok(conn.last_insert_rowid())
+        insert_slot(&conn, slot)
     }
 
+    /// Insert every slot or none of them.
     pub fn create_slots(&self, slots: &[TimeSlot]) -> Result<Vec<i64>> {
         let mut conn = self.lock_conn()?;
         let tx = conn.transaction()?;
-        let mut ids = Vec::new();
-
-        for slot in slots {
-            tx.execute(
-                "INSERT INTO time_slots (uuid, task_name, slot_type, start_ts, end_ts, note, parent_id, created_at, updated_at, category_id)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-                params![
-                    slot.uuid.to_string(),
-                    slot.task_name,
-                    slot.slot_type.as_str(),
-                    slot.start_ts.to_rfc3339(),
-                    slot.end_ts.map(|t| t.to_rfc3339()),
-                    slot.note,
-                    slot.parent_id,
-                    slot.created_at.to_rfc3339(),
-                    slot.updated_at.to_rfc3339(),
-                    slot.category_id.filter(|_| slot.slot_type.has_category()),
-                ],
-            )?;
-            ids.push(tx.last_insert_rowid());
-        }
-
+        let ids = slots
+            .iter()
+            .map(|slot| insert_slot(&tx, slot))
+            .collect::<Result<Vec<_>>>()?;
         tx.commit()?;
         Ok(ids)
     }
@@ -200,88 +257,25 @@ impl StoreV2 {
         note: Option<String>,
     ) -> Result<()> {
         let conn = self.lock_conn()?;
-        if let Some(note) = note {
-            conn.execute(
-                "UPDATE time_slots SET end_ts = ?1, note = ?2, updated_at = ?3 WHERE id = ?4",
-                params![
-                    end_ts.map(|t| t.to_rfc3339()),
-                    note,
-                    Local::now().to_rfc3339(),
-                    id,
-                ],
-            )?;
-        } else {
-            self.close_slot_conn(&conn, id, end_ts)?;
-        }
+        end_slot(&conn, id, end_ts, note.as_deref())?;
         Ok(())
     }
 
     /// Close a slot without erasing its note.
     pub fn close_slot(&self, id: i64, end_ts: DateTime<Local>) -> Result<()> {
         let conn = self.lock_conn()?;
-        self.close_slot_conn(&conn, id, Some(end_ts))
-    }
-
-    fn close_slot_conn(
-        &self,
-        conn: &Connection,
-        id: i64,
-        end_ts: Option<DateTime<Local>>,
-    ) -> Result<()> {
-        conn.execute(
-            "UPDATE time_slots SET end_ts = ?1, updated_at = ?2 WHERE id = ?3",
-            params![
-                end_ts.map(|t| t.to_rfc3339()),
-                Local::now().to_rfc3339(),
-                id,
-            ],
-        )?;
+        end_slot(&conn, id, Some(end_ts), None)?;
         Ok(())
     }
 
     pub fn update_slot_details(&self, id: i64, details: SlotDetails) -> Result<()> {
-        let SlotDetails {
-            task_name,
-            slot_type,
-            start_ts,
-            end_ts,
-            note,
-            category_id,
-        } = details;
         let conn = self.lock_conn()?;
-        let category_id = category_id.filter(|_| slot_type.has_category());
-        let changed = conn.execute(
-            "UPDATE time_slots
-             SET task_name = ?1, slot_type = ?2, start_ts = ?3, end_ts = ?4, note = ?5, updated_at = ?6,
-                 category_id = ?8
-             WHERE id = ?7",
-            params![
-                task_name,
-                slot_type.as_str(),
-                start_ts.to_rfc3339(),
-                end_ts.map(|t| t.to_rfc3339()),
-                note,
-                Local::now().to_rfc3339(),
-                id,
-                category_id,
-            ],
-        )?;
-        if changed == 0 {
-            anyhow::bail!("找不到這個時段");
-        }
-        Ok(())
+        write_slot_details(&conn, id, &details)
     }
 
     pub fn get_slot(&self, id: i64) -> Result<Option<TimeSlot>> {
         let conn = self.lock_conn()?;
-        let slot = conn
-            .query_row(
-                &format!("{SLOT_SELECT} WHERE s.id = ?1"),
-                params![id],
-                slot_from_row,
-            )
-            .optional()?;
-        Ok(slot)
+        load_slot(&conn, id)
     }
 
     pub fn get_current_slot(&self) -> Result<Option<TimeSlot>> {
@@ -825,14 +819,11 @@ impl StoreV2 {
 
     pub fn reparent_children(&self, from_id: i64, to_id: i64) -> Result<()> {
         let conn = self.lock_conn()?;
-        conn.execute(
-            "UPDATE time_slots SET parent_id = ?1, updated_at = ?2 WHERE parent_id = ?3",
-            params![to_id, Local::now().to_rfc3339(), from_id],
-        )?;
-        Ok(())
+        reparent(&conn, from_id, to_id)
     }
 
-    /// Atomically close the interrupt slot and update the parent slot with end_ts and optional note.
+    /// Close the interrupt slot and end its parent work slot in one transaction.
+    /// Fails without writing anything if either slot is missing.
     pub fn end_interrupt_atomic(
         &self,
         interrupt_id: i64,
@@ -842,29 +833,12 @@ impl StoreV2 {
     ) -> Result<()> {
         let mut conn = self.lock_conn()?;
         let tx = conn.transaction()?;
-
-        tx.execute(
-            "UPDATE time_slots SET end_ts = ?1, updated_at = ?2 WHERE id = ?3",
-            params![end_ts.to_rfc3339(), Local::now().to_rfc3339(), interrupt_id,],
-        )?;
-
-        if let Some(note) = note {
-            tx.execute(
-                "UPDATE time_slots SET end_ts = ?1, note = ?2, updated_at = ?3 WHERE id = ?4",
-                params![
-                    end_ts.to_rfc3339(),
-                    note,
-                    Local::now().to_rfc3339(),
-                    parent_id,
-                ],
-            )?;
-        } else {
-            tx.execute(
-                "UPDATE time_slots SET end_ts = ?1, updated_at = ?2 WHERE id = ?3",
-                params![end_ts.to_rfc3339(), Local::now().to_rfc3339(), parent_id,],
-            )?;
+        if end_slot(&tx, interrupt_id, Some(end_ts), None)? == 0 {
+            anyhow::bail!("找不到插隊紀錄");
         }
-
+        if end_slot(&tx, parent_id, Some(end_ts), note.as_deref())? == 0 {
+            anyhow::bail!("找不到被插隊的工作紀錄");
+        }
         tx.commit()?;
         Ok(())
     }
@@ -879,14 +853,7 @@ impl StoreV2 {
         let mut conn = self.lock_conn()?;
         let tx = conn.transaction()?;
 
-        let slot = tx
-            .query_row(
-                &format!("{SLOT_SELECT} WHERE s.id = ?1"),
-                params![id],
-                slot_from_row,
-            )
-            .optional()?
-            .ok_or_else(|| anyhow::anyhow!("找不到這個時段"))?;
+        let slot = load_slot(&tx, id)?.ok_or_else(|| anyhow::anyhow!("找不到這個時段"))?;
 
         let end = slot
             .end_ts
@@ -901,46 +868,25 @@ impl StoreV2 {
             .filter(|text| !text.is_empty())
             .unwrap_or(slot.task_name.as_str());
 
-        let category_id = slot.category_id.filter(|_| slot.slot_type.has_category());
-        let changed = tx.execute(
-            "UPDATE time_slots
-             SET task_name = ?1, slot_type = ?2, start_ts = ?3, end_ts = ?4, note = ?5, updated_at = ?6,
-                 category_id = ?8
-             WHERE id = ?7",
-            params![
-                &slot.task_name,
-                slot.slot_type.as_str(),
-                slot.start_ts.to_rfc3339(),
-                Some(at.to_rfc3339()),
-                slot.note,
-                Local::now().to_rfc3339(),
-                id,
-                category_id,
-            ],
+        write_slot_details(
+            &tx,
+            id,
+            &SlotDetails {
+                task_name: &slot.task_name,
+                slot_type: slot.slot_type.clone(),
+                start_ts: slot.start_ts,
+                end_ts: Some(at),
+                note: slot.note.as_deref(),
+                category_id: slot.category_id,
+            },
         )?;
-        if changed == 0 {
-            anyhow::bail!("找不到這個時段");
-        }
 
-        let next_uuid = uuid::Uuid::new_v4();
-        let now = Local::now();
-        tx.execute(
-            "INSERT INTO time_slots (uuid, task_name, slot_type, start_ts, end_ts, note, parent_id, created_at, updated_at, category_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-            params![
-                next_uuid.to_string(),
-                name,
-                slot.slot_type.as_str(),
-                at.to_rfc3339(),
-                Some(end.to_rfc3339()),
-                slot.note,
-                slot.parent_id,
-                now.to_rfc3339(),
-                now.to_rfc3339(),
-                category_id,
-            ],
-        )?;
-        let next_id = tx.last_insert_rowid();
+        let mut next = TimeSlot::new(name.to_string(), slot.slot_type.clone(), at);
+        next.end_ts = Some(end);
+        next.note = slot.note.clone();
+        next.parent_id = slot.parent_id;
+        next.category_id = slot.category_id;
+        let next_id = insert_slot(&tx, &next)?;
 
         tx.commit()?;
         Ok(next_id)
@@ -963,14 +909,7 @@ impl StoreV2 {
 
         let mut slots = Vec::new();
         for id in &unique {
-            let slot = tx
-                .query_row(
-                    &format!("{SLOT_SELECT} WHERE s.id = ?1"),
-                    params![id],
-                    slot_from_row,
-                )
-                .optional()?
-                .ok_or_else(|| anyhow::anyhow!("找不到這個時段"))?;
+            let slot = load_slot(&tx, *id)?.ok_or_else(|| anyhow::anyhow!("找不到這個時段"))?;
             slots.push(slot);
         }
 
@@ -1017,33 +956,22 @@ impl StoreV2 {
             Some(notes.join("\n"))
         };
 
-        let category_id = kept.category_id.filter(|_| kept.slot_type.has_category());
-        let changed = tx.execute(
-            "UPDATE time_slots
-             SET task_name = ?1, slot_type = ?2, start_ts = ?3, end_ts = ?4, note = ?5, updated_at = ?6,
-                 category_id = ?8
-             WHERE id = ?7",
-            params![
-                name,
-                kept.slot_type.as_str(),
-                start.to_rfc3339(),
-                Some(end.to_rfc3339()),
-                note,
-                Local::now().to_rfc3339(),
-                kept_id,
-                category_id,
-            ],
+        write_slot_details(
+            &tx,
+            kept_id,
+            &SlotDetails {
+                task_name: name,
+                slot_type: kept.slot_type.clone(),
+                start_ts: start,
+                end_ts: Some(end),
+                note: note.as_deref(),
+                category_id: kept.category_id,
+            },
         )?;
-        if changed == 0 {
-            anyhow::bail!("找不到這個時段");
-        }
 
         for slot in slots.iter().skip(1) {
             let id = slot.id.ok_or_else(|| anyhow::anyhow!("找不到這個時段"))?;
-            tx.execute(
-                "UPDATE time_slots SET parent_id = ?1, updated_at = ?2 WHERE parent_id = ?3",
-                params![kept_id, Local::now().to_rfc3339(), id],
-            )?;
+            reparent(&tx, id, kept_id)?;
             tx.execute("DELETE FROM time_slots WHERE id = ?", params![id])?;
         }
 
@@ -1055,9 +983,6 @@ impl StoreV2 {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[cfg(unix)]
-    use std::os::unix::fs::PermissionsExt;
 
     #[test]
     fn test_update_slot_name() {
@@ -1479,101 +1404,187 @@ mod tests {
 
     // P1 atomicity tests
 
+    fn temp_store() -> (tempfile::NamedTempFile, StoreV2) {
+        let temp = tempfile::NamedTempFile::new().unwrap();
+        let store = StoreV2::new(temp.path()).unwrap();
+        (temp, store)
+    }
+
+    /// Snapshot of every row, used to prove a failed operation left the DB untouched.
+    type SlotRow = (
+        i64,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<i64>,
+    );
+
+    fn dump_slots(store: &StoreV2) -> Vec<SlotRow> {
+        let conn = store.lock_conn().unwrap();
+        let mut stmt = conn
+            .prepare("SELECT id, task_name, start_ts, end_ts, note, parent_id FROM time_slots ORDER BY id")
+            .unwrap();
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        rows
+    }
+
+    /// Make the given statement kind fail, so a multi-step operation dies half way.
+    fn fail_on(store: &StoreV2, event: &str) {
+        let conn = store.lock_conn().unwrap();
+        conn.execute_batch(&format!(
+            "CREATE TRIGGER test_fail BEFORE {event} ON time_slots BEGIN SELECT RAISE(ABORT, 'boom'); END;"
+        ))
+        .unwrap();
+    }
+
+    fn finished(name: &str, start: DateTime<Local>, minutes: i64) -> TimeSlot {
+        let mut slot = TimeSlot::new(name.to_string(), SlotType::Work, start);
+        slot.end_ts = Some(start + chrono::Duration::minutes(minutes));
+        slot
+    }
+
     #[test]
-    #[cfg(unix)]
-    fn test_split_slot_is_atomic_on_database_error() {
-        use tempfile::NamedTempFile;
-        let temp = NamedTempFile::new().unwrap();
-        let store = StoreV2::new(temp.path()).unwrap();
+    fn test_split_durations_add_up_to_the_original() {
+        let (_temp, store) = temp_store();
+        let start = Local::now() - chrono::Duration::hours(2);
+        let id = store.create_slot(&finished("原始", start, 60)).unwrap();
+        let original = store.get_slot(id).unwrap().unwrap();
 
-        let start = Local::now();
-        let end = start + chrono::Duration::minutes(60);
-        let mut slot = TimeSlot::new("原始".to_string(), SlotType::Work, start);
-        slot.end_ts = Some(end);
-        let id = store.create_slot(&slot).unwrap();
+        let at = start + chrono::Duration::seconds(1234);
+        let second_id = store.split_slot(id, at, None).unwrap();
+        let first = store.get_slot(id).unwrap().unwrap();
+        let second = store.get_slot(second_id).unwrap().unwrap();
 
-        drop(store);
-        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o444)).unwrap();
+        let span = |s: &TimeSlot| s.end_ts.unwrap() - s.start_ts;
+        assert_eq!(span(&first) + span(&second), span(&original));
+        assert_eq!(first.end_ts, Some(second.start_ts));
+    }
 
-        let store = StoreV2::new(temp.path()).unwrap();
+    #[test]
+    fn test_split_rolls_back_when_the_insert_fails() {
+        let (_temp, store) = temp_store();
+        let start = Local::now() - chrono::Duration::hours(2);
+        let id = store.create_slot(&finished("原始", start, 60)).unwrap();
+        let before = dump_slots(&store);
+
+        fail_on(&store, "INSERT");
         let at = start + chrono::Duration::minutes(20);
         assert!(store.split_slot(id, at, Some("新")).is_err());
 
-        drop(store);
-        std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o644)).unwrap();
-        let store = StoreV2::new(temp.path()).unwrap();
-
-        let original = store.get_slot(id).unwrap().unwrap();
-        assert_eq!(original.task_name, "原始");
-        assert!(near(original.end_ts.unwrap(), end));
-
-        let slots = store.get_slots_for_date(start.date_naive()).unwrap();
-        assert_eq!(slots.len(), 1);
+        assert_eq!(dump_slots(&store), before);
     }
 
     #[test]
-    fn test_merge_slots_rollback_on_missing_id() {
-        use tempfile::NamedTempFile;
-        let temp = NamedTempFile::new().unwrap();
-        let store = StoreV2::new(temp.path()).unwrap();
+    fn test_merge_with_missing_id_leaves_db_unchanged() {
+        let (_temp, store) = temp_store();
+        let start = Local::now() - chrono::Duration::hours(2);
+        let a = store.create_slot(&finished("甲", start, 20)).unwrap();
+        let b = store
+            .create_slot(&finished("乙", start + chrono::Duration::minutes(20), 20))
+            .unwrap();
+        let before = dump_slots(&store);
 
-        let start = Local::now();
-        let mut first = TimeSlot::new("甲".to_string(), SlotType::Work, start);
-        first.end_ts = Some(start + chrono::Duration::minutes(20));
-        let first_id = store.create_slot(&first).unwrap();
+        assert!(store.merge_slots(&[a, b, 99999], Some("合併")).is_err());
 
-        let result = store.merge_slots(&[first_id, 99999], None);
-        assert!(result.is_err());
-
-        let slots = store.get_slots_for_date(start.date_naive()).unwrap();
-        assert_eq!(slots.len(), 1);
-        assert_eq!(slots[0].task_name, "甲");
+        assert_eq!(dump_slots(&store), before);
     }
 
     #[test]
-    fn test_create_slots_batch_atomicity() {
-        use tempfile::NamedTempFile;
-        let temp = NamedTempFile::new().unwrap();
-        let store = StoreV2::new(temp.path()).unwrap();
+    fn test_merge_rolls_back_when_the_delete_fails() {
+        let (_temp, store) = temp_store();
+        let start = Local::now() - chrono::Duration::hours(2);
+        let a = store.create_slot(&finished("甲", start, 20)).unwrap();
+        let b = store
+            .create_slot(&finished("乙", start + chrono::Duration::minutes(20), 20))
+            .unwrap();
+        let mut child = finished("插隊", start + chrono::Duration::minutes(25), 5);
+        child.slot_type = SlotType::Interrupt;
+        child.parent_id = Some(b);
+        store.create_slot(&child).unwrap();
+        let before = dump_slots(&store);
 
-        let start = Local::now();
-        let mut slot1 = TimeSlot::new("A".to_string(), SlotType::Work, start);
-        slot1.end_ts = Some(start + chrono::Duration::minutes(10));
+        // The kept slot is updated and the child reparented before the delete fails.
+        fail_on(&store, "DELETE");
+        assert!(store.merge_slots(&[a, b], Some("合併")).is_err());
 
-        let mut slot2 = TimeSlot::new(
-            "B".to_string(),
-            SlotType::Work,
-            start + chrono::Duration::minutes(10),
-        );
-        slot2.end_ts = Some(start + chrono::Duration::minutes(20));
-
-        let mut slot3 = TimeSlot::new(
-            "".to_string(),
-            SlotType::Work,
-            start + chrono::Duration::minutes(20),
-        );
-        slot3.end_ts = Some(start + chrono::Duration::minutes(30));
-
-        let result = store.create_slots(&[slot1.clone(), slot2.clone(), slot3.clone()]);
-        assert!(result.is_ok());
-        let ids = result.unwrap();
-        assert_eq!(ids.len(), 3);
-
-        let slots = store.get_slots_for_date(start.date_naive()).unwrap();
-        assert_eq!(slots.len(), 3);
+        assert_eq!(dump_slots(&store), before);
     }
 
     #[test]
-    fn test_save_settings_is_atomic() {
-        use tempfile::NamedTempFile;
-        let temp = NamedTempFile::new().unwrap();
-        let store = StoreV2::new(temp.path()).unwrap();
+    fn test_create_slots_writes_nothing_when_the_third_is_invalid() {
+        let (_temp, store) = temp_store();
+        let start = Local::now() - chrono::Duration::hours(2);
+        let first = finished("A", start, 10);
+        let second = finished("B", start + chrono::Duration::minutes(10), 10);
+        // Same uuid as the first one breaks the UNIQUE constraint.
+        let mut third = finished("C", start + chrono::Duration::minutes(20), 10);
+        third.uuid = first.uuid;
 
+        assert!(store.create_slots(&[first, second, third]).is_err());
+
+        assert!(dump_slots(&store).is_empty());
+    }
+
+    #[test]
+    fn test_create_slots_returns_ids_in_order() {
+        let (_temp, store) = temp_store();
+        let start = Local::now() - chrono::Duration::hours(2);
+        let ids = store
+            .create_slots(&[
+                finished("A", start, 10),
+                finished("B", start + chrono::Duration::minutes(10), 10),
+            ])
+            .unwrap();
+        assert_eq!(ids.len(), 2);
+        assert_eq!(store.get_slot(ids[0]).unwrap().unwrap().task_name, "A");
+        assert_eq!(store.get_slot(ids[1]).unwrap().unwrap().task_name, "B");
+    }
+
+    #[test]
+    fn test_save_settings_rolls_back_when_one_write_fails() {
+        let (_temp, store) = temp_store();
+        let before = store.get_settings().unwrap();
+
+        {
+            let conn = store.lock_conn().unwrap();
+            conn.execute_batch(
+                "CREATE TRIGGER test_fail BEFORE INSERT ON app_state WHEN NEW.key = 'pet_id'
+                 BEGIN SELECT RAISE(ABORT, 'boom'); END;",
+            )
+            .unwrap();
+        }
+
+        let mut settings = before.clone();
+        settings.pomodoro_minutes = before.pomodoro_minutes + 7;
+        settings.theme = "something-else".to_string();
+        assert!(store.save_settings(&settings).is_err());
+
+        let after = store.get_settings().unwrap();
+        assert_eq!(after.pomodoro_minutes, before.pomodoro_minutes);
+        assert_eq!(after.theme, before.theme);
+    }
+
+    #[test]
+    fn test_save_settings_round_trip() {
+        let (_temp, store) = temp_store();
         let mut settings = store.get_settings().unwrap();
         settings.pomodoro_minutes = 30;
         settings.theme = "dark".to_string();
         settings.auto_update = false;
-
         store.save_settings(&settings).unwrap();
 
         let loaded = store.get_settings().unwrap();
@@ -1584,14 +1595,11 @@ mod tests {
 
     #[test]
     fn test_end_interrupt_atomic_updates_both_slots() {
-        use tempfile::NamedTempFile;
-        let temp = NamedTempFile::new().unwrap();
-        let store = StoreV2::new(temp.path()).unwrap();
-
+        let (_temp, store) = temp_store();
         let start = Local::now();
-        let work = TimeSlot::new("工作".to_string(), SlotType::Work, start);
-        let work_id = store.create_slot(&work).unwrap();
-
+        let work_id = store
+            .create_slot(&TimeSlot::new("工作".to_string(), SlotType::Work, start))
+            .unwrap();
         let mut interrupt = TimeSlot::new(
             "插隊".to_string(),
             SlotType::Interrupt,
@@ -1607,10 +1615,23 @@ mod tests {
 
         let work_slot = store.get_slot(work_id).unwrap().unwrap();
         let interrupt_slot = store.get_slot(interrupt_id).unwrap().unwrap();
-
         assert_eq!(work_slot.note.as_deref(), Some("完成"));
         assert!(near(work_slot.end_ts.unwrap(), end));
         assert!(near(interrupt_slot.end_ts.unwrap(), end));
+    }
+
+    #[test]
+    fn test_end_interrupt_atomic_with_missing_parent_leaves_db_unchanged() {
+        let (_temp, store) = temp_store();
+        let interrupt = TimeSlot::new("插隊".to_string(), SlotType::Interrupt, Local::now());
+        let interrupt_id = store.create_slot(&interrupt).unwrap();
+        let before = dump_slots(&store);
+
+        assert!(store
+            .end_interrupt_atomic(interrupt_id, 99999, Local::now(), None)
+            .is_err());
+
+        assert_eq!(dump_slots(&store), before);
     }
 
     // P2 error handling tests
@@ -1632,7 +1653,6 @@ mod tests {
         let result2 = store.get_slot(1);
         assert!(result2.is_err());
 
-        let result3 = store.get_recent_tasks(10);
         let conn = store.lock_conn().unwrap();
         conn.execute(
             "INSERT INTO recent_tasks (task_name, last_used, use_count, slot_type)
