@@ -97,7 +97,10 @@ pub fn find_digest(checksums_body: &str, file_name: &str) -> Option<String> {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        let (digest, rest) = line.split_once(' ')?;
+        // A malformed line must not hide the valid ones after it.
+        let Some((digest, rest)) = line.split_once(' ') else {
+            continue;
+        };
         if !is_sha256_hex(digest) {
             continue;
         }
@@ -374,6 +377,18 @@ ABCDEF0123456789abcdef0123456789ABCDEF0123456789abcdef0123456789 *worktime-pomod
             Some("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
         );
         assert!(find_digest(body, "missing").is_none());
+    }
+
+    #[test]
+    fn checksum_line_without_space_is_skipped() {
+        let body = "\
+garbage-line-without-any-space
+abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789  app.msi
+";
+        assert_eq!(
+            find_digest(body, "app.msi").as_deref(),
+            Some("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
+        );
     }
 
     #[test]
