@@ -20,8 +20,8 @@
     "info": "信息"
   },
   "time": {
-    "minutes": "分钟",
-    "hours": "小时",
+    "minutes": "{minutes} 分钟",
+    "hours": "{hours} 小时",
     "seconds": "秒",
     "minute_short": "分",
     "hour_short": "时",
@@ -31,7 +31,7 @@
     "last_week": "上周",
     "this_month": "本月",
     "custom_range": "自定义范围",
-    "hours_minutes": "{hours} 小時 {minutes} 分"
+    "hours_minutes": "{hours} 小时 {minutes} 分"
   },
   "nav": {
     "timer": "计时",
@@ -191,12 +191,11 @@
     "continue_task": "继续原任务",
     "lunch": "午休",
     "meeting": "会议",
-    "ignore": "不算",
-    "continue_desc": "將閒置時間計入當前任務",
-    "lunch_desc": "將閒置時間記為午休",
-    "meeting_desc": "將閒置時間記為會議",
+    "continue_desc": "将闲置时间计入当前任务",
+    "lunch_desc": "将闲置时间记为午休",
+    "meeting_desc": "将闲置时间记为会议",
     "discard": "不算",
-    "discard_desc": "不記錄這段閒置時間"
+    "discard_desc": "不记录这段闲置时间"
   },
   "eod_review": {
     "title": "下班前检查",

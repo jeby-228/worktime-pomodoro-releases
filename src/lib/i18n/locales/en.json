@@ -20,8 +20,8 @@
     "info": "Info"
   },
   "time": {
-    "minutes": "minutes",
-    "hours": "hours",
+    "minutes": "{minutes} minutes",
+    "hours": "{hours} hours",
     "seconds": "seconds",
     "minute_short": "min",
     "hour_short": "hr",
@@ -31,7 +31,7 @@
     "last_week": "Last Week",
     "this_month": "This Month",
     "custom_range": "Custom Range",
-    "hours_minutes": "{hours} 小時 {minutes} 分"
+    "hours_minutes": "{hours} h {minutes} min"
   },
   "nav": {
     "timer": "Timer",
@@ -191,12 +191,11 @@
     "continue_task": "Continue Task",
     "lunch": "Lunch",
     "meeting": "Meeting",
-    "ignore": "Ignore",
-    "continue_desc": "將閒置時間計入當前任務",
-    "lunch_desc": "將閒置時間記為午休",
-    "meeting_desc": "將閒置時間記為會議",
-    "discard": "不算",
-    "discard_desc": "不記錄這段閒置時間"
+    "continue_desc": "Count the idle time toward the current task",
+    "lunch_desc": "Count the idle time as lunch",
+    "meeting_desc": "Count the idle time as a meeting",
+    "discard": "Don't count",
+    "discard_desc": "Don't record this idle time"
   },
   "eod_review": {
     "title": "End-of-Day Review",

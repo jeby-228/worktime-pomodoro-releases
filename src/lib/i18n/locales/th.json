@@ -341,14 +341,5 @@
     "failed_to_export": "ส่งออกไม่สำเร็จ: {error}",
     "no_active_task": "ไม่มีงานที่กำลังดำเนินการ",
     "already_has_task": "มีงานที่กำลังดำเนินการอยู่แล้ว"
-  },
-  "gap_fill": {
-    "title": "บันทึกช่วงว่าง",
-    "gap_duration": "ช่วงเวลา: {minutes} นาที",
-    "select_type": "เลือกประเภท",
-    "task_title_label": "ชื่องาน",
-    "person_label": "ผู้ติดต่อ (ไม่บังคับ)",
-    "note_label": "หมายเหตุ (ไม่บังคับ)",
-    "fill_button": "บันทึก"
   }
 }

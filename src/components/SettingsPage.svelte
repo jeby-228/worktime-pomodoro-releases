@@ -410,7 +410,7 @@
                 max="90"
                 class="w-24 rounded-md border border-border bg-background px-3 py-2 text-sm"
               />
-              <span class="text-sm text-muted-foreground">{$t('time.minutes')}</span>
+              <span class="text-sm text-muted-foreground">{$t('time.minute_short')}</span>
             </div>
           </div>
         </div>

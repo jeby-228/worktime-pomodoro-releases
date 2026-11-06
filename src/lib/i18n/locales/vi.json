@@ -346,14 +346,5 @@
     "failed_to_export": "Không thể xuất: {error}",
     "no_active_task": "Không có công việc đang tiến hành",
     "already_has_task": "Đã có công việc đang tiến hành"
-  },
-  "gap_fill": {
-    "title": "Ghi khoảng trống",
-    "gap_duration": "Khoảng thời gian: {minutes} phút",
-    "select_type": "Chọn loại",
-    "task_title_label": "Tên công việc",
-    "person_label": "Liên hệ (tùy chọn)",
-    "note_label": "Ghi chú (tùy chọn)",
-    "fill_button": "Ghi"
   }
 }
