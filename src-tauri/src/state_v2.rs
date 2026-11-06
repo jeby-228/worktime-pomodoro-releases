@@ -155,11 +155,13 @@ impl StateManager {
         let now = Local::now();
 
         if state.state == AppStateEnum::Interrupt {
-            if let Some(interrupt_id) = state.current_slot_id {
+            if let (Some(interrupt_id), Some(parent_id)) =
+                (state.current_slot_id, state.paused_slot_id)
+            {
+                self.store
+                    .end_interrupt_atomic(interrupt_id, parent_id, now, note)?;
+            } else if let Some(interrupt_id) = state.current_slot_id {
                 self.store.close_slot(interrupt_id, now)?;
-            }
-            if let Some(parent_id) = state.paused_slot_id {
-                self.store.update_slot(parent_id, Some(now), note)?;
             }
             Self::clear_activity(&mut state);
             return Ok(());
