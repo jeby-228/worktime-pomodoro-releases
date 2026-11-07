@@ -27,10 +27,8 @@
         if (!update.available) return;
         const version = update.latest_version;
         if (!confirm($t('settings.update_confirm', { version }))) return;
-        const result = await invoke<string>('install_github_release');
-        if (result === 'opened-dmg') {
-          alert($t('settings.update_open_dmg'));
-        }
+        // Installs the signed update and restarts the app; only returns on error.
+        await invoke('install_github_release');
       } catch (err) {
         console.error('Automatic update check failed:', err);
       }

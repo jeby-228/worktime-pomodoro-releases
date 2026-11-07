@@ -108,7 +108,7 @@ jobs:
             find "$bundle" -type f \
               \( -name '*.AppImage' -o -name '*.AppImage.sig' \
                  -o -name '*.AppImage.tar.gz' -o -name '*.AppImage.tar.gz.sig' \
-                 -o -name '*.deb' -o -name '*.rpm' \
+                 -o -name '*.deb' -o -name '*.deb.sig' -o -name '*.rpm' -o -name '*.rpm.sig' \
                  -o -name '*.dmg' -o -name '*.dmg.sig' \
                  -o -name '*.exe' -o -name '*.exe.sig' -o -name '*-setup.exe.zip' -o -name '*-setup.exe.zip.sig' \
                  -o -name '*.app.tar.gz' -o -name '*.app.tar.gz.sig' \) \

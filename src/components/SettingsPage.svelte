@@ -196,10 +196,8 @@
         updateMessage = $t('settings.update_available', { version: update.latest_version });
         if (confirm($t('settings.update_confirm', { version: update.latest_version }))) {
           updateMessage = $t('settings.update_installing');
-          const result = await invoke<string>('install_github_release');
-          updateMessage = result === 'opened-dmg'
-            ? $t('settings.update_open_dmg')
-            : $t('settings.update_installing');
+          // Installs the signed update and restarts the app; only returns on error.
+          await invoke('install_github_release');
         }
       } else {
         updateMessage = $t('settings.no_updates');

@@ -181,9 +181,8 @@
     "no_updates": "目前已是最新版本",
     "update_check_failed": "檢查更新失敗",
     "auto_update": "Automatic updates",
-    "auto_update_desc": "Check GitHub on startup. The download is installed only after its SHA-256 matches.",
-    "update_installing": "Downloading and verifying the installer...",
-    "update_open_dmg": "The disk image is open. Drag the app into Applications."
+    "auto_update_desc": "Check GitHub on startup. Updates are installed only after their digital signature checks out, then the app restarts.",
+    "update_installing": "Downloading and verifying the installer..."
   },
   "idle_return": {
     "title": "Idle Detected",

@@ -52,11 +52,18 @@ def choose(predicate, preference) -> str | None:
     return found[0] if found else None
 
 
+appimage = choose(
+    lambda name: name.endswith(".AppImage.tar.gz") or name.endswith(".AppImage"),
+    (".AppImage.tar.gz", ".AppImage"),
+)
+
+# The updater first looks for "<os>-<arch>-<bundle type>", then "<os>-<arch>".
+# deb/rpm installs need their own entries, or they would be handed the AppImage.
 platforms = {
-    "linux-x86_64": choose(
-        lambda name: name.endswith(".AppImage.tar.gz") or name.endswith(".AppImage"),
-        (".AppImage.tar.gz", ".AppImage"),
-    ),
+    "linux-x86_64": appimage,
+    "linux-x86_64-appimage": appimage,
+    "linux-x86_64-deb": choose(lambda name: name.endswith("_amd64.deb"), (".deb",)),
+    "linux-x86_64-rpm": choose(lambda name: name.endswith(".x86_64.rpm"), (".rpm",)),
     "windows-x86_64": choose(
         lambda name: name.endswith(("-setup.exe.zip", ".msi.zip", "-setup.exe")),
         ("-setup.exe.zip", ".msi.zip", "-setup.exe"),
@@ -74,8 +81,14 @@ platforms = {
 }
 
 selected = {key: value for key, value in platforms.items() if value}
-if "linux-x86_64" not in selected:
-    raise SystemExit(f"No signed Linux updater archive in release assets: {names}")
+missing = [
+    key
+    for key in ("linux-x86_64", "linux-x86_64-deb", "linux-x86_64-rpm", "windows-x86_64",
+                "darwin-aarch64", "darwin-x86_64")
+    if key not in selected
+]
+if missing:
+    raise SystemExit(f"No signed updater artifact for {missing} in release assets: {names}")
 
 manifest = {
     "version": version,
