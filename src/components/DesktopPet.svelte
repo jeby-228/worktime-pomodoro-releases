@@ -10,15 +10,16 @@
     pomodoro_start: string | null;
   }
 
-  let currentState = $state<string>('idle');
-  let stateCheckInterval: ReturnType<typeof setInterval> | null = null;
-
   const stateMapping: Record<string, string> = {
     idle: 'lunch',
     working: 'working',
     interrupt: 'interrupt',
     paused: 'done'
   };
+
+  // Start on the idle artwork; there is no idle.svg, so 'idle' itself would 404.
+  let currentState = $state<string>(stateMapping.idle);
+  let stateCheckInterval: ReturnType<typeof setInterval> | null = null;
 
   async function checkAppState() {
     try {
