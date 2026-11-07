@@ -1,6 +1,6 @@
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::models::{SlotType, TimeSlot};
 use crate::store_v2::StoreV2;
@@ -69,8 +69,17 @@ impl StateManager {
         }
     }
 
+    /// Lock the in-memory state, recovering if a previous holder panicked.
+    /// A poisoned lock would otherwise make every later command panic too.
+    fn lock_state(&self) -> MutexGuard<'_, StateData> {
+        self.state.lock().unwrap_or_else(|poisoned| {
+            tracing::warn!("Recovered from poisoned state mutex");
+            poisoned.into_inner()
+        })
+    }
+
     pub fn get_state(&self) -> StateData {
-        self.state.lock().unwrap().clone()
+        self.lock_state().clone()
     }
 
     pub fn start_task(
@@ -79,7 +88,7 @@ impl StateManager {
         slot_type: SlotType,
         category_id: Option<i64>,
     ) -> anyhow::Result<i64> {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.lock_state();
 
         if state.current_slot_id.is_some() {
             anyhow::bail!("Already have an active task");
@@ -114,7 +123,7 @@ impl StateManager {
     /// End the running slot and start a new one in `category_id` from now.
     /// The task, status and interrupt parent carry over.
     pub fn switch_category(&self, category_id: Option<i64>) -> anyhow::Result<i64> {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.lock_state();
 
         if !matches!(state.state, AppStateEnum::Working | AppStateEnum::Interrupt) {
             anyhow::bail!("只有計時中可以切換類別");
@@ -151,7 +160,7 @@ impl StateManager {
     }
 
     pub fn end_task(&self, note: Option<String>) -> anyhow::Result<()> {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.lock_state();
         let now = Local::now();
 
         if state.state == AppStateEnum::Interrupt {
@@ -179,7 +188,7 @@ impl StateManager {
 
     /// Close the active or paused slot at a specific time.
     pub fn end_task_at(&self, end_ts: DateTime<Local>) -> anyhow::Result<()> {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.lock_state();
         let slot_id = state.current_slot_id.or(state.paused_slot_id);
 
         if let Some(slot_id) = slot_id {
@@ -193,7 +202,7 @@ impl StateManager {
     }
 
     pub fn pause_task(&self) -> anyhow::Result<i64> {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.lock_state();
 
         if state.state != AppStateEnum::Working {
             anyhow::bail!("No active task to pause");
@@ -220,7 +229,7 @@ impl StateManager {
     }
 
     pub fn resume_task(&self) -> anyhow::Result<i64> {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.lock_state();
 
         if let Some(slot_id) = state.paused_slot_id {
             state.state = AppStateEnum::Working;
@@ -240,7 +249,7 @@ impl StateManager {
         reason: Option<String>,
         category_id: Option<i64>,
     ) -> anyhow::Result<i64> {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.lock_state();
 
         if state.state == AppStateEnum::Interrupt {
             anyhow::bail!("已經在插隊中");
@@ -288,7 +297,7 @@ impl StateManager {
     }
 
     pub fn end_interrupt_and_resume(&self) -> anyhow::Result<Option<i64>> {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.lock_state();
 
         if state.state != AppStateEnum::Interrupt {
             anyhow::bail!("Not in interrupt state");
@@ -322,7 +331,7 @@ impl StateManager {
     }
 
     pub fn get_elapsed_seconds(&self) -> Option<i64> {
-        let state = self.state.lock().unwrap();
+        let state = self.lock_state();
         match state.state {
             AppStateEnum::Idle => None,
             AppStateEnum::Interrupt => Some(segment_secs(&state)),
@@ -334,7 +343,7 @@ impl StateManager {
     }
 
     pub fn get_remaining_seconds(&self) -> Option<i64> {
-        let state = self.state.lock().unwrap();
+        let state = self.lock_state();
         let pomodoro_secs = self.store.get_settings().ok()?.pomodoro_minutes * 60;
 
         match state.state {
@@ -620,5 +629,29 @@ mod tests {
             .start_interrupt(Some("B".to_string()), None, None)
             .is_err());
         assert_eq!(mgr.get_state().paused_slot_id, Some(work));
+    }
+
+    #[test]
+    fn test_state_lock_recovers_from_poison() {
+        let store = Arc::new(StoreV2::new(Path::new(":memory:")).unwrap());
+        let mgr = StateManager::new(store);
+
+        std::thread::scope(|scope| {
+            let result = scope
+                .spawn(|| {
+                    let _guard = mgr.lock_state();
+                    panic!("Intentional panic to poison the state mutex");
+                })
+                .join();
+            assert!(result.is_err());
+        });
+        assert!(mgr.state.is_poisoned());
+
+        assert_eq!(mgr.get_state().state, AppStateEnum::Idle);
+        let id = mgr
+            .start_task("After poison".to_string(), SlotType::Work, None)
+            .unwrap();
+        assert_eq!(mgr.get_state().current_slot_id, Some(id));
+        mgr.end_task(None).unwrap();
     }
 }
