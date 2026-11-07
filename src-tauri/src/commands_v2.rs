@@ -468,16 +468,7 @@ pub fn fill_gaps(request: FillGapsRequest, store: State<AppStore>) -> Result<Vec
         slots.push(slot);
     }
 
-    let ids = store.create_slots(&slots).map_err(|e| e.to_string())?;
-
-    for entry in &request.entries {
-        let task_name = entry.task_name.trim();
-        store
-            .add_or_update_recent_task(task_name, SlotType::Work)
-            .map_err(|e| e.to_string())?;
-    }
-
-    Ok(ids)
+    store.create_slots(&slots).map_err(|e| e.to_string())
 }
 
 #[derive(Debug, Deserialize)]

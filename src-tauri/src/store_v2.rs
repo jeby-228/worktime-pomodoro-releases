@@ -217,6 +217,17 @@ fn write_slot_details(conn: &Connection, id: i64, details: &SlotDetails) -> Resu
     Ok(())
 }
 
+fn touch_recent_task(conn: &Connection, task_name: &str, slot_type: &SlotType) -> Result<()> {
+    conn.execute(
+        "INSERT INTO recent_tasks (task_name, last_used, use_count, slot_type)
+         VALUES (?1, ?2, 1, ?3)
+         ON CONFLICT(task_name) DO UPDATE SET
+         last_used = ?2, use_count = use_count + 1",
+        params![task_name, Local::now().to_rfc3339(), slot_type.as_str()],
+    )?;
+    Ok(())
+}
+
 fn reparent(conn: &Connection, from_id: i64, to_id: i64) -> Result<()> {
     conn.execute(
         "UPDATE time_slots SET parent_id = ?1, updated_at = ?2 WHERE parent_id = ?3",
@@ -267,14 +278,15 @@ impl StoreV2 {
         insert_slot(&conn, slot)
     }
 
-    /// Insert every slot or none of them.
+    /// Insert every slot and remember its task name, or write nothing at all.
     pub fn create_slots(&self, slots: &[TimeSlot]) -> Result<Vec<i64>> {
         let mut conn = self.lock_conn();
         let tx = conn.transaction()?;
-        let ids = slots
-            .iter()
-            .map(|slot| insert_slot(&tx, slot))
-            .collect::<Result<Vec<_>>>()?;
+        let mut ids = Vec::with_capacity(slots.len());
+        for slot in slots {
+            ids.push(insert_slot(&tx, slot)?);
+            touch_recent_task(&tx, &slot.task_name, &slot.slot_type)?;
+        }
         tx.commit()?;
         Ok(ids)
     }
@@ -446,14 +458,7 @@ impl StoreV2 {
 
     pub fn add_or_update_recent_task(&self, task_name: &str, slot_type: SlotType) -> Result<()> {
         let conn = self.lock_conn();
-        conn.execute(
-            "INSERT INTO recent_tasks (task_name, last_used, use_count, slot_type)
-             VALUES (?1, ?2, 1, ?3)
-             ON CONFLICT(task_name) DO UPDATE SET
-             last_used = ?2, use_count = use_count + 1",
-            params![task_name, Local::now().to_rfc3339(), slot_type.as_str()],
-        )?;
-        Ok(())
+        touch_recent_task(&conn, task_name, &slot_type)
     }
 
     pub fn get_recent_tasks(&self, limit: usize) -> Result<Vec<RecentTask>> {
@@ -1500,6 +1505,40 @@ mod tests {
         assert!(store.create_slots(&[first, second, third]).is_err());
 
         assert!(dump_slots(&store).is_empty());
+    }
+
+    #[test]
+    fn test_create_slots_rolls_back_when_recent_task_write_fails() {
+        let (_temp, store) = temp_store();
+        store
+            .lock_conn()
+            .execute_batch(
+                "CREATE TRIGGER test_fail BEFORE INSERT ON recent_tasks
+                 BEGIN SELECT RAISE(ABORT, 'boom'); END;",
+            )
+            .unwrap();
+        let start = Local::now() - chrono::Duration::hours(2);
+
+        assert!(store.create_slots(&[finished("A", start, 10)]).is_err());
+
+        assert!(dump_slots(&store).is_empty());
+    }
+
+    #[test]
+    fn test_create_slots_remembers_task_names() {
+        let (_temp, store) = temp_store();
+        let start = Local::now() - chrono::Duration::hours(2);
+        store
+            .create_slots(&[
+                finished("補登", start, 10),
+                finished("補登", start + chrono::Duration::minutes(10), 10),
+            ])
+            .unwrap();
+
+        let recent = store.get_recent_tasks(10).unwrap();
+        assert_eq!(recent.len(), 1);
+        assert_eq!(recent[0].task_name, "補登");
+        assert_eq!(recent[0].use_count, 2);
     }
 
     #[test]
