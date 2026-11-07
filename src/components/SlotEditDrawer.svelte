@@ -13,6 +13,8 @@
     onSaved?: () => void;
   }>();
 
+  // A slot without an id is a new record typed in by hand.
+  const isNew = !slot?.id;
   const openingTitle = slot?.task_name || slot?.task_title || '';
   const openingStart = toLocalInput(slot?.start_time ?? slot?.start_ts);
   const openingEnd = toLocalInput(slot?.end_time ?? slot?.end_ts);
@@ -122,14 +124,22 @@
       error = $t('errors.start_time_required');
       return;
     }
+    if (isNew && !endTime) {
+      error = $t('errors.end_time_required');
+      return;
+    }
+    if (endTime && new Date(endTime).getTime() <= new Date(startTime).getTime()) {
+      error = $t('errors.end_before_start');
+      return;
+    }
 
     saving = true;
     error = '';
 
     try {
-      await invoke('update_slot_manual', {
+      await invoke(isNew ? 'create_slot_manual' : 'update_slot_manual', {
         request: {
-          id: Number(slot.id),
+          ...(isNew ? {} : { id: Number(slot.id) }),
           task_name: taskTitle.trim(),
           slot_type: slotType,
           start_ts: new Date(startTime).toISOString(),
@@ -214,7 +224,7 @@
       <!-- Header -->
       <div class="flex items-center justify-between px-6 py-4 border-b border-border">
         <h2 class="text-lg font-semibold text-foreground">
-          {$t('slot_edit.title')}
+          {isNew ? $t('slot_edit.new_title') : $t('slot_edit.title')}
         </h2>
         <button
           onclick={close}
@@ -322,7 +332,7 @@
           </div>
         </div>
 
-        {#if savedStart && savedEnd}
+        {#if !isNew && savedStart && savedEnd}
           <div class="space-y-3 rounded-md border border-border p-3">
             <div>
               <div class="text-sm font-medium text-foreground">{$t('slot_edit.carve')}</div>
@@ -458,13 +468,17 @@
 
       <!-- Footer -->
       <div class="px-6 py-4 border-t border-border flex items-center justify-between">
-        <button
-          onclick={handleDelete}
-          disabled={saving}
-          class="px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-md transition-colors disabled:opacity-50"
-        >
-          {$t('actions.delete')}
-        </button>
+        {#if isNew}
+          <span></span>
+        {:else}
+          <button
+            onclick={handleDelete}
+            disabled={saving}
+            class="px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-md transition-colors disabled:opacity-50"
+          >
+            {$t('actions.delete')}
+          </button>
+        {/if}
 
         <div class="flex gap-2">
           <button

@@ -338,12 +338,21 @@ pub fn create_slot_manual(
         None
     };
 
-    let mut slot = TimeSlot::new(request.task_name, slot_type, start_ts);
+    if end_ts.is_some_and(|end| end <= start_ts) {
+        return Err("結束時間要比開始時間晚".to_string());
+    }
+    let task_name = request.task_name.trim();
+    if task_name.is_empty() {
+        return Err("請輸入任務名稱".to_string());
+    }
+
+    let mut slot = TimeSlot::new(task_name.to_string(), slot_type, start_ts);
     slot.end_ts = end_ts;
     slot.note = request.note;
     slot.category_id = request.category_id;
 
-    store.create_slot(&slot).map_err(|e| e.to_string())
+    let ids = store.create_slots(&[slot]).map_err(|e| e.to_string())?;
+    Ok(ids[0])
 }
 
 #[derive(Debug, Deserialize)]

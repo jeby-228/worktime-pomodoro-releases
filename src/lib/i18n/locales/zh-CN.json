@@ -127,7 +127,8 @@
     "no_records": "无记录",
     "items": "条",
     "total_items": "共 {count} 条",
-    "summary_by_task": "按任务汇总"
+    "summary_by_task": "按任务汇总",
+    "add_record": "新增记录"
   },
   "export": {
     "filename": "工时记录_{date}",
@@ -331,6 +332,7 @@
     "start_time": "开始时间",
     "end_time": "结束时间",
     "note": "备注",
+    "new_title": "新增记录",
     "carve": "拆出一段时间",
     "carve_hint": "选这条记录里的一段时间，改记成别的任务。其余时间保持原来的任务。",
     "carve_from": "从",
@@ -355,7 +357,8 @@
     "merge_gap": "这几笔中间有空档，不能合并",
     "merge_need_two": "请选至少两笔纪录",
     "carve_outside": "拆出的时段要落在这条记录里",
-    "carve_whole": "拆出的时段不能是整条记录，请直接编辑"
+    "carve_whole": "拆出的时段不能是整条记录，请直接编辑",
+    "end_time_required": "请选择结束时间"
   },
   "confirm": {
     "delete_slot": "确定要删除这个时段吗？"

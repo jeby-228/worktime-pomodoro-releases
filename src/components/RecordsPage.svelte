@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { save } from '@tauri-apps/plugin-dialog';
-  import { List, Table as TableIcon, Filter, Download, Calendar, Briefcase, Zap, Users, Coffee, Clock, AlertTriangle, Check } from 'lucide-svelte';
+  import { List, Table as TableIcon, Filter, Download, Calendar, Briefcase, Zap, Users, Coffee, Clock, AlertTriangle, Check, Plus } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import type { Category, CategoryReport, TimeSlot, DayStats } from '$lib/types';
   import SlotEditDrawer from './SlotEditDrawer.svelte';
@@ -197,6 +197,23 @@
 
   function handleEditSlot(slot: TimeSlot) {
     editingSlot = slot;
+    showEditDrawer = true;
+  }
+
+  /** Open the drawer on a blank record covering the last hour, in 5-minute steps. */
+  function handleAddSlot() {
+    const end = new Date();
+    end.setMinutes(Math.floor(end.getMinutes() / 5) * 5, 0, 0);
+    const start = new Date(end.getTime() - 60 * 60 * 1000);
+    editingSlot = {
+      id: '',
+      slot_type: 'work',
+      task_name: '',
+      note: null,
+      start_ts: start.toISOString(),
+      end_ts: end.toISOString(),
+      category_id: null,
+    };
     showEditDrawer = true;
   }
 
@@ -469,6 +486,15 @@
         />
       </div>
 
+      <div class="flex shrink-0 items-center gap-2">
+      <button
+        onclick={handleAddSlot}
+        class="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-accent"
+      >
+        <Plus size={16} class="shrink-0" />
+        {$t('records.add_record')}
+      </button>
+
       <!-- Export -->
       <button
         onclick={openExport}
@@ -477,6 +503,7 @@
         <Download size={16} class="shrink-0" />
         {$t('records.export')}
       </button>
+      </div>
     </div>
 
     {#if selectedIds.length > 0}

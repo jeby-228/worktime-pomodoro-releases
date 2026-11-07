@@ -97,6 +97,7 @@
     "start_time": "開始時間",
     "end_time": "結束時間",
     "note": "備註",
+    "new_title": "新增紀錄",
     "carve": "拆出一段時間",
     "carve_hint": "選這筆紀錄裡的一段時間，改記成別的任務。其餘時間維持原本的任務。",
     "carve_from": "從",
@@ -121,7 +122,8 @@
     "merge_gap": "這幾筆中間有空檔，不能合併",
     "merge_need_two": "請選至少兩筆紀錄",
     "carve_outside": "拆出的時段要落在這筆紀錄裡",
-    "carve_whole": "拆出的時段不能是整筆紀錄，請直接編輯"
+    "carve_whole": "拆出的時段不能是整筆紀錄，請直接編輯",
+    "end_time_required": "請選擇結束時間"
   },
   "confirm": {
     "delete_slot": "確定要刪除這個時段嗎？"
@@ -238,7 +240,8 @@
     "no_records": "無記錄",
     "items": "筆",
     "total_items": "共 {count} 筆",
-    "summary_by_task": "依任務彙總"
+    "summary_by_task": "依任務彙總",
+    "add_record": "新增紀錄"
   },
   "export": {
     "filename": "工時記錄_{date}",

@@ -94,6 +94,7 @@
     "start_time": "Giờ bắt đầu",
     "end_time": "Giờ kết thúc",
     "note": "Ghi chú",
+    "new_title": "Bản ghi mới",
     "carve": "Tách một khoảng thời gian",
     "carve_hint": "Chọn một phần của bản ghi này và ghi thành công việc khác. Phần còn lại giữ công việc ban đầu.",
     "carve_from": "Từ",
@@ -118,7 +119,8 @@
     "merge_gap": "Các bản ghi này còn khoảng trống ở giữa",
     "merge_need_two": "Hãy chọn ít nhất hai bản ghi",
     "carve_outside": "Khoảng thời gian phải nằm trong bản ghi này",
-    "carve_whole": "Đó là toàn bộ bản ghi, hãy chỉnh sửa trực tiếp"
+    "carve_whole": "Đó là toàn bộ bản ghi, hãy chỉnh sửa trực tiếp",
+    "end_time_required": "Vui lòng chọn thời gian kết thúc"
   },
   "confirm": { "delete_slot": "Xác nhận xóa khoảng thời gian này?" },
   "time": {
@@ -230,7 +232,8 @@
     "no_records": "Không có ghi chép",
     "items": "mục",
     "total_items": "Tổng {count} mục",
-    "summary_by_task": "Tổng hợp theo công việc"
+    "summary_by_task": "Tổng hợp theo công việc",
+    "add_record": "Thêm bản ghi"
   },
   "export": {
     "filename": "ghi_chep_thoi_gian_{date}",

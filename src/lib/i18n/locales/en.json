@@ -127,7 +127,8 @@
     "no_records": "No records",
     "items": "items",
     "total_items": "{count} items",
-    "summary_by_task": "Summary by task"
+    "summary_by_task": "Summary by task",
+    "add_record": "Add record"
   },
   "export": {
     "filename": "time_records_{date}",
@@ -331,6 +332,7 @@
     "start_time": "Start Time",
     "end_time": "End Time",
     "note": "Note",
+    "new_title": "New record",
     "carve": "Carve out a stretch",
     "carve_hint": "Pick part of this record and log it as another task. The rest stays on the original task.",
     "carve_from": "From",
@@ -355,7 +357,8 @@
     "merge_gap": "These records have a gap between them",
     "merge_need_two": "Select at least two records",
     "carve_outside": "The stretch must fall inside this record",
-    "carve_whole": "That is the whole record; edit it instead"
+    "carve_whole": "That is the whole record; edit it instead",
+    "end_time_required": "Please choose an end time"
   },
   "confirm": {
     "delete_slot": "Confirm deletion of this slot?"
