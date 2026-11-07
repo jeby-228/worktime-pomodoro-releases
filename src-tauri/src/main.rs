@@ -40,6 +40,23 @@ fn get_db_path(app: &tauri::AppHandle) -> PathBuf {
     app_dir.join("worktime_v2.db")
 }
 
+/// An autostart entry stores the executable path from when it was enabled.
+/// Rewrite it on every launch so it follows the app after an update, e.g. an
+/// AppImage that the old updater started from a different folder.
+fn refresh_autostart(app: &tauri::AppHandle) {
+    use tauri_plugin_autostart::ManagerExt;
+    let autolaunch = app.autolaunch();
+    match autolaunch.is_enabled() {
+        Ok(true) => {
+            if let Err(err) = autolaunch.enable() {
+                error!("Failed to refresh autostart entry: {}", err);
+            }
+        }
+        Ok(false) => {}
+        Err(err) => error!("Failed to read autostart state: {}", err),
+    }
+}
+
 fn run() {
     setup_logging();
 
@@ -61,6 +78,8 @@ fn run() {
         }))
         .setup(|app| {
             info!("App setup started");
+
+            refresh_autostart(app.handle());
 
             let db_path = get_db_path(app.handle());
             info!("Database path: {:?}", db_path);
