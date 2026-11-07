@@ -11,10 +11,10 @@ permissions:
 jobs:
   create-release:
     name: Create Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Extract version from tag
         id: get_version
@@ -59,10 +59,10 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: "npm"
@@ -72,26 +72,15 @@ jobs:
         with:
           targets: ${{ matrix.rust_target }}
 
+      - name: Install Just
+        uses: extractions/setup-just@v4
+
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          # Install Just
-          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
-          # Install system dependencies
-          just install-system-deps
+        if: runner.os == 'Linux'
+        run: just install-system-deps
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Install Just (non-Linux)
-        if: matrix.platform != 'ubuntu-22.04'
-        run: |
-          if [ "$RUNNER_OS" == "macOS" ]; then
-            brew install just
-          elif [ "$RUNNER_OS" == "Windows" ]; then
-            choco install just
-          fi
-        shell: bash
 
       - name: Build frontend
         run: just build-frontend
@@ -166,10 +155,10 @@ jobs:
   publish:
     name: Publish release
     needs: [create-release, build-tauri]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
