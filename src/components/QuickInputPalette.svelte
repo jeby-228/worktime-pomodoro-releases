@@ -31,7 +31,7 @@
   async function loadRecentTasks() {
     try {
       const tasks = await invoke<Array<{task_name: string}>>('get_recent_tasks', { limit: 5 });
-      recentTasks = tasks.map(t => t.task_name);
+      recentTasks = tasks.map((task) => task.task_name);
     } catch (err) {
       console.error('Failed to load recent tasks:', err);
     }

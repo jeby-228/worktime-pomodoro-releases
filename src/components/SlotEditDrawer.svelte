@@ -5,6 +5,8 @@
   import type { TimeSlot } from '$lib/types';
   import CategorySelect from './CategorySelect.svelte';
 
+  const pad = (n: number) => String(n).padStart(2, '0');
+
   let { open = $bindable(false), slot = $bindable<TimeSlot | null>(null), onSaved = () => {} } = $props<{
     open: boolean;
     slot: TimeSlot | null;
@@ -45,7 +47,6 @@
   function toLocalInput(value: string | number | null | undefined): string {
     const date = slotInstant(value);
     if (!date) return '';
-    const pad = (n: number) => String(n).padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 

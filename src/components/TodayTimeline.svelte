@@ -5,6 +5,8 @@
   import CategorySelect from './CategorySelect.svelte';
   import { t } from '$lib/i18n';
   import { invoke } from '@tauri-apps/api/core';
+
+  const pad = (n: number) => String(n).padStart(2, '0');
   
   interface TimeSlot {
     id: string | number;
@@ -119,7 +121,6 @@
   function toLocalInput(ts: number | string): string {
     const date = new Date(tsValue(ts));
     if (Number.isNaN(date.getTime())) return '';
-    const pad = (n: number) => String(n).padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 

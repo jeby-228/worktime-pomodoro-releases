@@ -5,6 +5,9 @@
     "perf": "warn",
     "pedantic": "off"
   },
+  "rules": {
+    "unicorn/no-array-sort": "off"
+  },
   "env": {
     "browser": true
   },

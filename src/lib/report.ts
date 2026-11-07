@@ -497,22 +497,28 @@ export function reportImage(
 export function imageToPng({ svg, width, height }: ReportImage): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const image = new Image();
-    image.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = width * 2;
-      canvas.height = height * 2;
-      const context = canvas.getContext("2d");
-      if (!context) {
-        reject(new Error("Canvas is not available"));
-        return;
-      }
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => {
-        if (blob) resolve(blob);
-        else reject(new Error("Could not create the PNG"));
-      }, "image/png");
-    };
-    image.onerror = () => reject(new Error("Could not render the chart"));
+    image.addEventListener(
+      "load",
+      () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = width * 2;
+        canvas.height = height * 2;
+        const context = canvas.getContext("2d");
+        if (!context) {
+          reject(new Error("Canvas is not available"));
+          return;
+        }
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error("Could not create the PNG"));
+        }, "image/png");
+      },
+      { once: true },
+    );
+    image.addEventListener("error", () => reject(new Error("Could not render the chart")), {
+      once: true,
+    });
     image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   });
 }
