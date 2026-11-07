@@ -331,9 +331,16 @@
     "start_time": "Start Time",
     "end_time": "End Time",
     "note": "Note",
-    "split": "Split",
-    "split_at": "Split at",
-    "second_task": "Second task"
+    "carve": "Carve out a stretch",
+    "carve_hint": "Pick part of this record and log it as another task. The rest stays on the original task.",
+    "carve_from": "From",
+    "carve_to": "To",
+    "carve_from_start": "From start",
+    "carve_to_end": "To end",
+    "carve_summary": "Before {before} min · carved {carved} min · after {after} min",
+    "carve_task": "Carved task name",
+    "carve_task_placeholder": "Task name (blank keeps \"{name}\")",
+    "carve_action": "Carve out"
   },
   "placeholders": {
     "task_title": "Enter task title...",
@@ -345,9 +352,10 @@
     "start_time_required": "Please select start time",
     "end_before_start": "End time must be after the start",
     "fill_outside_gap": "Each entry has to stay inside this gap",
-    "split_outside": "The split time has to fall inside this record",
     "merge_gap": "These records have a gap between them",
-    "merge_need_two": "Select at least two records"
+    "merge_need_two": "Select at least two records",
+    "carve_outside": "The stretch must fall inside this record",
+    "carve_whole": "That is the whole record; edit it instead"
   },
   "confirm": {
     "delete_slot": "Confirm deletion of this slot?"

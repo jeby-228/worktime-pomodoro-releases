@@ -23,17 +23,73 @@
   let endTime = $state(openingEnd);
   let slotType = $state<'work' | 'interrupt' | 'meeting' | 'lunch'>(slot?.slot_type ?? 'work');
   let categoryId = $state<number | null>(slot?.category_id ?? null);
-  let splitAt = $state(midpoint(openingStart, openingEnd));
-  let secondTitle = $state(openingTitle);
   let saving = $state(false);
   let error = $state('');
 
-  function midpoint(start: string, end: string): string {
-    const a = new Date(start).getTime();
-    const b = new Date(end).getTime();
-    if (Number.isNaN(a) || Number.isNaN(b) || b <= a) return '';
-    return toLocalInput(new Date(Math.floor((a + b) / 2)).toISOString());
+  // Carving works on the slot as saved, not on unsaved edits above.
+  const savedStartRaw = slot?.start_time ?? slot?.start_ts;
+  const savedEndRaw = slot?.end_time ?? slot?.end_ts;
+  const savedStart = slotInstant(savedStartRaw);
+  const savedEnd = slotInstant(savedEndRaw);
+  let carveFrom = $state(
+    savedStart && savedEnd
+      ? toClock(new Date(Math.floor((savedStart.getTime() + savedEnd.getTime()) / 2)))
+      : '',
+  );
+  let carveTo = $state(savedEnd ? toClock(savedEnd) : '');
+  let carveTitle = $state('');
+  let carveType = $state<'work' | 'interrupt' | 'meeting' | 'lunch'>(slot?.slot_type ?? 'work');
+  let carveCategory = $state<number | null>(slot?.category_id ?? null);
+
+  function minutesBetween(a: Date, b: Date): number {
+    return Math.round((b.getTime() - a.getTime()) / 60000);
   }
+
+  function toClock(date: Date): string {
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  /** Turn "HH:MM" into the instant inside the saved slot, which may cross midnight. */
+  function resolveClock(clock: string): Date | null {
+    if (!savedStart || !savedEnd || !/^\d{2}:\d{2}$/.test(clock)) return null;
+    const [hours, minutes] = clock.split(':').map(Number);
+    for (let day = 0; day <= 1; day += 1) {
+      const candidate = new Date(savedStart);
+      candidate.setDate(candidate.getDate() + day);
+      candidate.setHours(hours, minutes, 0, 0);
+      // The inputs only show minutes, so the start or end minute means the exact edge.
+      if (Math.abs(candidate.getTime() - savedStart.getTime()) < 60_000) return savedStart;
+      if (Math.abs(candidate.getTime() - savedEnd.getTime()) < 60_000) return savedEnd;
+      if (candidate > savedStart && candidate < savedEnd) return candidate;
+    }
+    return null;
+  }
+
+  /** Send the edges exactly as stored, so they compare equal on the backend. */
+  function carveInstant(date: Date): string {
+    if (date === savedStart) return String(savedStartRaw);
+    if (date === savedEnd) return String(savedEndRaw);
+    return date.toISOString();
+  }
+
+  const carvePlan = $derived.by(() => {
+    if (!savedStart || !savedEnd) return null;
+    const from = resolveClock(carveFrom);
+    const to = resolveClock(carveTo);
+    const total = savedEnd.getTime() - savedStart.getTime();
+    if (!from || !to || to <= from || total <= 0) return { from, to, valid: false, whole: false };
+    return {
+      from,
+      to,
+      valid: true,
+      whole: from === savedStart && to === savedEnd,
+      before: minutesBetween(savedStart, from),
+      carved: minutesBetween(from, to),
+      after: minutesBetween(to, savedEnd),
+      left: ((from.getTime() - savedStart.getTime()) / total) * 100,
+      width: ((to.getTime() - from.getTime()) / total) * 100,
+    };
+  });
 
   function slotInstant(value: string | number | null | undefined): Date | null {
     if (value == null || value === '') return null;
@@ -92,23 +148,27 @@
     }
   }
 
-  async function handleSplit() {
-    if (!slot?.id || !splitAt) return;
-    const cut = new Date(splitAt).getTime();
-    const start = new Date(startTime).getTime();
-    const end = new Date(endTime).getTime();
-    if (Number.isNaN(cut) || Number.isNaN(start) || Number.isNaN(end) || cut <= start || cut >= end) {
-      error = $t('errors.split_outside');
+  async function handleCarve() {
+    if (!slot?.id || !carvePlan) return;
+    if (!carvePlan.valid || !carvePlan.from || !carvePlan.to) {
+      error = $t('errors.carve_outside');
+      return;
+    }
+    if (carvePlan.whole) {
+      error = $t('errors.carve_whole');
       return;
     }
     saving = true;
     error = '';
     try {
-      await invoke('split_slot', {
+      await invoke('carve_slot', {
         request: {
           id: Number(slot.id),
-          at: new Date(splitAt).toISOString(),
-          second_task_name: secondTitle.trim() || null,
+          from: carveInstant(carvePlan.from),
+          to: carveInstant(carvePlan.to),
+          task_name: carveTitle.trim(),
+          slot_type: carveType,
+          category_id: carveType === 'lunch' ? null : carveCategory,
         },
       });
       window.dispatchEvent(new CustomEvent('task-started'));
@@ -262,30 +322,113 @@
           </div>
         </div>
 
-        {#if endTime}
-          <div class="space-y-2 rounded-md border border-border p-3">
-            <div class="text-sm font-medium text-foreground">{$t('slot_edit.split')}</div>
-            <label for="split-at" class="text-sm text-muted-foreground">{$t('slot_edit.split_at')}</label>
+        {#if savedStart && savedEnd}
+          <div class="space-y-3 rounded-md border border-border p-3">
+            <div>
+              <div class="text-sm font-medium text-foreground">{$t('slot_edit.carve')}</div>
+              <p class="mt-0.5 text-xs text-muted-foreground">{$t('slot_edit.carve_hint')}</p>
+            </div>
+
+            <!-- Where the carved stretch sits inside the saved slot -->
+            <div>
+              <div class="relative h-3 overflow-hidden rounded-full bg-muted">
+                {#if carvePlan?.valid}
+                  <div
+                    class="absolute inset-y-0 bg-primary"
+                    style="left: {carvePlan.left}%; width: {carvePlan.width}%"
+                  ></div>
+                {/if}
+              </div>
+              <div class="mt-1 flex justify-between text-xs tabular-nums text-muted-foreground">
+                <span>{toClock(savedStart)}</span>
+                <span>{toClock(savedEnd)}</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div class="space-y-1">
+                <div class="flex items-center justify-between">
+                  <label for="carve-from" class="text-sm text-muted-foreground">{$t('slot_edit.carve_from')}</label>
+                  <button
+                    type="button"
+                    onclick={() => (carveFrom = toClock(savedStart))}
+                    class="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {$t('slot_edit.carve_from_start')}
+                  </button>
+                </div>
+                <input
+                  id="carve-from"
+                  type="time"
+                  bind:value={carveFrom}
+                  class="w-full px-3 py-2 bg-background border border-input rounded-md text-foreground text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div class="space-y-1">
+                <div class="flex items-center justify-between">
+                  <label for="carve-to" class="text-sm text-muted-foreground">{$t('slot_edit.carve_to')}</label>
+                  <button
+                    type="button"
+                    onclick={() => (carveTo = toClock(savedEnd))}
+                    class="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {$t('slot_edit.carve_to_end')}
+                  </button>
+                </div>
+                <input
+                  id="carve-to"
+                  type="time"
+                  bind:value={carveTo}
+                  class="w-full px-3 py-2 bg-background border border-input rounded-md text-foreground text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+            </div>
+
+            {#if carvePlan?.valid && !carvePlan.whole}
+              <p class="text-xs tabular-nums text-muted-foreground">
+                {$t('slot_edit.carve_summary', {
+                  before: carvePlan.before,
+                  carved: carvePlan.carved,
+                  after: carvePlan.after,
+                })}
+              </p>
+            {:else}
+              <p class="text-xs text-destructive">
+                {carvePlan?.whole ? $t('errors.carve_whole') : $t('errors.carve_outside')}
+              </p>
+            {/if}
+
+            <div class="grid grid-cols-4 gap-1.5">
+              {#each ['work', 'interrupt', 'meeting', 'lunch'] as type (type)}
+                <button
+                  type="button"
+                  onclick={() => (carveType = type as typeof carveType)}
+                  aria-pressed={carveType === type}
+                  class="px-2 py-1.5 rounded-md text-xs font-medium transition-colors {carveType === type
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'}"
+                >
+                  {$t(`slot_types.${type}`)}
+                </button>
+              {/each}
+            </div>
+            {#if carveType !== 'lunch'}
+              <CategorySelect id="carve-category" bind:value={carveCategory} />
+            {/if}
+            <label for="carve-task" class="sr-only">{$t('slot_edit.carve_task')}</label>
             <input
-              id="split-at"
-              type="datetime-local"
-              bind:value={splitAt}
-              class="w-full px-3 py-2 bg-background border border-input rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <label for="second-task" class="text-sm text-muted-foreground">{$t('slot_edit.second_task')}</label>
-            <input
-              id="second-task"
+              id="carve-task"
               type="text"
-              bind:value={secondTitle}
+              bind:value={carveTitle}
               class="w-full px-3 py-2 bg-background border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder={$t('placeholders.task_title')}
+              placeholder={$t('slot_edit.carve_task_placeholder', { name: openingTitle })}
             />
             <button
-              onclick={handleSplit}
-              disabled={saving}
+              onclick={handleCarve}
+              disabled={saving || !carvePlan?.valid || carvePlan.whole}
               class="px-3 py-1.5 text-sm font-medium rounded-md border border-border hover:bg-muted disabled:opacity-50"
             >
-              {$t('slot_edit.split')}
+              {$t('slot_edit.carve_action')}
             </button>
           </div>
         {/if}

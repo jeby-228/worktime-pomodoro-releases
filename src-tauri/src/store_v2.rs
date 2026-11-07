@@ -245,6 +245,13 @@ pub struct SlotDetails<'a> {
     pub category_id: Option<i64>,
 }
 
+/// What the stretch cut out by `carve_slot` becomes.
+pub struct CarvedPart<'a> {
+    pub task_name: &'a str,
+    pub slot_type: SlotType,
+    pub category_id: Option<i64>,
+}
+
 pub struct StoreV2 {
     conn: Arc<Mutex<Connection>>,
 }
@@ -860,6 +867,80 @@ impl StoreV2 {
         Ok(next_id)
     }
 
+    /// Give the stretch `from..to` of one finished slot to another task.
+    /// The rest keeps the original task, so the slot ends up in two or three
+    /// pieces. The original row stays the earliest piece. Returns the id of the
+    /// carved-out piece.
+    pub fn carve_slot(
+        &self,
+        id: i64,
+        from: DateTime<Local>,
+        to: DateTime<Local>,
+        carved: CarvedPart<'_>,
+    ) -> Result<i64> {
+        let mut conn = self.lock_conn();
+        let tx = conn.transaction()?;
+
+        let slot = load_slot(&tx, id)?.ok_or_else(|| anyhow::anyhow!("找不到這個時段"))?;
+        let end = slot
+            .end_ts
+            .ok_or_else(|| anyhow::anyhow!("進行中的紀錄要先結束才能分割"))?;
+
+        if from < slot.start_ts || to > end || from >= to {
+            anyhow::bail!("拆出的時段要落在這筆紀錄裡");
+        }
+        if from == slot.start_ts && to == end {
+            anyhow::bail!("拆出的時段不能是整筆紀錄，請直接編輯");
+        }
+
+        let name = Some(carved.task_name.trim())
+            .filter(|text| !text.is_empty())
+            .unwrap_or(slot.task_name.as_str());
+        let carved_details = SlotDetails {
+            task_name: name,
+            slot_type: carved.slot_type.clone(),
+            start_ts: from,
+            end_ts: Some(to),
+            note: None,
+            category_id: carved.category_id,
+        };
+        let original = |start_ts, end_ts| SlotDetails {
+            task_name: &slot.task_name,
+            slot_type: slot.slot_type.clone(),
+            start_ts,
+            end_ts: Some(end_ts),
+            note: slot.note.as_deref(),
+            category_id: slot.category_id,
+        };
+        let insert = |details: &SlotDetails| {
+            let mut piece = TimeSlot::new(
+                details.task_name.to_string(),
+                details.slot_type.clone(),
+                details.start_ts,
+            );
+            piece.end_ts = details.end_ts;
+            piece.note = details.note.map(str::to_string);
+            piece.parent_id = slot.parent_id;
+            piece.category_id = details.category_id;
+            insert_slot(&tx, &piece)
+        };
+
+        let carved_id = if from > slot.start_ts {
+            write_slot_details(&tx, id, &original(slot.start_ts, from))?;
+            insert(&carved_details)?
+        } else {
+            write_slot_details(&tx, id, &carved_details)?;
+            id
+        };
+        if to < end {
+            insert(&original(to, end))?;
+        }
+        touch_recent_task(&tx, name, &carved.slot_type)?;
+
+        tx.commit()?;
+        Ok(carved_id)
+    }
+
     /// Join finished slots that touch or overlap. The earliest one is kept.
     pub fn merge_slots(&self, ids: &[i64], task_name: Option<&str>) -> Result<i64> {
         let mut unique = Vec::new();
@@ -1452,6 +1533,132 @@ mod tests {
         fail_on(&store, "INSERT");
         let at = start + chrono::Duration::minutes(20);
         assert!(store.split_slot(id, at, Some("新")).is_err());
+
+        assert_eq!(dump_slots(&store), before);
+    }
+
+    fn meeting(name: &str) -> CarvedPart<'_> {
+        CarvedPart {
+            task_name: name,
+            slot_type: SlotType::Meeting,
+            category_id: None,
+        }
+    }
+
+    #[test]
+    fn test_carve_from_the_middle_leaves_three_pieces() {
+        let (_temp, store) = temp_store();
+        let start = Local::now() - chrono::Duration::hours(3);
+        let mut slot = finished("寫程式", start, 120);
+        slot.note = Some("原本的備註".into());
+        let id = store.create_slot(&slot).unwrap();
+        let end = start + chrono::Duration::minutes(120);
+
+        let from = start + chrono::Duration::minutes(30);
+        let to = start + chrono::Duration::minutes(75);
+        let carved_id = store.carve_slot(id, from, to, meeting("站會")).unwrap();
+
+        let head = store.get_slot(id).unwrap().unwrap();
+        let carved = store.get_slot(carved_id).unwrap().unwrap();
+        assert_eq!(
+            (head.task_name.as_str(), head.start_ts, head.end_ts),
+            ("寫程式", start, Some(from))
+        );
+        assert_eq!(
+            (carved.task_name.as_str(), carved.start_ts, carved.end_ts),
+            ("站會", from, Some(to))
+        );
+        assert_eq!(carved.slot_type, SlotType::Meeting);
+        assert_eq!(carved.note, None);
+
+        let slots = store.get_slots_for_date(start.date_naive()).unwrap();
+        let tail = slots.iter().find(|s| s.start_ts == to).unwrap();
+        assert_eq!(
+            (tail.task_name.as_str(), tail.end_ts),
+            ("寫程式", Some(end))
+        );
+        assert_eq!(tail.slot_type, SlotType::Work);
+        assert_eq!(tail.note.as_deref(), Some("原本的備註"));
+        assert_eq!(dump_slots(&store).len(), 3);
+
+        let recent = store.get_recent_tasks(10).unwrap();
+        assert!(recent.iter().any(|task| task.task_name == "站會"));
+    }
+
+    #[test]
+    fn test_carve_at_either_end_leaves_two_pieces() {
+        let (_temp, store) = temp_store();
+        let start = Local::now() - chrono::Duration::hours(3);
+        let end = start + chrono::Duration::minutes(60);
+        let cut = start + chrono::Duration::minutes(20);
+
+        let first = store.create_slot(&finished("甲", start, 60)).unwrap();
+        let carved_id = store
+            .carve_slot(first, start, cut, meeting("會議"))
+            .unwrap();
+        assert_eq!(
+            carved_id, first,
+            "the original row stays the earliest piece"
+        );
+        let carved = store.get_slot(first).unwrap().unwrap();
+        assert_eq!(
+            (carved.task_name.as_str(), carved.end_ts),
+            ("會議", Some(cut))
+        );
+
+        let second = store
+            .create_slot(&finished("乙", end + chrono::Duration::minutes(10), 60))
+            .unwrap();
+        let second_start = end + chrono::Duration::minutes(10);
+        let second_end = second_start + chrono::Duration::minutes(60);
+        let tail_from = second_start + chrono::Duration::minutes(45);
+        let tail_id = store
+            .carve_slot(second, tail_from, second_end, meeting(""))
+            .unwrap();
+        let head = store.get_slot(second).unwrap().unwrap();
+        let tail = store.get_slot(tail_id).unwrap().unwrap();
+        assert_eq!(head.end_ts, Some(tail_from));
+        assert_eq!(
+            (tail.task_name.as_str(), tail.end_ts),
+            ("乙", Some(second_end)),
+            "a blank name keeps the original"
+        );
+
+        assert_eq!(dump_slots(&store).len(), 4);
+    }
+
+    #[test]
+    fn test_carve_rejects_ranges_outside_or_covering_the_slot() {
+        let (_temp, store) = temp_store();
+        let start = Local::now() - chrono::Duration::hours(3);
+        let end = start + chrono::Duration::minutes(60);
+        let id = store.create_slot(&finished("原始", start, 60)).unwrap();
+        let before = dump_slots(&store);
+        let minute = chrono::Duration::minutes(1);
+
+        for (from, to) in [
+            (start - minute, start + minute * 10),
+            (start + minute * 50, end + minute),
+            (start + minute * 30, start + minute * 30),
+            (start + minute * 40, start + minute * 20),
+            (start, end),
+        ] {
+            assert!(store.carve_slot(id, from, to, meeting("x")).is_err());
+        }
+        assert_eq!(dump_slots(&store), before);
+    }
+
+    #[test]
+    fn test_carve_rolls_back_when_the_insert_fails() {
+        let (_temp, store) = temp_store();
+        let start = Local::now() - chrono::Duration::hours(3);
+        let id = store.create_slot(&finished("原始", start, 60)).unwrap();
+        let before = dump_slots(&store);
+
+        fail_on(&store, "INSERT");
+        let from = start + chrono::Duration::minutes(10);
+        let to = start + chrono::Duration::minutes(20);
+        assert!(store.carve_slot(id, from, to, meeting("新")).is_err());
 
         assert_eq!(dump_slots(&store), before);
     }

@@ -8,7 +8,7 @@ use tauri::{Emitter, Manager, State};
 
 // These will be imported via `use crate::*` from main.rs
 use crate::{
-    build_export_rows, export_columns, AppSettings, AppStateMgr, AppStore, Category,
+    build_export_rows, export_columns, AppSettings, AppStateMgr, AppStore, CarvedPart, Category,
     CategoryReport, DayStats, ExportCell, ExportRowV2, ExportTypeLabels, Gap, RecentPerson,
     RecentTask, SlotDetails, SlotType, StateData, TaskSummary, TimeSlot,
 };
@@ -487,6 +487,44 @@ pub fn split_slot(request: SplitSlotRequest, store: State<AppStore>) -> Result<i
         .with_timezone(&chrono::Local);
     store
         .split_slot(request.id, at, request.second_task_name.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CarveSlotRequest {
+    pub id: i64,
+    pub from: String,
+    pub to: String,
+    pub task_name: String,
+    pub slot_type: String,
+    #[serde(default)]
+    pub category_id: Option<i64>,
+}
+
+#[tauri::command]
+pub fn carve_slot(request: CarveSlotRequest, store: State<AppStore>) -> Result<i64, String> {
+    use chrono::DateTime;
+
+    let parse = |value: &str| {
+        DateTime::parse_from_rfc3339(value)
+            .map(|ts| ts.with_timezone(&chrono::Local))
+            .map_err(|e| e.to_string())
+    };
+    let slot_type = request
+        .slot_type
+        .parse::<SlotType>()
+        .map_err(|e| e.to_string())?;
+    store
+        .carve_slot(
+            request.id,
+            parse(&request.from)?,
+            parse(&request.to)?,
+            CarvedPart {
+                task_name: &request.task_name,
+                slot_type,
+                category_id: request.category_id,
+            },
+        )
         .map_err(|e| e.to_string())
 }
 

@@ -94,9 +94,16 @@
     "start_time": "Giờ bắt đầu",
     "end_time": "Giờ kết thúc",
     "note": "Ghi chú",
-    "split": "Tách",
-    "split_at": "Thời điểm tách",
-    "second_task": "Công việc nửa sau"
+    "carve": "Tách một khoảng thời gian",
+    "carve_hint": "Chọn một phần của bản ghi này và ghi thành công việc khác. Phần còn lại giữ công việc ban đầu.",
+    "carve_from": "Từ",
+    "carve_to": "Đến",
+    "carve_from_start": "Từ đầu",
+    "carve_to_end": "Đến cuối",
+    "carve_summary": "Trước {before} phút · tách {carved} phút · sau {after} phút",
+    "carve_task": "Tên công việc tách ra",
+    "carve_task_placeholder": "Tên công việc (để trống sẽ giữ \"{name}\")",
+    "carve_action": "Tách đoạn này"
   },
   "placeholders": {
     "task_title": "Nhập tên công việc...",
@@ -108,9 +115,10 @@
     "start_time_required": "Vui lòng chọn giờ bắt đầu",
     "end_before_start": "Giờ kết thúc phải sau giờ bắt đầu",
     "fill_outside_gap": "Thời gian phải nằm trong khoảng trống này",
-    "split_outside": "Thời điểm tách phải nằm trong bản ghi này",
     "merge_gap": "Các bản ghi này còn khoảng trống ở giữa",
-    "merge_need_two": "Hãy chọn ít nhất hai bản ghi"
+    "merge_need_two": "Hãy chọn ít nhất hai bản ghi",
+    "carve_outside": "Khoảng thời gian phải nằm trong bản ghi này",
+    "carve_whole": "Đó là toàn bộ bản ghi, hãy chỉnh sửa trực tiếp"
   },
   "confirm": { "delete_slot": "Xác nhận xóa khoảng thời gian này?" },
   "time": {

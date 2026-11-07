@@ -155,6 +155,7 @@ fn run() {
             fill_gap,
             fill_gaps,
             split_slot,
+            carve_slot,
             merge_slots,
             handle_idle_return,
             prepare_export_data,
