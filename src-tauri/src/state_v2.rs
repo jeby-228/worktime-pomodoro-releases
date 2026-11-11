@@ -116,45 +116,6 @@ impl StateManager {
         state.return_to_paused = false;
     }
 
-    /// End the running slot and start a new one in `category_id` from now.
-    /// The task, status and interrupt parent carry over.
-    pub fn switch_category(&self, category_id: Option<i64>) -> anyhow::Result<i64> {
-        let mut state = self.lock_state();
-
-        if !matches!(state.state, AppStateEnum::Working | AppStateEnum::Interrupt) {
-            anyhow::bail!("只有計時中可以切換類別");
-        }
-        let slot_id = state
-            .current_slot_id
-            .ok_or_else(|| anyhow::anyhow!("No active task"))?;
-        let current = self
-            .store
-            .get_slot(slot_id)?
-            .ok_or_else(|| anyhow::anyhow!("找不到這個時段"))?;
-        if !current.slot_type.has_category() {
-            anyhow::bail!("午休沒有類別");
-        }
-        if current.category_id == category_id {
-            return Ok(slot_id);
-        }
-
-        let now = Local::now();
-        self.store.close_slot(slot_id, now)?;
-        let mut next = TimeSlot::new(current.task_name, current.slot_type, now);
-        next.category_id = category_id;
-        next.parent_id = current.parent_id;
-        let next_id = self.store.create_slot(&next)?;
-
-        // During an interrupt, `carried_seconds` belongs to the task underneath.
-        if state.state == AppStateEnum::Working {
-            state.carried_seconds = 0;
-        }
-        state.current_slot_id = Some(next_id);
-        state.segment_start = Some(now);
-
-        Ok(next_id)
-    }
-
     pub fn end_task(&self, note: Option<String>) -> anyhow::Result<()> {
         let mut state = self.lock_state();
         let now = Local::now();
@@ -460,56 +421,6 @@ mod tests {
     }
 
     #[test]
-    fn test_switch_category_closes_the_slot_and_starts_a_new_one() {
-        let (store, mgr, build, fix) = setup();
-        let first = mgr
-            .start_task("Work".to_string(), SlotType::Meeting, Some(build))
-            .unwrap();
-
-        let second = mgr.switch_category(Some(fix)).unwrap();
-        assert_ne!(first, second);
-        assert_eq!(mgr.get_state().current_slot_id, Some(second));
-        assert_eq!(mgr.get_state().state, AppStateEnum::Working);
-
-        let closed = store.get_slot(first).unwrap().unwrap();
-        let opened = store.get_slot(second).unwrap().unwrap();
-        assert_eq!(closed.category_id, Some(build));
-        assert_eq!(closed.end_ts, Some(opened.start_ts));
-        assert!(opened.is_ongoing());
-        assert_eq!(opened.category_id, Some(fix));
-        assert_eq!(opened.task_name, "Work");
-        assert_eq!(opened.slot_type, SlotType::Meeting);
-    }
-
-    #[test]
-    fn test_switch_to_the_same_category_keeps_the_slot() {
-        let (_store, mgr, build, _) = setup();
-        let id = mgr
-            .start_task("Work".to_string(), SlotType::Work, Some(build))
-            .unwrap();
-        assert_eq!(mgr.switch_category(Some(build)).unwrap(), id);
-    }
-
-    #[test]
-    fn test_switch_category_needs_a_running_timer() {
-        let (_store, mgr, build, _) = setup();
-        assert!(mgr.switch_category(Some(build)).is_err());
-
-        mgr.start_task("Work".to_string(), SlotType::Work, None)
-            .unwrap();
-        mgr.pause_task().unwrap();
-        assert!(mgr.switch_category(Some(build)).is_err());
-    }
-
-    #[test]
-    fn test_lunch_cannot_switch_category() {
-        let (_store, mgr, build, _) = setup();
-        mgr.start_task("午休".to_string(), SlotType::Lunch, None)
-            .unwrap();
-        assert!(mgr.switch_category(Some(build)).is_err());
-    }
-
-    #[test]
     fn test_interrupt_has_its_own_category_and_returns_to_the_task() {
         let (store, mgr, build, fix) = setup();
         let work = mgr
@@ -529,27 +440,6 @@ mod tests {
         let current = store.get_current_slot().unwrap().unwrap();
         assert_eq!(current.id, Some(work));
         assert_eq!(current.category_id, Some(build));
-    }
-
-    #[test]
-    fn test_switching_during_an_interrupt_keeps_the_way_back() {
-        let (store, mgr, build, fix) = setup();
-        let work = mgr
-            .start_task("Work".to_string(), SlotType::Work, Some(build))
-            .unwrap();
-        let first = mgr
-            .start_interrupt(Some("A".to_string()), None, Some(fix))
-            .unwrap();
-
-        let second = mgr.switch_category(Some(build)).unwrap();
-        let switched = store.get_slot(second).unwrap().unwrap();
-        assert_eq!(switched.parent_id, Some(work));
-        assert_eq!(switched.slot_type, SlotType::Interrupt);
-        assert!(store.get_slot(first).unwrap().unwrap().end_ts.is_some());
-        assert_eq!(mgr.get_state().paused_slot_id, Some(work));
-
-        assert_eq!(mgr.end_interrupt_and_resume().unwrap(), Some(work));
-        assert!(store.get_slot(second).unwrap().unwrap().end_ts.is_some());
     }
 
     #[test]

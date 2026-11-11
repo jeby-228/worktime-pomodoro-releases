@@ -103,31 +103,11 @@ pub fn get_resume_slot(
     }
 }
 
-#[tauri::command]
-pub fn switch_category(
-    category_id: Option<i64>,
-    state_mgr: State<AppStateMgr>,
-) -> Result<i64, String> {
-    state_mgr
-        .switch_category(category_id)
-        .map_err(|e| e.to_string())
-}
-
 // ==================== Category Commands ====================
 
 #[tauri::command]
 pub fn get_categories(store: State<AppStore>) -> Result<Vec<Category>, String> {
     store.get_categories().map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn get_recent_categories(
-    limit: Option<usize>,
-    store: State<AppStore>,
-) -> Result<Vec<Category>, String> {
-    store
-        .get_recent_categories(limit.unwrap_or(3))
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

@@ -609,25 +609,6 @@ impl StoreV2 {
         Ok(())
     }
 
-    /// Most recently used visible categories, padded from the display order so
-    /// a new install still gets `limit` choices.
-    pub fn get_recent_categories(&self, limit: usize) -> Result<Vec<Category>> {
-        let conn = self.lock_conn();
-        let mut stmt = conn.prepare(&format!(
-            "SELECT {CATEGORY_COLUMNS}
-             FROM categories c
-             LEFT JOIN time_slots s ON s.category_id = c.id
-             WHERE c.hidden = 0
-             GROUP BY c.id
-             ORDER BY MAX(s.start_ts) IS NULL, MAX(s.start_ts) DESC, c.sort_order ASC, c.id ASC
-             LIMIT ?1"
-        ))?;
-        let categories = stmt
-            .query_map(params![limit], category_from_row)?
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(categories)
-    }
-
     /// The category to pre-select for a new slot: the last one used with this
     /// status, otherwise the last one used at all. Hidden categories are skipped.
     pub fn get_default_category(&self, slot_type: &SlotType) -> Result<Option<i64>> {
@@ -1264,8 +1245,6 @@ mod tests {
 
         let slot = store.get_slot(slot_id).unwrap().unwrap();
         assert_eq!(slot.category_name.as_deref(), Some("實作"));
-        let recent = store.get_recent_categories(10).unwrap();
-        assert!(recent.iter().all(|category| category.id != id));
         assert_eq!(store.get_default_category(&SlotType::Work).unwrap(), None);
     }
 
@@ -1302,29 +1281,6 @@ mod tests {
             .map(|category| category.id)
             .collect();
         assert_eq!(reordered, ids);
-    }
-
-    #[test]
-    fn test_recent_categories_lead_and_are_padded_to_the_limit() {
-        let store = StoreV2::new(Path::new(":memory:")).unwrap();
-        let docs = category_id(&store, "文件維護");
-        let data = category_id(&store, "資料調整");
-        let start = Local::now();
-        slot_in(&store, SlotType::Work, Some(docs), start);
-        slot_in(
-            &store,
-            SlotType::Meeting,
-            Some(data),
-            start + chrono::Duration::minutes(10),
-        );
-
-        let names: Vec<String> = store
-            .get_recent_categories(3)
-            .unwrap()
-            .into_iter()
-            .map(|category| category.name)
-            .collect();
-        assert_eq!(names, ["資料調整", "文件維護", "實作"]);
     }
 
     #[test]
