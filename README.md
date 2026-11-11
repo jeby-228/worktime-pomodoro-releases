@@ -115,7 +115,7 @@ just build-release  # 建置前端 + 後端（release 模式）
 
 ```
 worktime-pomodoro/
-├── src/pages/              # index、today、records、settings、pet、minibar
+├── src/pages/              # index、today、records、report、settings
 ├── src/components/         # 今日時間軸、紀錄、設定、補登與編輯
 ├── src-tauri/src/
 │   ├── main.rs             # 視窗、系統匣、插件

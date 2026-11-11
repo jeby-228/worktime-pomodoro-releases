@@ -703,26 +703,14 @@ impl StoreV2 {
         if let Some(v) = self.get_setting("eod_check_enabled")? {
             settings.eod_check_enabled = v == "true";
         }
-        if let Some(v) = self.get_setting("pomodoro_minutes")? {
-            settings.pomodoro_minutes = v.parse().unwrap_or(25);
-        }
         if let Some(v) = self.get_setting("theme")? {
             settings.theme = v;
-        }
-        if let Some(v) = self.get_setting("mini_mode")? {
-            settings.mini_mode = v;
-        }
-        if let Some(v) = self.get_setting("pet_id")? {
-            settings.pet_id = v;
         }
         if let Some(v) = self.get_setting("auto_update")? {
             settings.auto_update = v == "true";
         }
         if let Some(v) = self.get_setting("remember_last_category")? {
             settings.remember_last_category = v == "true";
-        }
-        if let Some(v) = self.get_setting("mini_quick_categories")? {
-            settings.mini_quick_categories = v == "true";
         }
 
         Ok(settings)
@@ -752,14 +740,7 @@ impl StoreV2 {
                 "false"
             },
         )?;
-        set_in_tx(
-            &tx,
-            "pomodoro_minutes",
-            &settings.pomodoro_minutes.to_string(),
-        )?;
         set_in_tx(&tx, "theme", &settings.theme)?;
-        set_in_tx(&tx, "mini_mode", &settings.mini_mode)?;
-        set_in_tx(&tx, "pet_id", &settings.pet_id)?;
         set_in_tx(
             &tx,
             "auto_update",
@@ -773,15 +754,6 @@ impl StoreV2 {
             &tx,
             "remember_last_category",
             if settings.remember_last_category {
-                "true"
-            } else {
-                "false"
-            },
-        )?;
-        set_in_tx(
-            &tx,
-            "mini_quick_categories",
-            if settings.mini_quick_categories {
                 "true"
             } else {
                 "false"
@@ -1396,14 +1368,11 @@ mod tests {
 
         let mut settings = store.get_settings().unwrap();
         assert!(settings.remember_last_category);
-        assert!(settings.mini_quick_categories);
         settings.remember_last_category = false;
-        settings.mini_quick_categories = false;
         store.save_settings(&settings).unwrap();
 
         let saved = store.get_settings().unwrap();
         assert!(!saved.remember_last_category);
-        assert!(!saved.mini_quick_categories);
         assert_eq!(store.get_default_category(&SlotType::Work).unwrap(), None);
     }
 
@@ -1771,19 +1740,19 @@ mod tests {
         {
             let conn = store.lock_conn();
             conn.execute_batch(
-                "CREATE TRIGGER test_fail BEFORE INSERT ON app_state WHEN NEW.key = 'pet_id'
+                "CREATE TRIGGER test_fail BEFORE INSERT ON app_state WHEN NEW.key = 'remember_last_category'
                  BEGIN SELECT RAISE(ABORT, 'boom'); END;",
             )
             .unwrap();
         }
 
         let mut settings = before.clone();
-        settings.pomodoro_minutes = before.pomodoro_minutes + 7;
+        settings.lunch_start = "01:23".to_string();
         settings.theme = "something-else".to_string();
         assert!(store.save_settings(&settings).is_err());
 
         let after = store.get_settings().unwrap();
-        assert_eq!(after.pomodoro_minutes, before.pomodoro_minutes);
+        assert_eq!(after.lunch_start, before.lunch_start);
         assert_eq!(after.theme, before.theme);
     }
 
@@ -1791,13 +1760,13 @@ mod tests {
     fn test_save_settings_round_trip() {
         let (_temp, store) = temp_store();
         let mut settings = store.get_settings().unwrap();
-        settings.pomodoro_minutes = 30;
+        settings.work_end = "18:30".to_string();
         settings.theme = "dark".to_string();
         settings.auto_update = false;
         store.save_settings(&settings).unwrap();
 
         let loaded = store.get_settings().unwrap();
-        assert_eq!(loaded.pomodoro_minutes, 30);
+        assert_eq!(loaded.work_end, "18:30");
         assert_eq!(loaded.theme, "dark");
         assert!(!loaded.auto_update);
     }

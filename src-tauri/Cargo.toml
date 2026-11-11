@@ -1,7 +1,7 @@
 [package]
 name = "worktime-pomodoro"
 version = "1.2.3"
-description = "Offline-first desktop time tracking tool with Pomodoro timer"
+description = "Offline-first desktop time tracking tool"
 authors = ["jeby-228"]
 license = "MIT"
 repository = ""
@@ -19,7 +19,6 @@ tauri-build = { version = "2", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "2", features = ["tray-icon"] }
-tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"

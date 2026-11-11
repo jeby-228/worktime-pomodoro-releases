@@ -189,19 +189,13 @@ pub struct AppSettings {
     pub lunch_end: String,
     pub work_end: String,
     pub eod_check_enabled: bool,
-    pub pomodoro_minutes: i64,
     pub theme: String,
-    pub mini_mode: String,
-    pub pet_id: String,
     /// Missing values stay enabled, matching TokenTracker's auto-update default.
     #[serde(default = "default_enabled")]
     pub auto_update: bool,
     /// Pre-select the last used category when starting a timer.
     #[serde(default = "default_enabled")]
     pub remember_last_category: bool,
-    /// Show three quick category switches on the mini bar.
-    #[serde(default = "default_enabled")]
-    pub mini_quick_categories: bool,
 }
 
 fn default_enabled() -> bool {
@@ -215,13 +209,9 @@ impl Default for AppSettings {
             lunch_end: "13:00".to_string(),
             work_end: "17:20".to_string(),
             eod_check_enabled: true,
-            pomodoro_minutes: 25,
             theme: "system".to_string(),
-            mini_mode: "none".to_string(),
-            pet_id: "tomato-kun".to_string(),
             auto_update: true,
             remember_last_category: true,
-            mini_quick_categories: true,
         }
     }
 }

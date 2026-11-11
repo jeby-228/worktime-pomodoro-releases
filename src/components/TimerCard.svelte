@@ -18,7 +18,6 @@
     category_name: string | null;
     resume_target: string | null;
     elapsed_seconds: number;
-    remaining_seconds: number;
   }
 
   type SlotType = 'work' | 'meeting' | 'interrupt' | 'lunch';
@@ -32,10 +31,8 @@
     category_name: null,
     resume_target: null,
     elapsed_seconds: 0,
-    remaining_seconds: 0,
   });
 
-  let pomodoroLength = $state(25 * 60);
   let taskName = $state('');
   let slotType = $state<SlotType>('work');
   let categoryId = $state<number | null>(null);
@@ -57,12 +54,6 @@
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   });
   
-  let progress = $derived.by(() => {
-    if (state.status === 'idle') return 0;
-    const elapsed = state.elapsed_seconds || 0;
-    return Math.min(100, (elapsed / pomodoroLength) * 100);
-  });
-  
   const statusLabel = $derived.by(() => {
     if (state.status === 'paused') return $t('timer.paused');
     if (state.status === 'interrupt') return $t('timer.interrupt');
@@ -71,7 +62,6 @@
 
   onMount(() => {
     loadState();
-    loadSettings();
     loadDefaultCategory();
     window.addEventListener('task-started', loadState);
     
@@ -103,10 +93,9 @@
 
   async function loadState() {
     try {
-      const [data, elapsed, remaining, slot] = await Promise.all([
+      const [data, elapsed, slot] = await Promise.all([
         invoke<StateData>('get_app_state'),
         invoke<number | null>('get_elapsed_seconds'),
-        invoke<number | null>('get_remaining_seconds'),
         invoke<{
           task_name?: string;
           start_ts?: string;
@@ -144,8 +133,6 @@
         category_name: data.status === 'idle' ? null : slot?.category_name ?? null,
         resume_target: resume?.category_name || resume?.task_name || null,
         elapsed_seconds: nextElapsed,
-        remaining_seconds:
-          typeof remaining === 'number' && !Number.isNaN(remaining) ? remaining : 0,
       };
       if (finished) loadDefaultCategory();
     } catch (err) {
@@ -158,21 +145,10 @@
         category_name: null,
         resume_target: null,
         elapsed_seconds: 0,
-        remaining_seconds: 0,
       };
     }
   }
   
-  async function loadSettings() {
-    try {
-      const settings = await invoke<any>('get_settings');
-      if (settings.pomodoro_length_minutes) {
-        pomodoroLength = settings.pomodoro_length_minutes * 60;
-      }
-    } catch (err) {
-      console.error('Failed to load settings:', err);
-    }
-  }
   
   async function startTask() {
     // Only work needs a name; the other statuses can stand on their own.
@@ -313,14 +289,6 @@
     <div class="text-7xl font-bold tracking-tight tabular-nums">
       {displayTime}
     </div>
-    {#if state.status !== 'idle'}
-      <div class="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-        <div 
-          class="h-full bg-accent transition-all duration-300"
-          style="width: {progress}%"
-        ></div>
-      </div>
-    {/if}
   </div>
   
   <!-- Controls -->

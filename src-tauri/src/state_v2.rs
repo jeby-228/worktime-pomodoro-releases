@@ -20,10 +20,9 @@ pub struct StateData {
     pub state: AppStateEnum,
     pub current_slot_id: Option<i64>,
     pub paused_slot_id: Option<i64>,
-    pub remaining_seconds: Option<i64>,
-    pub pomodoro_start: Option<DateTime<Local>>,
+    pub segment_start: Option<DateTime<Local>>,
     /// Work seconds already counted before the current segment.
-    /// The interrupt stopwatch ignores this and starts from `pomodoro_start`.
+    /// The interrupt stopwatch ignores this and starts from `segment_start`.
     pub carried_seconds: i64,
     /// The interrupted task was paused, so returning must leave it paused.
     #[serde(default)]
@@ -36,8 +35,7 @@ impl Default for StateData {
             state: AppStateEnum::Idle,
             current_slot_id: None,
             paused_slot_id: None,
-            remaining_seconds: None,
-            pomodoro_start: None,
+            segment_start: None,
             carried_seconds: 0,
             return_to_paused: false,
         }
@@ -46,7 +44,7 @@ impl Default for StateData {
 
 fn segment_secs(state: &StateData) -> i64 {
     state
-        .pomodoro_start
+        .segment_start
         .map(|start| {
             Local::now()
                 .signed_duration_since(start)
@@ -103,8 +101,7 @@ impl StateManager {
 
         state.state = AppStateEnum::Working;
         state.current_slot_id = Some(id);
-        state.pomodoro_start = Some(now);
-        state.remaining_seconds = None;
+        state.segment_start = Some(now);
         state.carried_seconds = 0;
 
         Ok(id)
@@ -114,8 +111,7 @@ impl StateManager {
         state.state = AppStateEnum::Idle;
         state.current_slot_id = None;
         state.paused_slot_id = None;
-        state.pomodoro_start = None;
-        state.remaining_seconds = None;
+        state.segment_start = None;
         state.carried_seconds = 0;
         state.return_to_paused = false;
     }
@@ -154,7 +150,7 @@ impl StateManager {
             state.carried_seconds = 0;
         }
         state.current_slot_id = Some(next_id);
-        state.pomodoro_start = Some(now);
+        state.segment_start = Some(now);
 
         Ok(next_id)
     }
@@ -209,17 +205,8 @@ impl StateManager {
         }
 
         if let Some(slot_id) = state.current_slot_id {
-            if let Some(start) = state.pomodoro_start {
-                let elapsed = Local::now()
-                    .signed_duration_since(start)
-                    .num_seconds()
-                    .max(0);
-                let pomodoro_secs = self.store.get_settings()?.pomodoro_minutes * 60;
-                state.remaining_seconds = Some((pomodoro_secs - elapsed).max(0));
-            }
-
             state.carried_seconds = state.carried_seconds.saturating_add(segment_secs(&state));
-            state.pomodoro_start = None;
+            state.segment_start = None;
             state.state = AppStateEnum::Paused;
             state.paused_slot_id = Some(slot_id);
             Ok(slot_id)
@@ -235,7 +222,7 @@ impl StateManager {
             state.state = AppStateEnum::Working;
             state.current_slot_id = Some(slot_id);
             state.paused_slot_id = None;
-            state.pomodoro_start = Some(Local::now());
+            state.segment_start = Some(Local::now());
 
             Ok(slot_id)
         } else {
@@ -257,19 +244,7 @@ impl StateManager {
 
         let was_paused = state.state == AppStateEnum::Paused;
         let parent_id = if let Some(slot_id) = state.current_slot_id {
-            let elapsed = if let Some(start) = state.pomodoro_start {
-                Local::now()
-                    .signed_duration_since(start)
-                    .num_seconds()
-                    .max(0)
-            } else {
-                0
-            };
-            if !was_paused {
-                let pomodoro_secs = self.store.get_settings()?.pomodoro_minutes * 60;
-                state.remaining_seconds = Some((pomodoro_secs - elapsed).max(0));
-            }
-            state.carried_seconds = state.carried_seconds.saturating_add(elapsed);
+            state.carried_seconds = state.carried_seconds.saturating_add(segment_secs(&state));
             state.paused_slot_id = Some(slot_id);
             Some(slot_id)
         } else {
@@ -291,7 +266,7 @@ impl StateManager {
         state.state = AppStateEnum::Interrupt;
         state.return_to_paused = was_paused;
         state.current_slot_id = Some(interrupt_id);
-        state.pomodoro_start = Some(Local::now());
+        state.segment_start = Some(Local::now());
 
         Ok(interrupt_id)
     }
@@ -312,7 +287,7 @@ impl StateManager {
             if state.return_to_paused {
                 state.state = AppStateEnum::Paused;
                 state.current_slot_id = Some(paused_id);
-                state.pomodoro_start = None;
+                state.segment_start = None;
                 state.return_to_paused = false;
                 return Ok(Some(paused_id));
             }
@@ -321,7 +296,7 @@ impl StateManager {
             state.paused_slot_id = None;
             // `carried_seconds` is the work time before this interrupt.
             // Start a new segment so the work clock continues instead of reading zero.
-            state.pomodoro_start = Some(now);
+            state.segment_start = Some(now);
 
             Ok(Some(paused_id))
         } else {
@@ -339,24 +314,6 @@ impl StateManager {
             AppStateEnum::Working => {
                 Some(state.carried_seconds.saturating_add(segment_secs(&state)))
             }
-        }
-    }
-
-    pub fn get_remaining_seconds(&self) -> Option<i64> {
-        let state = self.lock_state();
-        let pomodoro_secs = self.store.get_settings().ok()?.pomodoro_minutes * 60;
-
-        match state.state {
-            AppStateEnum::Working => {
-                if let Some(start) = state.pomodoro_start {
-                    let elapsed = Local::now().signed_duration_since(start).num_seconds();
-                    Some((pomodoro_secs - elapsed).max(0))
-                } else {
-                    None
-                }
-            }
-            AppStateEnum::Paused | AppStateEnum::Interrupt => state.remaining_seconds,
-            AppStateEnum::Idle => None,
         }
     }
 }
@@ -602,7 +559,6 @@ mod tests {
             .start_task("Work".to_string(), SlotType::Work, None)
             .unwrap();
         mgr.pause_task().unwrap();
-        let remaining = mgr.get_state().remaining_seconds;
 
         mgr.start_interrupt(Some("A".to_string()), None, Some(fix))
             .unwrap();
@@ -612,7 +568,6 @@ mod tests {
         assert_eq!(state.state, AppStateEnum::Paused);
         assert_eq!(state.current_slot_id, Some(work));
         assert_eq!(state.paused_slot_id, Some(work));
-        assert_eq!(state.remaining_seconds, remaining);
         mgr.resume_task().unwrap();
         assert_eq!(mgr.get_state().state, AppStateEnum::Working);
     }

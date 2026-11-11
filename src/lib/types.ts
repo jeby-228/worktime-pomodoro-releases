@@ -72,7 +72,6 @@ export interface AppState {
   task_title: string | null;
   person: string | null;
   elapsed_seconds: number;
-  remaining_seconds: number;
 }
 
 export interface RecentTask {

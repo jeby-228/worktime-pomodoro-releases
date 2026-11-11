@@ -63,7 +63,6 @@ fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -101,15 +100,6 @@ fn run() {
             app.manage(store.clone() as AppStore);
             app.manage(state_mgr as AppStateMgr);
 
-            let labels: Vec<String> = app.webview_windows().keys().cloned().collect();
-            info!("windows at setup: {:?}", labels);
-            if let Ok(settings) = store.get_settings() {
-                match sync_companion_windows(app.handle(), &settings.mini_mode) {
-                    Ok(()) => info!("companion windows synced for {}", settings.mini_mode),
-                    Err(err) => error!("failed to sync companion windows: {err}"),
-                }
-            }
-
             // Create tray icon
             tray::create_tray(app.handle())?;
 
@@ -123,7 +113,6 @@ fn run() {
             get_app_state,
             get_current_slot,
             get_elapsed_seconds,
-            get_remaining_seconds,
             start_task,
             end_task,
             pause_task,
@@ -161,14 +150,6 @@ fn run() {
             prepare_export_data,
             export_to_xlsx,
             export_to_csv,
-            show_minibar,
-            hide_minibar,
-            set_minibar_height,
-            focus_main_window,
-            open_quick_input,
-            show_pet,
-            hide_pet,
-            preview_companion_mode,
             check_github_release,
             install_github_release,
         ])

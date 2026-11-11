@@ -1,6 +1,6 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
-use tauri::{Emitter, Manager, State};
+use tauri::State;
 
 // When commands_v2 is a submodule of main.rs (the binary crate),
 // we can't import worktime_pomodoro_lib directly here.
@@ -28,11 +28,6 @@ pub fn get_current_slot(store: State<AppStore>) -> Result<Option<TimeSlot>, Stri
 #[tauri::command]
 pub fn get_elapsed_seconds(state_mgr: State<AppStateMgr>) -> Option<i64> {
     state_mgr.get_elapsed_seconds()
-}
-
-#[tauri::command]
-pub fn get_remaining_seconds(state_mgr: State<AppStateMgr>) -> Option<i64> {
-    state_mgr.get_remaining_seconds()
 }
 
 // ==================== Task Control Commands ====================
@@ -292,13 +287,8 @@ pub fn get_settings(store: State<AppStore>) -> Result<AppSettings, String> {
 }
 
 #[tauri::command]
-pub fn save_settings(
-    app: tauri::AppHandle,
-    settings: AppSettings,
-    store: State<AppStore>,
-) -> Result<(), String> {
-    store.save_settings(&settings).map_err(|e| e.to_string())?;
-    sync_companion_windows(&app, &settings.mini_mode)
+pub fn save_settings(settings: AppSettings, store: State<AppStore>) -> Result<(), String> {
+    store.save_settings(&settings).map_err(|e| e.to_string())
 }
 
 // ==================== Slot Edit Commands ====================
@@ -625,147 +615,6 @@ pub fn handle_idle_return(
         }
         _ => return Err("Invalid action".to_string()),
     }
-    Ok(())
-}
-
-// ==================== Window Management Commands ====================
-
-#[tauri::command]
-pub fn show_minibar(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("minibar") {
-        window.show().map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub fn hide_minibar(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("minibar") {
-        window.hide().map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-fn fit_minibar(window: &tauri::WebviewWindow, height: f64) -> Result<(), String> {
-    let next = height.clamp(48.0, 220.0);
-    window.set_resizable(true).map_err(|e| e.to_string())?;
-    window
-        .set_min_size(Some(tauri::LogicalSize::new(240.0, 48.0)))
-        .map_err(|e| e.to_string())?;
-    window
-        .set_max_size(Some(tauri::LogicalSize::new(240.0, 220.0)))
-        .map_err(|e| e.to_string())?;
-    window
-        .set_size(tauri::LogicalSize::new(240.0, next))
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-#[tauri::command]
-pub fn set_minibar_height(app: tauri::AppHandle, height: f64) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("minibar") {
-        fit_minibar(&window, height)?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub fn focus_main_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("main") {
-        window.unminimize().map_err(|e| e.to_string())?;
-        window.show().map_err(|e| e.to_string())?;
-        window.set_focus().map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub fn open_quick_input(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("main") {
-        window.unminimize().map_err(|e| e.to_string())?;
-        window.show().map_err(|e| e.to_string())?;
-        window.set_focus().map_err(|e| e.to_string())?;
-        window
-            .emit("tray:quick_input", ())
-            .map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub fn show_pet(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("pet") {
-        window.show().map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub fn hide_pet(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("pet") {
-        window.hide().map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub fn preview_companion_mode(app: tauri::AppHandle, mode: String) -> Result<(), String> {
-    sync_companion_windows(&app, &mode)
-}
-
-pub fn sync_companion_windows(app: &tauri::AppHandle, mode: &str) -> Result<(), String> {
-    let show_pet = mode == "pet" || mode == "both";
-    let show_bar = mode == "mini" || mode == "both";
-    set_companion_window(app, "pet", show_pet, true)?;
-    set_companion_window(app, "minibar", show_bar, false)?;
-    Ok(())
-}
-
-fn set_companion_window(
-    app: &tauri::AppHandle,
-    label: &str,
-    visible: bool,
-    bottom: bool,
-) -> Result<(), String> {
-    let Some(window) = app.get_webview_window(label) else {
-        return Ok(());
-    };
-    if visible {
-        if !window.is_visible().unwrap_or(false) {
-            if let Err(err) = place_companion_window(&window, bottom) {
-                tracing::warn!("failed to place {label}: {err}");
-            }
-        }
-        let _ = window.set_background_color(Some(tauri::utils::config::Color(0, 0, 0, 0)));
-        if label == "minibar" {
-            let _ = fit_minibar(&window, 48.0);
-        }
-        window.show().map_err(|e| e.to_string())?;
-        let _ = window.set_always_on_top(true);
-        tracing::info!("showed companion window {label}");
-    } else if window.is_visible().unwrap_or(false) {
-        window.hide().map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-fn place_companion_window(window: &tauri::WebviewWindow, bottom: bool) -> Result<(), String> {
-    let Some(monitor) = window.primary_monitor().map_err(|e| e.to_string())? else {
-        return Ok(());
-    };
-    let size = window.outer_size().map_err(|e| e.to_string())?;
-    let area = monitor.position();
-    let screen = monitor.size();
-    let margin = 32;
-    let x = area.x + screen.width as i32 - size.width as i32 - margin;
-    let y = if bottom {
-        area.y + screen.height as i32 - size.height as i32 - margin
-    } else {
-        area.y + margin
-    };
-    window
-        .set_position(tauri::PhysicalPosition::new(x, y))
-        .map_err(|e| e.to_string())?;
     Ok(())
 }
 

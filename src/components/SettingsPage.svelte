@@ -1,37 +1,29 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import { Palette, Clock, Calendar, Keyboard, Monitor, Info, Tags, ArrowUp, ArrowDown, Eye, EyeOff } from 'lucide-svelte';
+  import { Palette, Calendar, Keyboard, Info, Tags, ArrowUp, ArrowDown, Eye, EyeOff } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import { applyTheme, type ThemeChoice } from '$lib/theme';
   import type { Category } from '$lib/types';
   
   interface AppSettings {
     theme: string;
-    pomodoro_minutes: number;
     lunch_start: string;
     lunch_end: string;
     work_end: string;
     eod_check_enabled: boolean;
-    mini_mode: string;
-    pet_id: string;
     auto_update: boolean;
     remember_last_category: boolean;
-    mini_quick_categories: boolean;
   }
   
   let settings = $state<AppSettings>({
     theme: 'system',
-    pomodoro_minutes: 25,
     lunch_start: '12:00',
     lunch_end: '13:00',
     work_end: '17:30',
     eod_check_enabled: true,
-    mini_mode: 'none',
-    pet_id: 'tomato-kun',
     auto_update: true,
     remember_last_category: true,
-    mini_quick_categories: true,
   });
 
   let categories = $state<Category[]>([]);
@@ -47,10 +39,8 @@
   const sections = [
     { id: 'appearance', icon: Palette, labelKey: 'settings.appearance' },
     { id: 'categories', icon: Tags, labelKey: 'categories.label' },
-    { id: 'pomodoro', icon: Clock, labelKey: 'settings.pomodoro' },
     { id: 'schedule', icon: Calendar, labelKey: 'settings.schedule' },
     { id: 'shortcuts', icon: Keyboard, labelKey: 'settings.shortcuts' },
-    { id: 'mini_mode', icon: Monitor, labelKey: 'settings.mini_mode' },
     { id: 'about', icon: Info, labelKey: 'settings.about' },
   ];
   
@@ -121,18 +111,11 @@
     markDirty();
   }
 
-  async function chooseCompanion(mode: string) {
-    settings.mini_mode = mode;
-    markDirty();
-    await applyMiniMode(mode);
-  }
-
   async function loadSettings() {
     try {
       const loaded = await invoke<AppSettings>('get_settings');
       settings = loaded;
       applyTheme(settings.theme as ThemeChoice);
-      await applyMiniMode(settings.mini_mode);
       isDirty = false;
     } catch (err) {
       console.error('Failed to load settings:', err);
@@ -146,35 +129,11 @@
       
       // Apply theme change immediately
       applyTheme(settings.theme as ThemeChoice);
-      
-      // Apply mini mode changes immediately
-      await applyMiniMode(settings.mini_mode);
     } catch (err) {
       console.error('Failed to save settings:', err);
     }
   }
 
-  async function applyMiniMode(mode: string) {
-    try {
-      const showMini = mode === 'mini' || mode === 'both';
-      const showPet = mode === 'pet' || mode === 'both';
-      
-      if (showMini) {
-        await invoke('show_minibar');
-      } else {
-        await invoke('hide_minibar');
-      }
-      
-      if (showPet) {
-        await invoke('show_pet');
-      } else {
-        await invoke('hide_pet');
-      }
-    } catch (err) {
-      console.error('Failed to apply mini mode:', err);
-    }
-  }
-  
   function markDirty() {
     isDirty = true;
   }
@@ -374,45 +333,9 @@
                 class="size-4"
               />
             </label>
-            <label class="flex items-center justify-between gap-4">
-              <div>
-                <div class="text-sm font-medium">{$t('categories.mini_quick')}</div>
-                <div class="text-xs text-muted-foreground">{$t('categories.mini_quick_desc')}</div>
-              </div>
-              <input
-                type="checkbox"
-                bind:checked={settings.mini_quick_categories}
-                onchange={markDirty}
-                class="size-4"
-              />
-            </label>
           </div>
         </div>
 
-      {:else if activeSection === 'pomodoro'}
-        <div class="space-y-6">
-          <div>
-            <h2 class="text-xl font-semibold mb-4">{$t('settings.pomodoro')}</h2>
-          </div>
-          
-          <!-- Pomodoro Duration -->
-          <div class="space-y-2">
-            <label for="pomodoro-minutes" class="text-sm font-medium">{$t('settings.pomodoro_duration')}</label>
-            <div class="flex items-center gap-3">
-              <input
-                id="pomodoro-minutes"
-                type="number"
-                bind:value={settings.pomodoro_minutes}
-                oninput={markDirty}
-                min="1"
-                max="90"
-                class="w-24 rounded-md border border-border bg-background px-3 py-2 text-sm"
-              />
-              <span class="text-sm text-muted-foreground">{$t('time.minute_short')}</span>
-            </div>
-          </div>
-        </div>
-        
       {:else if activeSection === 'schedule'}
         <div class="space-y-6">
           <div>
@@ -482,56 +405,6 @@
               <kbd class="rounded bg-muted px-2 py-1 text-xs font-mono">Ctrl+Alt+I</kbd>
             </div>
           </div>
-        </div>
-        
-      {:else if activeSection === 'mini_mode'}
-        <div class="space-y-6">
-          <div>
-            <h2 class="text-xl font-semibold mb-4">{$t('settings.mini_mode')}</h2>
-          </div>
-          
-          <!-- Mini Mode -->
-          <div class="space-y-2">
-            <p class="text-sm font-medium">迷你模式</p>
-            <div class="grid grid-cols-2 gap-3">
-              <button
-                onclick={() => chooseCompanion('none')}
-                class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors {settings.mini_mode === 'none' ? 'border-primary bg-accent' : ''}"
-              >
-                {$t('settings.mini_mode_none')}
-              </button>
-              <button
-                onclick={() => chooseCompanion('mini')}
-                class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors {settings.mini_mode === 'mini' ? 'border-primary bg-accent' : ''}"
-              >
-                {$t('settings.mini_mode_bar')}
-              </button>
-              <button
-                onclick={() => chooseCompanion('pet')}
-                class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors {settings.mini_mode === 'pet' ? 'border-primary bg-accent' : ''}"
-              >
-                {$t('settings.mini_mode_pet')}
-              </button>
-              <button
-                onclick={() => chooseCompanion('both')}
-                class="flex items-center justify-center rounded-md border px-4 py-3 text-sm transition-colors {settings.mini_mode === 'both' ? 'border-primary bg-accent' : ''}"
-              >
-                {$t('settings.mini_mode_both')}
-              </button>
-            </div>
-          </div>
-          
-          <!-- Pet Selection -->
-          {#if settings.mini_mode === 'pet' || settings.mini_mode === 'both'}
-            <div class="space-y-2">
-              <p class="text-sm font-medium">{$t('settings.pet_selection')}</p>
-              <div class="rounded-md border border-border p-4">
-                <div class="mb-3 text-sm text-muted-foreground">
-                  當前寵物：番茄君 (D-mono)
-                </div>
-              </div>
-            </div>
-          {/if}
         </div>
         
       {:else if activeSection === 'about'}
