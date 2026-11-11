@@ -69,8 +69,6 @@
     "total": "Tổng",
     "excludes_lunch": "Không gồm nghỉ trưa",
     "interrupt_note": "Sọc chéo là thời gian bị chen ngang",
-    "other": "Khác",
-    "other_note": "\"Khác\" gồm các danh mục xếp sau vị trí thứ 5",
     "empty": "Không có bản ghi trong khoảng này",
     "invalid_range": "Ngày kết thúc không được trước ngày bắt đầu",
     "export_png": "Xuất PNG",

@@ -72,8 +72,6 @@
     "total": "合計",
     "excludes_lunch": "不含午休",
     "interrupt_note": "斜線底紋為插隊時間",
-    "other": "其他",
-    "other_note": "「其他」包含排序在第 5 個之後的類別",
     "empty": "這段期間沒有紀錄",
     "invalid_range": "結束日期不能早於開始日期",
     "export_png": "匯出 PNG",

@@ -307,8 +307,6 @@
     "total": "Total",
     "excludes_lunch": "Lunch not included",
     "interrupt_note": "Diagonal stripes show interrupt time",
-    "other": "Other",
-    "other_note": "\"Other\" covers categories sorted after the 5th",
     "empty": "No records in this period",
     "invalid_range": "The end date can't be before the start date",
     "export_png": "Export PNG",

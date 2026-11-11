@@ -307,8 +307,6 @@
     "total": "合计",
     "excludes_lunch": "不含午休",
     "interrupt_note": "斜线底纹为插队时间",
-    "other": "其他",
-    "other_note": "“其他”包含排序在第 5 个之后的类别",
     "empty": "这段期间没有记录",
     "invalid_range": "结束日期不能早于开始日期",
     "export_png": "导出 PNG",

@@ -77,8 +77,10 @@ export interface ChartSeries {
   key: string;
   name: string;
   fill: string;
-  /** Categories past the last shade share one series, drawn with reverse lines. */
-  isOther: boolean;
+  /** Ink that stays visible on `fill`, used for hatches. */
+  ink: string;
+  /** Hatch angle for categories past the base shades. Null is a solid swatch. */
+  pattern: number | null;
   seconds: number;
   interruptSeconds: number;
   percentage: number;
@@ -86,29 +88,67 @@ export interface ChartSeries {
 
 export interface SeriesLabels {
   uncategorized: string;
-  other: string;
 }
 
 const UNCATEGORIZED_KEY = "none";
-const OTHER_KEY = "other";
+/** Not 45°: that angle is reserved for interrupt time. */
+const MARK_ANGLES = [0, 90, 30, -30, 60, -60];
 
 /**
- * Shades follow the category, not its rank, so a colour keeps its meaning when
- * the date range changes. Visible categories get the first shades.
+ * Colour follows the category's place in the current list, not how many hours
+ * it has, so it stays put when the range changes. Visible categories come
+ * first. Past the base shades, greys continue and a hatch keeps them apart.
  */
-function seriesKeys(categories: Category[], theme: ChartTheme) {
+function categoryLooks(categories: Category[], theme: ChartTheme) {
   const ordered = [...categories.filter((c) => !c.hidden), ...categories.filter((c) => c.hidden)];
-  const fills = new Map<number, string>();
-  ordered.slice(0, theme.shades.length).forEach((category, index) => {
-    fills.set(category.id, theme.shades[index]);
-  });
   const order = new Map(ordered.map((category, index) => [category.id, index]));
-  return { fills, order };
+  const fills = new Map<number, string>();
+  const patterns = new Map<number, number | null>();
+  ordered.forEach((category, index) => {
+    const look = lookFor(index, theme);
+    fills.set(category.id, look.fill);
+    patterns.set(category.id, look.pattern);
+  });
+  return { fills, patterns, order };
 }
 
-function seriesKeyFor(id: number | null, fills: Map<number, string>): string {
-  if (id === null) return UNCATEGORIZED_KEY;
-  return fills.has(id) ? `c${id}` : OTHER_KEY;
+function lookFor(index: number, theme: ChartTheme): { fill: string; pattern: number | null } {
+  if (index < theme.shades.length) return { fill: theme.shades[index], pattern: null };
+  const fills = extraFills(theme);
+  const extra = index - theme.shades.length;
+  const fill = fills[extra % fills.length] ?? theme.shades[extra % theme.shades.length];
+  const pattern = MARK_ANGLES[Math.floor(extra / fills.length) % MARK_ANGLES.length];
+  return { fill, pattern };
+}
+
+function extraFills(theme: ChartTheme): string[] {
+  const banned = [theme.surface, theme.ink, theme.uncategorized, theme.other, ...theme.shades].map(
+    (hex) => parseInt(hex.slice(1, 3), 16),
+  );
+  const onDark = banned[0] < 128;
+  const fills: string[] = [];
+  const start = onDark ? 48 : 36;
+  const end = onDark ? 236 : 200;
+  for (let value = start; value <= end && fills.length < 12; value += 8) {
+    const crowded = [...banned, ...fills.map((hex) => parseInt(hex.slice(1, 3), 16))].some(
+      (byte) => Math.abs(byte - value) < 10,
+    );
+    if (crowded) continue;
+    const channel = value.toString(16).padStart(2, "0");
+    fills.push(`#${channel}${channel}${channel}`);
+  }
+  if (fills.length === 0) fills.push(onDark ? "#888888" : "#555555");
+  return fills;
+}
+
+function categoryName(
+  id: number | null,
+  categories: Category[],
+  fallback: string | null,
+  uncategorized: string,
+): string {
+  if (id === null) return uncategorized;
+  return categories.find((category) => category.id === id)?.name ?? fallback ?? uncategorized;
 }
 
 export function buildSeries(
@@ -117,11 +157,13 @@ export function buildSeries(
   theme: ChartTheme,
   labels: SeriesLabels,
 ): ChartSeries[] {
-  const { fills, order } = seriesKeys(categories, theme);
+  const { fills, patterns, order } = categoryLooks(categories, theme);
   const merged = new Map<string, ChartSeries & { rank: number }>();
 
   for (const row of report.rows) {
-    const key = seriesKeyFor(row.category_id, fills);
+    if (row.total_seconds <= 0) continue;
+    const isNone = row.category_id === null;
+    const key = isNone ? UNCATEGORIZED_KEY : `c${row.category_id}`;
     const existing = merged.get(key);
     if (existing) {
       existing.seconds += row.total_seconds;
@@ -129,25 +171,24 @@ export function buildSeries(
       existing.percentage += row.percentage;
       continue;
     }
-    const isOther = key === OTHER_KEY;
-    const isNone = key === UNCATEGORIZED_KEY;
+    const id = row.category_id;
+    const look =
+      id !== null && fills.has(id)
+        ? { fill: fills.get(id) as string, pattern: patterns.get(id) ?? null }
+        : lookFor(theme.shades.length + (id ?? 0), theme);
+    const fill = isNone ? theme.uncategorized : look.fill;
     merged.set(key, {
       key,
-      name: isOther ? labels.other : isNone ? labels.uncategorized : (row.name ?? ""),
-      fill: isOther
-        ? theme.other
-        : isNone
-          ? theme.uncategorized
-          : (fills.get(row.category_id as number) as string),
-      isOther,
+      name: categoryName(id, categories, row.name, labels.uncategorized),
+      fill,
+      ink: inkOn(fill),
+      pattern: isNone ? null : look.pattern,
       seconds: row.total_seconds,
       interruptSeconds: row.interrupt_seconds,
       percentage: row.percentage,
       rank: isNone
         ? Number.MAX_SAFE_INTEGER
-        : isOther
-          ? Number.MAX_SAFE_INTEGER - 1
-          : (order.get(row.category_id as number) ?? 0),
+        : (order.get(id as number) ?? Number.MAX_SAFE_INTEGER - 1),
     });
   }
 
@@ -156,14 +197,36 @@ export function buildSeries(
     .map(({ rank: _rank, ...series }) => series);
 }
 
-/** The "實作 45%、問題處理 17%" part of the summary, largest first. */
+export interface ReportLoader {
+  getCategoryReport: (start: string, end: string) => Promise<CategoryReport>;
+  getCategories: () => Promise<Category[]>;
+}
+
+/** Reads the report and the current category list together. Callers pass get_categories. */
+export async function loadReportBundle(
+  loader: ReportLoader,
+  start: string,
+  end: string,
+): Promise<{ report: CategoryReport; categories: Category[] }> {
+  const [report, categories] = await Promise.all([
+    loader.getCategoryReport(start, end),
+    loader.getCategories(),
+  ]);
+  return { report, categories };
+}
+
+/** The "Name 45%, Name 17%" part of the summary, largest first. */
 export function summaryParts(
   report: CategoryReport,
+  categories: Category[],
   uncategorized: string,
   separator: string,
 ): string {
   return report.rows
-    .map((row) => `${row.name ?? uncategorized} ${formatPercent(row.percentage)}`)
+    .map(
+      (row) =>
+        `${categoryName(row.category_id, categories, row.name, uncategorized)} ${formatPercent(row.percentage)}`,
+    )
     .join(separator);
 }
 
@@ -196,16 +259,21 @@ function round(value: number): string {
   return String(Math.round(value * 100) / 100);
 }
 
-/** Stripes in both directions for each series, in ink that shows on its fill. */
+function stripes(id: string, item: ChartSeries, angle: number, width = 6): string {
+  return (
+    `<pattern id="${id}" width="${width}" height="${width}" patternUnits="userSpaceOnUse" patternTransform="rotate(${angle})">` +
+    `<line x1="${width / 2}" y1="0" x2="${width / 2}" y2="${width}" stroke="${inkOn(item.fill)}" stroke-width="1.6"/>` +
+    `</pattern>`
+  );
+}
+
+/** Interrupt stripes, plus a category hatch once the base shades run out. */
 function patternDefs(series: ChartSeries[], prefix: string): string {
-  const stripes = (id: string, item: ChartSeries, angle: number) =>
-    `<pattern id="${id}-${angle}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(${angle})">` +
-    `<line x1="3" y1="0" x2="3" y2="6" stroke="${inkOn(item.fill)}" stroke-width="1.6"/>` +
-    `</pattern>`;
-  const defs = series.flatMap((item, index) => [
-    stripes(`${prefix}-${index}`, item, 45),
-    stripes(`${prefix}-${index}`, item, -45),
-  ]);
+  const defs = series.flatMap((item, index) => {
+    const out = [stripes(`${prefix}-${index}-45`, item, 45)];
+    if (item.pattern != null) out.push(stripes(`${prefix}-${index}-mark`, item, item.pattern));
+    return out;
+  });
   return `<defs>${defs.join("")}</defs>`;
 }
 
@@ -218,8 +286,8 @@ function paint(
   isInterrupt: boolean,
 ): string {
   const layers = [shape(item.fill)];
+  if (item.pattern != null) layers.push(shape(`url(#${prefix}-${index}-mark)`));
   if (isInterrupt) layers.push(shape(`url(#${prefix}-${index}-45)`));
-  if (item.isOther) layers.push(shape(`url(#${prefix}-${index}--45)`));
   return layers.join("");
 }
 
@@ -308,16 +376,10 @@ function shortDate(date: string): string {
   return `${month}/${day}`;
 }
 
-function dayParts(
-  day: CategoryReportDay,
-  series: ChartSeries[],
-  categories: Category[],
-  theme: ChartTheme,
-) {
-  const { fills } = seriesKeys(categories, theme);
+function dayParts(day: CategoryReportDay, series: ChartSeries[]) {
   const seconds = new Map<string, { total: number; interrupt: number }>();
   for (const item of day.items) {
-    const key = seriesKeyFor(item.category_id, fills);
+    const key = item.category_id === null ? UNCATEGORIZED_KEY : `c${item.category_id}`;
     const entry = seconds.get(key) ?? { total: 0, interrupt: 0 };
     entry.total += item.seconds;
     entry.interrupt += item.interrupt_seconds;
@@ -332,7 +394,6 @@ function dayParts(
 export function stackedBarSvg(
   report: CategoryReport,
   series: ChartSeries[],
-  categories: Category[],
   theme: ChartTheme,
   hoursLabel: string,
   prefix = "bar",
@@ -361,7 +422,7 @@ export function stackedBarSvg(
 
   days.forEach((day, dayIndex) => {
     const x = BAR_MARGIN.left + band * dayIndex + (band - barWidth) / 2;
-    const parts = dayParts(day, series, categories, theme);
+    const parts = dayParts(day, series);
     let y = baseline;
     parts.forEach((part, partIndex) => {
       const height = (part.seconds / 3600 / top) * plotHeight;
@@ -463,11 +524,21 @@ export function reportImage(
     )
     .join("");
 
+  const legendDefs = series
+    .map((item, index) =>
+      item.pattern == null ? "" : stripes(`legend-${index}`, item, item.pattern, 4),
+    )
+    .join("");
   const legend = series
     .map((item, index) => {
       const y = chartTop + index * 28;
+      const mark =
+        item.pattern == null
+          ? ""
+          : `<rect x="${legendX}" y="${y + 4}" width="12" height="12" rx="2" fill="url(#legend-${index})"/>`;
       return (
         `<rect x="${legendX}" y="${y + 4}" width="12" height="12" rx="2" fill="${item.fill}" stroke="${theme.grid}"/>` +
+        mark +
         `<text x="${legendX + 20}" y="${y + 15}" font-size="14" fill="${theme.ink}">${escapeXml(item.name)}</text>` +
         `<text x="${width - padding}" y="${y + 15}" text-anchor="end" font-size="14" fill="${theme.muted}">${formatHours(item.seconds)}h · ${formatPercent(item.percentage)}</text>`
       );
@@ -483,6 +554,7 @@ export function reportImage(
     height,
     svg:
       `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${FONT}">` +
+      `<defs>${legendDefs}</defs>` +
       `<rect width="${width}" height="${height}" fill="${theme.surface}"/>` +
       `<text x="${padding}" y="${padding + 16}" font-size="20" font-weight="600" fill="${theme.ink}">${escapeXml(text.title)}</text>` +
       summary +

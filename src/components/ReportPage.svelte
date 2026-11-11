@@ -11,6 +11,7 @@
     formatPercent,
     imageToPng,
     LIGHT_CHART,
+    loadReportBundle,
     pieChartSvg,
     presetRange,
     reportImage,
@@ -44,18 +45,16 @@
     report
       ? buildSeries(report, categories, theme, {
           uncategorized: $t('categories.uncategorized'),
-          other: $t('report.other'),
         })
       : [],
   );
-  const hasOther = $derived(series.some((item) => item.isOther));
   const hasInterrupts = $derived(series.some((item) => item.interruptSeconds > 0));
   const chartSvg = $derived(
     !report || report.total_seconds === 0
       ? ''
       : chartKind === 'pie'
         ? pieChartSvg(series, theme)
-        : stackedBarSvg(report, series, categories, theme, $t('report.hours')),
+        : stackedBarSvg(report, series, theme, $t('report.hours')),
   );
   const rangeLabel = $derived(
     preset === 'custom'
@@ -69,6 +68,7 @@
           hours: formatHours(report.total_seconds),
           parts: summaryParts(
             report,
+            categories,
             $t('categories.uncategorized'),
             $t('report.list_separator'),
           ),
@@ -76,27 +76,30 @@
       : '',
   );
   const footnote = $derived(
-    [
-      $t('report.excludes_lunch'),
-      hasInterrupts ? $t('report.interrupt_note') : '',
-      hasOther ? $t('report.other_note') : '',
-    ]
+    [$t('report.excludes_lunch'), hasInterrupts ? $t('report.interrupt_note') : '']
       .filter(Boolean)
       .join(' · '),
   );
 
+  // Names and colours come from the category list read here, so a new or
+  // renamed category shows up when the report opens and when the range changes.
   async function load() {
     if (invalidRange) return;
     loadError = '';
     try {
-      const [next, list] = await Promise.all([
-        invoke<CategoryReport>('get_category_report', {
-          request: { start_date: startDate, end_date: endDate },
-        }),
-        invoke<Category[]>('get_categories'),
-      ]);
-      report = next;
-      categories = list;
+      const loaded = await loadReportBundle(
+        {
+          getCategoryReport: (start, end) =>
+            invoke<CategoryReport>('get_category_report', {
+              request: { start_date: start, end_date: end },
+            }),
+          getCategories: () => invoke<Category[]>('get_categories'),
+        },
+        startDate,
+        endDate,
+      );
+      report = loaded.report;
+      categories = loaded.categories;
     } catch (err) {
       loadError = String(err);
     }
@@ -280,10 +283,7 @@
         <ul class="space-y-2 self-center">
           {#each series as item (item.key)}
             <li class="flex items-center gap-2 text-sm">
-              <span
-                class="size-3 shrink-0 rounded-sm border border-border"
-                style="background: {item.fill}"
-              ></span>
+              {@render swatch(item, 'legend')}
               <span class="min-w-0 flex-1 truncate">{item.name}</span>
               <span class="shrink-0 tabular-nums text-muted-foreground">
                 {formatHours(item.seconds)}h · {formatPercent(item.percentage)}
@@ -303,8 +303,16 @@
         </thead>
         <tbody>
           {#each report.rows as row (row.category_id ?? 'none')}
+            {@const item = series.find((entry) => entry.key === (row.category_id == null ? 'none' : `c${row.category_id}`))}
             <tr class="border-b border-border">
-              <td class="py-2">{row.name ?? $t('categories.uncategorized')}</td>
+              <td class="py-2">
+                <span class="inline-flex items-center gap-2">
+                  {#if item}
+                    {@render swatch(item, 'table')}
+                  {/if}
+                  {item?.name ?? row.name ?? $t('categories.uncategorized')}
+                </span>
+              </td>
               <td class="py-2 text-right tabular-nums">{formatHours(row.total_seconds)}</td>
               <td class="py-2 text-right tabular-nums">{formatPercent(row.percentage)}</td>
             </tr>
@@ -323,3 +331,26 @@
     {/if}
   </div>
 </div>
+
+{#snippet swatch(item, salt)}
+  <svg width="12" height="12" viewBox="0 0 12 12" class="size-3 shrink-0" aria-hidden="true">
+    {#if item.pattern != null}
+      <defs>
+        <pattern
+          id="swatch-{salt}-{item.key}"
+          width="4"
+          height="4"
+          patternUnits="userSpaceOnUse"
+          patternTransform="rotate({item.pattern})"
+        >
+          <line x1="2" y1="0" x2="2" y2="4" stroke={item.ink} stroke-width="1.6" />
+        </pattern>
+      </defs>
+    {/if}
+    <rect width="12" height="12" rx="2" fill={item.fill} />
+    {#if item.pattern != null}
+      <rect width="12" height="12" rx="2" fill="url(#swatch-{salt}-{item.key})" />
+    {/if}
+    <rect width="12" height="12" rx="2" fill="none" stroke={theme.grid} />
+  </svg>
+{/snippet}
