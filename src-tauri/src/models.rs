@@ -120,27 +120,6 @@ pub struct RecentTask {
     pub slot_type: SlotType,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DayStats {
-    pub date: String,
-    pub total_minutes: i64,
-    pub work_minutes: i64,
-    pub interrupt_minutes: i64,
-    pub meeting_minutes: i64,
-    pub lunch_minutes: i64,
-    pub slots: Vec<TimeSlot>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TaskSummary {
-    pub task_name: String,
-    pub slot_type: SlotType,
-    pub total_minutes: i64,
-    pub total_hours: f64,
-    pub percentage: f64,
-    pub slot_count: i64,
-}
-
 /// One category's share of a report. `category_id: None` is uncategorized.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CategoryReportRow {

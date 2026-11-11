@@ -261,7 +261,6 @@
     "theme_light": "淺色",
     "theme_dark": "深色",
     "theme_system": "跟隨系統",
-    "idle_threshold": "閒置偵測閾值",
     "lunch_time": "午休時間",
     "lunch_start": "午休開始",
     "lunch_end": "午休結束",
@@ -281,18 +280,6 @@
     "auto_update": "自動更新",
     "auto_update_desc": "啟動時檢查 GitHub 最新版。下載後先驗證數位簽章，通過才安裝並重新啟動。",
     "update_installing": "正在下載並驗證更新..."
-  },
-  "idle_return": {
-    "title": "離開檢測",
-    "message": "離開 {minutes} 分鐘，要算成：",
-    "continue_task": "繼續原任務",
-    "continue_desc": "將閒置時間計入當前任務",
-    "lunch": "午休",
-    "lunch_desc": "將閒置時間記為午休",
-    "meeting": "會議",
-    "meeting_desc": "將閒置時間記為會議",
-    "discard": "不算",
-    "discard_desc": "不記錄這段閒置時間"
   },
   "eod_review": {
     "title": "下班前檢查",

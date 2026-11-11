@@ -143,21 +143,6 @@ impl StateManager {
         }
     }
 
-    /// Close the active or paused slot at a specific time.
-    pub fn end_task_at(&self, end_ts: DateTime<Local>) -> anyhow::Result<()> {
-        let mut state = self.lock_state();
-        let slot_id = state.current_slot_id.or(state.paused_slot_id);
-
-        if let Some(slot_id) = slot_id {
-            self.store.close_slot(slot_id, end_ts)?;
-            Self::clear_activity(&mut state);
-        } else {
-            anyhow::bail!("No active task to end");
-        }
-
-        Ok(())
-    }
-
     pub fn pause_task(&self) -> anyhow::Result<i64> {
         let mut state = self.lock_state();
 

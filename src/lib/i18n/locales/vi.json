@@ -253,7 +253,6 @@
     "theme_light": "Sáng",
     "theme_dark": "Tối",
     "theme_system": "Theo hệ thống",
-    "idle_threshold": "Ngưỡng phát hiện rảnh",
     "lunch_time": "Giờ nghỉ trưa",
     "lunch_start": "Bắt đầu nghỉ trưa",
     "lunch_end": "Kết thúc nghỉ trưa",
@@ -273,18 +272,6 @@
     "auto_update": "Tự động cập nhật",
     "auto_update_desc": "Kiểm tra bản mới trên GitHub khi mở ứng dụng. Chỉ cài sau khi chữ ký số hợp lệ, rồi khởi động lại.",
     "update_installing": "Đang tải và kiểm tra bộ cài..."
-  },
-  "idle_return": {
-    "title": "Phát hiện rảnh",
-    "message": "Rời đi {minutes} phút, tính là:",
-    "continue_task": "Tiếp tục công việc",
-    "continue_desc": "Tính thời gian rảnh vào công việc hiện tại",
-    "lunch": "Nghỉ trưa",
-    "lunch_desc": "Tính thời gian rảnh là nghỉ trưa",
-    "meeting": "Họp",
-    "meeting_desc": "Tính thời gian rảnh là họp",
-    "discard": "Bỏ qua",
-    "discard_desc": "Không ghi thời gian rảnh này"
   },
   "eod_review": {
     "title": "Kiểm tra cuối ngày",

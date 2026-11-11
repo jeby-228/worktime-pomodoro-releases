@@ -476,7 +476,7 @@ mod tests {
 
     #[test]
     fn test_second_half_of_a_split_task_loses_the_interrupt_too() {
-        // split_slot leaves the interrupt's parent_id on the first half.
+        // Cutting a task in two leaves the interrupt's parent_id on the first half.
         assert_eq!(
             minutes(vec![
                 work(1, at(9, 0), at(10, 30)),

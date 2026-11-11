@@ -150,7 +150,6 @@
     "theme_light": "Light",
     "theme_dark": "Dark",
     "theme_system": "Follow System",
-    "idle_threshold": "Idle Detection Threshold",
     "lunch_time": "Lunch Time",
     "lunch_start": "Lunch Start",
     "lunch_end": "Lunch End",
@@ -172,18 +171,6 @@
     "auto_update": "Automatic updates",
     "auto_update_desc": "Check GitHub on startup. Updates are installed only after their digital signature checks out, then the app restarts.",
     "update_installing": "Downloading and verifying the installer..."
-  },
-  "idle_return": {
-    "title": "Idle Detected",
-    "message": "Away for {minutes} minutes, count as:",
-    "continue_task": "Continue Task",
-    "lunch": "Lunch",
-    "meeting": "Meeting",
-    "continue_desc": "Count the idle time toward the current task",
-    "lunch_desc": "Count the idle time as lunch",
-    "meeting_desc": "Count the idle time as a meeting",
-    "discard": "Don't count",
-    "discard_desc": "Don't record this idle time"
   },
   "eod_review": {
     "title": "End-of-Day Review",

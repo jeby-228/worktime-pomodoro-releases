@@ -9,8 +9,8 @@ use tauri::State;
 // These will be imported via `use crate::*` from main.rs
 use crate::{
     build_export_rows, export_columns, AppSettings, AppStateMgr, AppStore, CarvedPart, Category,
-    CategoryReport, DayStats, ExportCell, ExportRowV2, ExportTypeLabels, Gap, RecentPerson,
-    RecentTask, SlotDetails, SlotType, StateData, TaskSummary, TimeSlot,
+    CategoryReport, ExportCell, ExportRowV2, ExportTypeLabels, Gap, RecentPerson, RecentTask,
+    SlotDetails, SlotType, StateData, TimeSlot,
 };
 
 // ==================== State & Info Commands ====================
@@ -175,12 +175,6 @@ pub fn get_slots_for_date(date: String, store: State<AppStore>) -> Result<Vec<Ti
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub fn get_day_stats(date: String, store: State<AppStore>) -> Result<DayStats, String> {
-    let parsed_date = NaiveDate::parse_from_str(&date, "%Y-%m-%d").map_err(|e| e.to_string())?;
-    store.get_day_stats(parsed_date).map_err(|e| e.to_string())
-}
-
 #[derive(Debug, Deserialize)]
 pub struct DateRangeRequest {
     #[serde(alias = "startDate")]
@@ -200,20 +194,6 @@ pub fn get_slots_for_range(
         NaiveDate::parse_from_str(&request.end_date, "%Y-%m-%d").map_err(|e| e.to_string())?;
     store
         .get_slots_for_range(start, end)
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn get_task_summaries(
-    request: DateRangeRequest,
-    store: State<AppStore>,
-) -> Result<Vec<TaskSummary>, String> {
-    let start =
-        NaiveDate::parse_from_str(&request.start_date, "%Y-%m-%d").map_err(|e| e.to_string())?;
-    let end =
-        NaiveDate::parse_from_str(&request.end_date, "%Y-%m-%d").map_err(|e| e.to_string())?;
-    store
-        .get_task_summaries(start, end)
         .map_err(|e| e.to_string())
 }
 
@@ -451,25 +431,6 @@ pub fn fill_gaps(request: FillGapsRequest, store: State<AppStore>) -> Result<Vec
 }
 
 #[derive(Debug, Deserialize)]
-pub struct SplitSlotRequest {
-    pub id: i64,
-    pub at: String,
-    pub second_task_name: Option<String>,
-}
-
-#[tauri::command]
-pub fn split_slot(request: SplitSlotRequest, store: State<AppStore>) -> Result<i64, String> {
-    use chrono::DateTime;
-
-    let at = DateTime::parse_from_rfc3339(&request.at)
-        .map_err(|e| e.to_string())?
-        .with_timezone(&chrono::Local);
-    store
-        .split_slot(request.id, at, request.second_task_name.as_deref())
-        .map_err(|e| e.to_string())
-}
-
-#[derive(Debug, Deserialize)]
 pub struct CarveSlotRequest {
     pub id: i64,
     pub from: String,
@@ -551,53 +512,6 @@ pub fn fill_gap(request: FillGapRequest, store: State<AppStore>) -> Result<i64, 
     Ok(id)
 }
 
-#[derive(Debug, Deserialize)]
-pub struct IdleReturnRequest {
-    pub action: String,
-    pub idle_minutes: i64,
-}
-
-#[tauri::command]
-pub fn handle_idle_return(
-    request: IdleReturnRequest,
-    state_mgr: State<AppStateMgr>,
-    store: State<AppStore>,
-) -> Result<(), String> {
-    let now = chrono::Local::now();
-    let idle_start = now - chrono::Duration::minutes(request.idle_minutes.max(0));
-
-    match request.action.as_str() {
-        "continue" => match state_mgr.resume_task() {
-            Ok(_) => {}
-            Err(_) if state_mgr.get_state().current_slot_id.is_some() => {}
-            Err(e) => return Err(e.to_string()),
-        },
-        "lunch" | "meeting" => {
-            state_mgr
-                .end_task_at(idle_start)
-                .map_err(|e| e.to_string())?;
-            let (name, slot_type) = if request.action == "lunch" {
-                ("午休", SlotType::Lunch)
-            } else {
-                ("會議", SlotType::Meeting)
-            };
-            let mut slot = TimeSlot::new(name.to_string(), slot_type.clone(), idle_start);
-            slot.end_ts = Some(now);
-            store.create_slot(&slot).map_err(|e| e.to_string())?;
-            store
-                .add_or_update_recent_task(name, slot_type)
-                .map_err(|e| e.to_string())?;
-        }
-        "discard" => {
-            state_mgr
-                .end_task_at(idle_start)
-                .map_err(|e| e.to_string())?;
-        }
-        _ => return Err("Invalid action".to_string()),
-    }
-    Ok(())
-}
-
 // ==================== Export Commands ====================
 
 #[derive(Debug, Serialize)]
@@ -615,8 +529,7 @@ pub struct ExportRequest {
     pub type_labels: ExportTypeLabels,
 }
 
-#[tauri::command]
-pub fn prepare_export_data(
+fn prepare_export_data(
     request: ExportRequest,
     store: State<AppStore>,
 ) -> Result<Vec<ExportRowV2>, String> {

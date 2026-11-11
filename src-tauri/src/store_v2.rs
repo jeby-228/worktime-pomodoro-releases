@@ -364,81 +364,6 @@ impl StoreV2 {
         Ok(slots)
     }
 
-    // ==================== Stats ====================
-
-    pub fn get_day_stats(&self, date: NaiveDate) -> Result<DayStats> {
-        let slots = self.get_slots_for_date(date)?;
-        let mut work_minutes = 0i64;
-        let mut interrupt_minutes = 0i64;
-        let mut meeting_minutes = 0i64;
-        let mut lunch_minutes = 0i64;
-
-        for slot in &slots {
-            if let Some(minutes) = slot.duration_minutes() {
-                match slot.slot_type {
-                    SlotType::Work => work_minutes += minutes,
-                    SlotType::Interrupt => interrupt_minutes += minutes,
-                    SlotType::Meeting => meeting_minutes += minutes,
-                    SlotType::Lunch => lunch_minutes += minutes,
-                }
-            }
-        }
-
-        Ok(DayStats {
-            date: date.to_string(),
-            total_minutes: work_minutes + interrupt_minutes + meeting_minutes + lunch_minutes,
-            work_minutes,
-            interrupt_minutes,
-            meeting_minutes,
-            lunch_minutes,
-            slots,
-        })
-    }
-
-    pub fn get_task_summaries(&self, start: NaiveDate, end: NaiveDate) -> Result<Vec<TaskSummary>> {
-        let conn = self.lock_conn();
-        let (from, until) = day_range(start, end)?;
-
-        let mut stmt = conn.prepare(
-            "SELECT task_name, slot_type, 
-                    SUM((julianday(COALESCE(end_ts, datetime('now','localtime'))) - julianday(start_ts)) * 24 * 60) as total_minutes,
-                    COUNT(*) as slot_count
-             FROM time_slots 
-             WHERE start_ts >= ?1 AND start_ts < ?2 AND end_ts IS NOT NULL
-             GROUP BY task_name, slot_type
-             ORDER BY total_minutes DESC",
-        )?;
-
-        let summaries = stmt
-            .query_map(params![from, until], |row| {
-                let minutes: f64 = row.get(2)?;
-                Ok(TaskSummary {
-                    task_name: row.get(0)?,
-                    slot_type: slot_type_at(row, 1)?,
-                    total_minutes: minutes.round() as i64,
-                    total_hours: minutes / 60.0,
-                    percentage: 0.0,
-                    slot_count: row.get(3)?,
-                })
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let grand_total: i64 = summaries.iter().map(|s| s.total_minutes).sum();
-        let summaries_with_pct: Vec<TaskSummary> = summaries
-            .into_iter()
-            .map(|mut s| {
-                s.percentage = if grand_total > 0 {
-                    (s.total_minutes as f64 / grand_total as f64) * 100.0
-                } else {
-                    0.0
-                };
-                s
-            })
-            .collect();
-
-        Ok(summaries_with_pct)
-    }
-
     pub fn find_gaps(&self, date: NaiveDate) -> Result<Vec<Gap>> {
         let slots = self.get_slots_for_date(date)?;
         let mut gaps = Vec::new();
@@ -771,55 +696,6 @@ impl StoreV2 {
         Ok(())
     }
 
-    /// Cut one finished slot into two at `at`. The original keeps its name and ends at `at`.
-    pub fn split_slot(
-        &self,
-        id: i64,
-        at: DateTime<Local>,
-        second_name: Option<&str>,
-    ) -> Result<i64> {
-        let mut conn = self.lock_conn();
-        let tx = conn.transaction()?;
-
-        let slot = load_slot(&tx, id)?.ok_or_else(|| anyhow::anyhow!("找不到這個時段"))?;
-
-        let end = slot
-            .end_ts
-            .ok_or_else(|| anyhow::anyhow!("進行中的紀錄要先結束才能分割"))?;
-
-        if at <= slot.start_ts || at >= end {
-            anyhow::bail!("分割時間要落在這筆紀錄中間");
-        }
-
-        let name = second_name
-            .map(str::trim)
-            .filter(|text| !text.is_empty())
-            .unwrap_or(slot.task_name.as_str());
-
-        write_slot_details(
-            &tx,
-            id,
-            &SlotDetails {
-                task_name: &slot.task_name,
-                slot_type: slot.slot_type.clone(),
-                start_ts: slot.start_ts,
-                end_ts: Some(at),
-                note: slot.note.as_deref(),
-                category_id: slot.category_id,
-            },
-        )?;
-
-        let mut next = TimeSlot::new(name.to_string(), slot.slot_type.clone(), at);
-        next.end_ts = Some(end);
-        next.note = slot.note.clone();
-        next.parent_id = slot.parent_id;
-        next.category_id = slot.category_id;
-        let next_id = insert_slot(&tx, &next)?;
-
-        tx.commit()?;
-        Ok(next_id)
-    }
-
     /// Give the stretch `from..to` of one finished slot to another task.
     /// The rest keeps the original task, so the slot ends up in two or three
     /// pieces. The original row stays the earliest piece. Returns the id of the
@@ -1033,35 +909,6 @@ mod tests {
     }
 
     #[test]
-    fn test_day_stats() {
-        let store = StoreV2::new(Path::new(":memory:")).unwrap();
-        // A fixed morning time keeps both slots on one date whenever this runs.
-        let date = Local::now().date_naive();
-        let now = date
-            .and_hms_opt(9, 0, 0)
-            .unwrap()
-            .and_local_timezone(Local)
-            .unwrap();
-
-        let mut slot1 = TimeSlot::new("Work 1".to_string(), SlotType::Work, now);
-        slot1.end_ts = Some(now + chrono::Duration::minutes(30));
-        store.create_slot(&slot1).unwrap();
-
-        let mut slot2 = TimeSlot::new(
-            "Lunch".to_string(),
-            SlotType::Lunch,
-            now + chrono::Duration::minutes(30),
-        );
-        slot2.end_ts = Some(now + chrono::Duration::minutes(90));
-        store.create_slot(&slot2).unwrap();
-
-        let stats = store.get_day_stats(date).unwrap();
-        assert_eq!(stats.work_minutes, 30);
-        assert_eq!(stats.lunch_minutes, 60);
-        assert_eq!(stats.total_minutes, 90);
-    }
-
-    #[test]
     fn test_recent_tasks() {
         let store = StoreV2::new(Path::new(":memory:")).unwrap();
         store
@@ -1082,29 +929,6 @@ mod tests {
 
     fn near(a: DateTime<Local>, b: DateTime<Local>) -> bool {
         a.signed_duration_since(b).num_seconds().abs() <= 1
-    }
-
-    #[test]
-    fn test_split_keeps_first_half_and_names_the_second() {
-        let store = StoreV2::new(Path::new(":memory:")).unwrap();
-        let start = Local::now();
-        let end = start + chrono::Duration::minutes(60);
-        let at = start + chrono::Duration::minutes(20);
-        let mut slot = TimeSlot::new("甲".to_string(), SlotType::Work, start);
-        slot.end_ts = Some(end);
-        slot.note = Some("備註".to_string());
-        let id = store.create_slot(&slot).unwrap();
-
-        let second_id = store.split_slot(id, at, Some("乙")).unwrap();
-        let first = store.get_slot(id).unwrap().unwrap();
-        let second = store.get_slot(second_id).unwrap().unwrap();
-        assert!(near(first.end_ts.unwrap(), at));
-        assert!(near(second.start_ts, at));
-        assert!(near(second.end_ts.unwrap(), end));
-        assert_eq!(first.task_name, "甲");
-        assert_eq!(second.task_name, "乙");
-        assert_eq!(first.note.as_deref(), Some("備註"));
-        assert!(store.split_slot(id, start, None).is_err());
     }
 
     #[test]
@@ -1333,18 +1157,18 @@ mod tests {
     }
 
     #[test]
-    fn test_split_and_merge_keep_the_category() {
+    fn test_merge_keeps_the_category() {
         let store = StoreV2::new(Path::new(":memory:")).unwrap();
         let id = category_id(&store, "規格討論");
         let start = Local::now();
         let mut slot = TimeSlot::new("甲".to_string(), SlotType::Work, start);
-        slot.end_ts = Some(start + chrono::Duration::minutes(60));
+        slot.end_ts = Some(start + chrono::Duration::minutes(20));
         slot.category_id = Some(id);
         let first = store.create_slot(&slot).unwrap();
-
-        let second = store
-            .split_slot(first, start + chrono::Duration::minutes(20), None)
-            .unwrap();
+        slot = TimeSlot::new("甲".to_string(), SlotType::Work, slot.end_ts.unwrap());
+        slot.end_ts = Some(start + chrono::Duration::minutes(60));
+        slot.category_id = Some(id);
+        let second = store.create_slot(&slot).unwrap();
         assert_eq!(
             store.get_slot(first).unwrap().unwrap().category_id,
             Some(id)
@@ -1429,37 +1253,6 @@ mod tests {
         let mut slot = TimeSlot::new(name.to_string(), SlotType::Work, start);
         slot.end_ts = Some(start + chrono::Duration::minutes(minutes));
         slot
-    }
-
-    #[test]
-    fn test_split_durations_add_up_to_the_original() {
-        let (_temp, store) = temp_store();
-        let start = Local::now() - chrono::Duration::hours(2);
-        let id = store.create_slot(&finished("原始", start, 60)).unwrap();
-        let original = store.get_slot(id).unwrap().unwrap();
-
-        let at = start + chrono::Duration::seconds(1234);
-        let second_id = store.split_slot(id, at, None).unwrap();
-        let first = store.get_slot(id).unwrap().unwrap();
-        let second = store.get_slot(second_id).unwrap().unwrap();
-
-        let span = |s: &TimeSlot| s.end_ts.unwrap() - s.start_ts;
-        assert_eq!(span(&first) + span(&second), span(&original));
-        assert_eq!(first.end_ts, Some(second.start_ts));
-    }
-
-    #[test]
-    fn test_split_rolls_back_when_the_insert_fails() {
-        let (_temp, store) = temp_store();
-        let start = Local::now() - chrono::Duration::hours(2);
-        let id = store.create_slot(&finished("原始", start, 60)).unwrap();
-        let before = dump_slots(&store);
-
-        fail_on(&store, "INSERT");
-        let at = start + chrono::Duration::minutes(20);
-        assert!(store.split_slot(id, at, Some("新")).is_err());
-
-        assert_eq!(dump_slots(&store), before);
     }
 
     fn meeting(name: &str) -> CarvedPart<'_> {
@@ -1805,7 +1598,6 @@ mod tests {
         insert_raw_slot(&store, &Uuid::new_v4().to_string(), "work", "garbage");
 
         assert!(store.get_slots_for_date(Local::now().date_naive()).is_err());
-        assert!(store.get_day_stats(Local::now().date_naive()).is_err());
         assert_store_still_works(&store);
     }
 
@@ -1830,7 +1622,6 @@ mod tests {
         let today = Local::now().date_naive();
 
         assert!(store.get_slots_for_date(today).is_err());
-        assert!(store.get_task_summaries(today, today).is_err());
         assert_store_still_works(&store);
     }
 
@@ -1887,8 +1678,6 @@ mod tests {
 
         assert_eq!(store.get_slots_for_date(day).unwrap().len(), 1);
         assert!(store.get_slots_for_date(next).unwrap().is_empty());
-        assert_eq!(store.get_task_summaries(day, day).unwrap().len(), 1);
-        assert!(store.get_task_summaries(next, next).unwrap().is_empty());
     }
 
     #[test]

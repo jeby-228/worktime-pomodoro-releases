@@ -150,7 +150,6 @@
     "theme_light": "浅色",
     "theme_dark": "深色",
     "theme_system": "跟随系统",
-    "idle_threshold": "闲置侦测阈值",
     "lunch_time": "午休时间",
     "lunch_start": "午休开始",
     "lunch_end": "午休结束",
@@ -172,18 +171,6 @@
     "auto_update": "自动更新",
     "auto_update_desc": "启动时检查 GitHub 最新版。下载后先验证数字签名，通过才安装并重新启动。",
     "update_installing": "正在下载并验证更新..."
-  },
-  "idle_return": {
-    "title": "离开检测",
-    "message": "离开 {minutes} 分钟，要算成：",
-    "continue_task": "继续原任务",
-    "lunch": "午休",
-    "meeting": "会议",
-    "continue_desc": "将闲置时间计入当前任务",
-    "lunch_desc": "将闲置时间记为午休",
-    "meeting_desc": "将闲置时间记为会议",
-    "discard": "不算",
-    "discard_desc": "不记录这段闲置时间"
   },
   "eod_review": {
     "title": "下班前检查",
